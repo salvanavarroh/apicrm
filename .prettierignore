@@ -1,0 +1,9 @@
+node_modules
+.next
+.vercel
+out
+build
+coverage
+pnpm-lock.yaml
+playwright-report
+test-results
