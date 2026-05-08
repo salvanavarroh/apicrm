@@ -11,7 +11,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public > src/types/database.ts"
+    "seed:super-admin": "tsx scripts/seed-super-admin.ts",
+    "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public --workdir . 2>/dev/null | grep -vE '^(Using workdir|A new version|We recommend)' > src/types/database.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -37,6 +38,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@next/env": "^16.2.6",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -48,6 +50,7 @@
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
