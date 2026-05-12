@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("home renderiza el hero del Sprint 0", async ({ page }) => {
+test("home sin sesión redirige a /login", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "API — CRM" })).toBeVisible();
-  await expect(page.getByText("Sprint 0", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByLabel("Email")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Entrar" })).toBeVisible();
 });
