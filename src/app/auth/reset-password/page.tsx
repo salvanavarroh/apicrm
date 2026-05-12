@@ -1,24 +1,23 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
 
-import { LoginForm } from "./login-form";
+import { ResetForm } from "./reset-form";
 
 export const metadata: Metadata = {
-  title: "Login · API",
+  title: "Nueva contraseña · API",
 };
 
-export default async function LoginPage() {
+export default async function ResetPasswordPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) redirect("/");
+  if (!user) redirect("/login");
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
@@ -27,15 +26,13 @@ export default async function LoginPage() {
           <div className="flex justify-center">
             <Logo size={56} />
           </div>
-          <LoginForm />
-          <p className="text-center">
-            <Link
-              href="/auth/forgot-password"
-              className="text-sm text-blue-600 underline-offset-2 hover:underline"
-            >
-              ¿Olvidaste tu contraseña?
-            </Link>
-          </p>
+          <header className="text-center">
+            <h1 className="text-2xl font-bold">Elegí una nueva contraseña</h1>
+            <p className="text-sm text-muted-foreground">
+              Para tu seguridad, mínimo 8 caracteres.
+            </p>
+          </header>
+          <ResetForm />
         </CardContent>
       </Card>
     </main>

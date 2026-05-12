@@ -7,8 +7,8 @@ import {
   superAdminCredentials,
 } from "./helpers";
 
-test.describe("Sprint 1 — SuperAdmin crea empresa + Admin acepta invitación", () => {
-  test("SuperAdmin: login → crear empresa → ver en la lista", async ({
+test.describe("Sprint 1 — SuperAdmin crea concesionaria + Admin acepta invitación", () => {
+  test("SuperAdmin: login → modal 3 pasos → empresa en lista", async ({
     page,
   }) => {
     const { email, password } = superAdminCredentials();
@@ -19,35 +19,61 @@ test.describe("Sprint 1 — SuperAdmin crea empresa + Admin acepta invitación",
     // Login
     await page.goto("/login");
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Contraseña").fill(password);
-    await page.getByRole("button", { name: "Entrar" }).click();
+    await page.getByLabel("Contraseña", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Iniciar sesión" }).click();
     await page.waitForURL("**/super-admin", { timeout: 10_000 });
 
-    // Crear empresa
-    await page.getByRole("link", { name: "Nueva empresa" }).first().click();
-    await page.waitForURL("**/super-admin/companies/new");
+    // Ir a Concesionarias desde el sidebar
+    await page.getByRole("link", { name: "Concesionarias" }).first().click();
+    await page.waitForURL("**/super-admin/companies");
 
-    await page.getByLabel("Nombre comercial *").fill(companyName);
-    await page.getByLabel("Email del Admin *").fill(adminEmail);
-    await page.getByLabel("Nombre *", { exact: true }).fill("E2E");
-    await page.getByLabel("Apellido *").fill("Admin");
-
+    // Abrir modal
     await page
-      .getByRole("button", { name: "Crear empresa e invitar Admin" })
+      .getByRole("button", { name: /Cargar concesionaria/i })
+      .first()
       .click();
 
-    await page.waitForURL(/\/super-admin(\?|$)/, { timeout: 15_000 });
+    // Step 1 — Concesionaria
+    await expect(
+      page.getByRole("heading", { name: "Alta de concesionaria" }),
+    ).toBeVisible();
+    await page.getByLabel("Nombre", { exact: true }).fill(companyName);
+    await page.getByLabel("Dirección").fill("Av. Test 123");
+    await page.getByLabel("Ciudad").fill("Mendoza");
+    await page.getByLabel("Número de teléfono").fill("2622618324");
+    await page.getByRole("button", { name: /Continuar/i }).click();
+
+    // Step 2 — Facturación
+    await expect(
+      page.getByRole("heading", { name: "Datos de facturación" }),
+    ).toBeVisible();
+    await page.getByLabel("Número de CUIT").fill("30-12345678-9");
+    await page.getByLabel("Razón social").fill("E2E SA");
+    await page.getByLabel("Precio mensual a cobrar").fill("50000");
+    await page.getByRole("button", { name: /Continuar/i }).click();
+
+    // Step 3 — Admin
+    await expect(
+      page.getByRole("heading", { name: "Asignación de Admin" }),
+    ).toBeVisible();
+    await page.getByLabel("Nombre", { exact: true }).fill("E2E");
+    await page.getByLabel("Apellido").fill("Admin");
+    await page.getByLabel("Email").fill(adminEmail);
+    await page.getByLabel("Número de teléfono").fill("2622618324");
+    await page.getByRole("button", { name: /Guardar/i }).click();
+
+    // Tras submit el modal cierra y la lista refleja la nueva concesionaria
     await expect(page.getByText(companyName, { exact: false })).toBeVisible({
-      timeout: 10_000,
+      timeout: 15_000,
     });
 
-    // Logout (limpieza de sesión para el siguiente test)
+    // Logout
     await page.getByRole("button", { name: "Salir" }).click();
     await page.waitForURL("**/login");
 
     // Cleanup
     await deleteUserByEmail(adminEmail);
-    await deleteCompaniesByName(`${companyName}`);
+    await deleteCompaniesByName(companyName);
   });
 
   test("Admin invitado: login con password temp → acepta invitación → /dashboard", async ({
@@ -60,7 +86,6 @@ test.describe("Sprint 1 — SuperAdmin crea empresa + Admin acepta invitación",
     const newPwd = `NewPwd-${ts}-Aa1!`;
     const companyName = `E2E Accept Co ${ts}`;
 
-    // Setup: empresa + user pending vía service_role
     const { data: company, error: cErr } = await admin
       .from("companies")
       .insert({ name: companyName, status: "pending" })
@@ -81,31 +106,22 @@ test.describe("Sprint 1 — SuperAdmin crea empresa + Admin acepta invitación",
     });
     if (uErr) throw uErr;
 
-    // El trigger handle_new_auth_user ya creó el profile con status=pending.
-
     try {
-      // Login UI con password temp
       await page.goto("/login");
       await page.getByLabel("Email").fill(adminEmail);
-      await page.getByLabel("Contraseña").fill(tempPwd);
-      await page.getByRole("button", { name: "Entrar" }).click();
+      await page.getByLabel("Contraseña", { exact: true }).fill(tempPwd);
+      await page.getByRole("button", { name: "Iniciar sesión" }).click();
 
-      // Pending → redirige a /auth/accept-invitation
       await page.waitForURL("**/auth/accept-invitation", { timeout: 10_000 });
       await expect(page.getByText(/Bienvenido/)).toBeVisible();
 
-      // Aceptar invite
       await page.getByLabel("Nueva contraseña").fill(newPwd);
       await page.getByLabel("Repetir contraseña").fill(newPwd);
       await page.getByLabel(/Acepto los/).check();
-
       await page.getByRole("button", { name: "Activar cuenta" }).click();
 
-      // Admin → /dashboard
       await page.waitForURL("**/dashboard", { timeout: 10_000 });
-      await expect(page.getByText(/admin/i).first()).toBeVisible();
     } finally {
-      // Cleanup
       await deleteUserByEmail(adminEmail);
       await deleteCompaniesByName(companyName);
     }

@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/server";
 
 import { AcceptForm } from "./accept-form";
@@ -33,21 +28,27 @@ export default async function AcceptInvitationPage() {
   if (!profile) redirect("/login");
   if (profile.status === "active") redirect("/");
 
-  const greeting =
-    [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() ||
-    user.email ||
-    "";
+  const fullName = [profile.first_name, profile.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const greeting = fullName || user.email || "";
 
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Bienvenido{greeting ? `, ${greeting}` : ""}</CardTitle>
-          <CardDescription>
-            Para activar tu cuenta, elegí una contraseña y aceptá los Términos.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <Card className="w-full max-w-md shadow-sm">
+        <CardContent className="flex flex-col gap-6 px-8 py-8">
+          <div className="flex justify-center">
+            <Logo size={56} />
+          </div>
+          <header className="text-center">
+            <h1 className="text-2xl font-bold leading-tight">
+              Bienvenido{greeting ? `, ${greeting}` : ""}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Para activar tu cuenta, elegí una contraseña y aceptá los Términos.
+            </p>
+          </header>
           <AcceptForm />
         </CardContent>
       </Card>
