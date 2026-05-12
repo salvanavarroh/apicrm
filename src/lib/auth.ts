@@ -56,6 +56,7 @@ export function homePathForRole(role: UserRole): string {
     case "super_admin":
       return "/super-admin";
     case "admin":
+      return "/admin";
     case "manager":
     case "sales":
     case "data_provider":

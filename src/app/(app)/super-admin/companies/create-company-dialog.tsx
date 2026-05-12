@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -64,6 +65,7 @@ const emptyAdmin: AdminData = {
 };
 
 export function CreateCompanyDialog({ trigger }: { trigger: ReactNode }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [company, setCompany] = useState<CompanyData>(emptyCompany);
@@ -138,6 +140,7 @@ export function CreateCompanyDialog({ trigger }: { trigger: ReactNode }) {
         `Concesionaria "${result.companyName}" creada. Invitación enviada a ${result.adminEmail}.`,
       );
       handleOpenChange(false);
+      router.refresh();
     });
   }
 

@@ -37,6 +37,24 @@ export async function deleteUserByEmail(email: string) {
   if (u) await admin.auth.admin.deleteUser(u.id);
 }
 
+/** Borra todos los users cuyo email matchee el prefijo dado. Para cleanup
+ *  entre tests E2E.
+ */
+export async function deleteUsersByPrefix(prefix: string) {
+  const admin = adminClient();
+  const { data, error } = await admin.auth.admin.listUsers({
+    page: 1,
+    perPage: 1000,
+  });
+  if (error) return;
+  const matching = data.users.filter((x) =>
+    x.email?.toLowerCase().startsWith(prefix.toLowerCase()),
+  );
+  for (const u of matching) {
+    await admin.auth.admin.deleteUser(u.id);
+  }
+}
+
 export async function deleteCompaniesByName(pattern: string) {
   const admin = adminClient();
   await admin.from("companies").delete().like("name", pattern);

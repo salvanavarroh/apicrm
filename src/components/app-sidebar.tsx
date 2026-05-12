@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Briefcase,
   Building2,
   HelpCircle,
   Home,
   LogOut,
+  Megaphone,
   Receipt,
+  Store,
   type LucideIcon,
 } from "lucide-react";
 
@@ -28,12 +31,25 @@ const SUPER_ADMIN_NAV: Item[] = [
   { href: "/super-admin/billing", label: "Facturación", icon: Receipt },
 ];
 
+const ADMIN_NAV: Item[] = [
+  { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/admin/branches", label: "Sucursales", icon: Store },
+  {
+    href: "/admin/product-types",
+    label: "Tipos de producto",
+    icon: Briefcase,
+  },
+  { href: "/admin/campaigns", label: "Campañas", icon: Megaphone },
+  { href: "/admin/company", label: "Mi empresa", icon: Building2 },
+];
+
 const APP_NAV: Item[] = [
   { href: "/dashboard", label: "Inicio", icon: Home, match: "exact" },
 ];
 
 function navForRole(role: UserRole): Item[] {
   if (role === "super_admin") return SUPER_ADMIN_NAV;
+  if (role === "admin") return ADMIN_NAV;
   return APP_NAV;
 }
 
