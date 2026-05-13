@@ -10,7 +10,10 @@ import {
   LogOut,
   Megaphone,
   Receipt,
+  Settings2,
   Store,
+  Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,7 +43,14 @@ const ADMIN_NAV: Item[] = [
     icon: Briefcase,
   },
   { href: "/admin/campaigns", label: "Campañas", icon: Megaphone },
+  { href: "/admin/users", label: "Usuarios", icon: UsersRound },
   { href: "/admin/company", label: "Mi empresa", icon: Building2 },
+];
+
+const MANAGER_NAV: Item[] = [
+  { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/manager/team", label: "Equipo", icon: Users },
+  { href: "/manager/managements", label: "Gerencias", icon: Settings2 },
 ];
 
 const APP_NAV: Item[] = [
@@ -50,6 +60,7 @@ const APP_NAV: Item[] = [
 function navForRole(role: UserRole): Item[] {
   if (role === "super_admin") return SUPER_ADMIN_NAV;
   if (role === "admin") return ADMIN_NAV;
+  if (role === "manager") return MANAGER_NAV;
   return APP_NAV;
 }
 

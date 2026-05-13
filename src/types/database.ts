@@ -191,6 +191,68 @@ export type Database = {
         }
         Relationships: []
       }
+      managements: {
+        Row: {
+          auto_assignment_enabled: boolean
+          branch_id: string
+          company_id: string
+          created_at: string
+          id: string
+          manager_id: string
+          product_type_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_assignment_enabled?: boolean
+          branch_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          manager_id: string
+          product_type_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_assignment_enabled?: boolean
+          branch_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          manager_id?: string
+          product_type_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "managements_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "managements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "managements_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "managements_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_types: {
         Row: {
           company_id: string
@@ -228,11 +290,15 @@ export type Database = {
       }
       profiles: {
         Row: {
+          branch_id: string | null
+          commission_conditions: string | null
+          commission_percent: number | null
           company_id: string | null
           created_at: string
           first_name: string
           id: string
           last_name: string
+          manager_id: string | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           status: Database["public"]["Enums"]["profile_status"]
@@ -240,11 +306,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
+          commission_conditions?: string | null
+          commission_percent?: number | null
           company_id?: string | null
           created_at?: string
           first_name?: string
           id: string
           last_name?: string
+          manager_id?: string | null
           phone?: string | null
           role: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["profile_status"]
@@ -252,11 +322,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
+          commission_conditions?: string | null
+          commission_percent?: number | null
           company_id?: string | null
           created_at?: string
           first_name?: string
           id?: string
           last_name?: string
+          manager_id?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["profile_status"]
@@ -265,10 +339,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "profiles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "profiles_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -330,6 +418,39 @@ export type Database = {
           },
         ]
       }
+      user_product_types: {
+        Row: {
+          created_at: string
+          product_type_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          product_type_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          product_type_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_product_types_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_product_types_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -340,6 +461,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      current_user_product_type_ids: { Args: never; Returns: string[] }
       has_overdue_payment: {
         Args: { p_company_id: string; p_grace_days?: number }
         Returns: boolean
