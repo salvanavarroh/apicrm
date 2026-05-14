@@ -22,6 +22,9 @@ import { KpiCard } from "@/components/kpi-card";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
+import { CreateBranchDialog } from "./create-branch-dialog";
+import { EditCompanyAsSuperAdminDialog } from "./edit-company-dialog";
+
 export default async function CompanyDetailPage({
   params,
 }: {
@@ -36,7 +39,7 @@ export default async function CompanyDetailPage({
     supabase
       .from("companies")
       .select(
-        "id, name, legal_name, cuit, phone, address, monthly_price, subscription_ends_at, status, created_at",
+        "id, name, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
       )
       .eq("id", id)
       .maybeSingle(),
@@ -106,16 +109,40 @@ export default async function CompanyDetailPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="icon" aria-label="Editar" disabled>
-            <PencilLine className="size-4" />
-          </Button>
+          <EditCompanyAsSuperAdminDialog
+            initial={{
+              id: company.id,
+              name: company.name,
+              legal_name: company.legal_name,
+              cuit: company.cuit,
+              phone: company.phone,
+              address: company.address,
+              logo_url: company.logo_url,
+              monthly_price: company.monthly_price
+                ? Number(company.monthly_price)
+                : null,
+              subscription_starts_at: company.subscription_starts_at,
+              subscription_ends_at: company.subscription_ends_at,
+              status: company.status,
+            }}
+            trigger={
+              <Button variant="outline" size="icon" aria-label="Editar">
+                <PencilLine className="size-4" />
+              </Button>
+            }
+          />
           <Button variant="outline" disabled>
             Ver lista de usuarios
           </Button>
-          <Button disabled>
-            Cargar nueva sucursal
-            <Plus className="ml-1 size-4" />
-          </Button>
+          <CreateBranchDialog
+            companyId={company.id}
+            trigger={
+              <Button>
+                Cargar nueva sucursal
+                <Plus className="ml-1 size-4" />
+              </Button>
+            }
+          />
         </div>
       </header>
 

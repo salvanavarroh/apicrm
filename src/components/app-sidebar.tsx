@@ -119,22 +119,22 @@ export function AppSidebar({ profile }: { profile: Profile }) {
         <Link
           href="/profile"
           className={cn(
-            "flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors",
+            "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors",
             pathname === "/profile"
               ? "bg-white/10"
               : "hover:bg-white/5",
           )}
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-semibold text-accent-foreground">
             {initials(profile.first_name, profile.last_name)}
           </span>
-          <span className="flex min-w-0 flex-col text-left">
-            <span className="truncate text-sm font-medium text-sidebar-foreground">
+          <span className="flex min-w-0 flex-col text-left leading-tight">
+            <span className="truncate text-xs font-medium text-sidebar-foreground">
               {[profile.first_name, profile.last_name]
                 .filter(Boolean)
                 .join(" ") || "Mi perfil"}
             </span>
-            <span className="truncate text-xs text-sidebar-muted">
+            <span className="truncate text-[10px] text-sidebar-muted">
               {ROLE_LABELS[profile.role]}
             </span>
           </span>

@@ -319,16 +319,22 @@ function BillingStep({
         />
       </Field>
       <Field label="Precio mensual a cobrar" error={errors.monthly_price}>
-        <Input
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder="Precio mensual a cobrar"
-          value={data.monthly_price ?? ""}
-          onChange={(e) =>
-            setData({ ...data, monthly_price: e.target.value })
-          }
-        />
+        <div className="relative">
+          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
+            $
+          </span>
+          <Input
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="0"
+            className="pl-7"
+            value={data.monthly_price ?? ""}
+            onChange={(e) =>
+              setData({ ...data, monthly_price: e.target.value })
+            }
+          />
+        </div>
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field
