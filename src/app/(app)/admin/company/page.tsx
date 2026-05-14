@@ -1,12 +1,16 @@
 import {
   Building2,
+  CheckCircle2,
+  Clock,
   MapPin,
   PencilLine,
   Phone,
+  Plus,
   ShieldCheck,
   Store,
   UserCog,
   Users,
+  XCircle,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +20,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
+import { BranchDetailDialog } from "./branch-detail-dialog";
 import { EditCompanyDialog } from "./edit-company-dialog";
+import { RequestBranchDialog } from "./request-branch-dialog";
 
 export default async function AdminCompanyPage() {
   const profile = await requireRole(["admin"]);
@@ -33,11 +39,11 @@ export default async function AdminCompanyPage() {
   }
 
   const supabase = await createClient();
-  const [companyRes, branchesRes, profilesRes] = await Promise.all([
+  const [companyRes, branchesRes, profilesRes, requestsRes] = await Promise.all([
     supabase
       .from("companies")
       .select(
-        "id, name, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_ends_at, status, created_at",
+        "id, name, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
       )
       .eq("id", profile.company_id)
       .maybeSingle(),
@@ -51,6 +57,12 @@ export default async function AdminCompanyPage() {
       .select("id, role, status")
       .eq("company_id", profile.company_id)
       .neq("status", "deleted"),
+    supabase
+      .from("branch_requests")
+      .select("id, name, address, city, phone, status, created_at, decision_note")
+      .eq("company_id", profile.company_id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   if (!companyRes.data) {
@@ -67,28 +79,30 @@ export default async function AdminCompanyPage() {
   const company = companyRes.data;
   const branches = branchesRes.data ?? [];
   const profiles = profilesRes.data ?? [];
+  const requests = requestsRes.data ?? [];
 
   const adminsCount = profiles.filter((p) => p.role === "admin").length;
   const managersCount = profiles.filter((p) => p.role === "manager").length;
   const sellersCount = profiles.filter((p) => p.role === "sales").length;
 
-  // Email del admin principal (= el caller en muchos casos)
-  let primaryAdminEmail = "—";
+  const pendingRequests = requests.filter((r) => r.status === "pending");
+  const hasPendingRequest = pendingRequests.length > 0;
+
   const { data: usersData } = await createAdminClient().auth.admin.listUsers({
     perPage: 1000,
   });
   const me = usersData.users.find((u) => u.id === profile.id);
-  primaryAdminEmail = me?.email ?? "—";
+  const myEmail = me?.email ?? "—";
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">{company.name}</h1>
           <div className="flex flex-col gap-1 border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
             <p>
               <strong className="text-foreground">Admin:</strong>{" "}
-              {profile.first_name} {profile.last_name} · {primaryAdminEmail}
+              {profile.first_name} {profile.last_name} · {myEmail}
             </p>
             {company.address && (
               <p className="flex items-center gap-1.5">
@@ -97,11 +111,12 @@ export default async function AdminCompanyPage() {
             )}
             <p className="text-xs">
               Alta:{" "}
-              {new Date(company.created_at).toLocaleDateString("es-AR", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
+              {company.subscription_starts_at
+                ? new Date(company.subscription_starts_at).toLocaleDateString(
+                    "es-AR",
+                    { day: "numeric", month: "short", year: "numeric" },
+                  )
+                : "—"}
             </p>
           </div>
         </div>
@@ -119,6 +134,19 @@ export default async function AdminCompanyPage() {
               </Button>
             }
           />
+          {hasPendingRequest ? (
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-3 py-2 text-sm font-medium text-success">
+              <CheckCircle2 className="size-4" /> Solicitud enviada
+            </span>
+          ) : (
+            <RequestBranchDialog
+              trigger={
+                <Button>
+                  Solicitar nueva sucursal <Plus className="ml-1 size-4" />
+                </Button>
+              }
+            />
+          )}
         </div>
       </header>
 
@@ -158,37 +186,85 @@ export default async function AdminCompanyPage() {
             <Card className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
               <Store className="size-7 text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Cargá tu primera sucursal desde el menú lateral.
+                Todavía no tenés sucursales. Solicitá la primera al SuperAdmin.
               </p>
+              {!hasPendingRequest && (
+                <RequestBranchDialog
+                  trigger={
+                    <Button variant="outline" size="sm">
+                      Solicitar sucursal
+                    </Button>
+                  }
+                />
+              )}
             </Card>
           ) : (
             branches.map((b) => (
-              <Card key={b.id} className="flex flex-col gap-2 p-5">
-                <div className="flex items-center gap-2">
-                  <Building2 className="size-4 text-foreground" />
-                  <span className="text-base font-semibold">{b.name}</span>
-                  <span
-                    className={
-                      b.status === "active"
-                        ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
-                        : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                    }
+              <BranchDetailDialog
+                key={b.id}
+                branch={b}
+                trigger={
+                  <button
+                    type="button"
+                    className="text-left transition-colors"
                   >
-                    {b.status === "active" ? "Activa" : "Inactiva"}
-                  </span>
-                </div>
-                {b.address && (
-                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <MapPin className="size-3.5" /> {b.address}
-                  </p>
-                )}
-                {b.phone && (
-                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Phone className="size-3.5" /> {b.phone}
-                  </p>
-                )}
-              </Card>
+                    <Card className="flex flex-col gap-2 p-5 transition-colors hover:cursor-pointer hover:bg-muted/40">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="size-4 text-foreground" />
+                            <span className="text-base font-semibold">
+                              {b.name}
+                            </span>
+                            <span
+                              className={
+                                b.status === "active"
+                                  ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
+                                  : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                              }
+                            >
+                              {b.status === "active" ? "Activa" : "Inactiva"}
+                            </span>
+                          </div>
+                          {b.address && (
+                            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <MapPin className="size-3.5" /> {b.address}
+                            </p>
+                          )}
+                          {b.phone && (
+                            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <Phone className="size-3.5" /> {b.phone}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </Card>
+                  </button>
+                }
+              />
             ))
+          )}
+
+          {requests.length > 0 && (
+            <div className="mt-4 flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                Historial de solicitudes
+              </h3>
+              {requests.map((r) => (
+                <Card
+                  key={r.id}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{r.name}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {[r.city, r.address].filter(Boolean).join(", ") || "—"}
+                    </span>
+                  </div>
+                  <StatusBadge status={r.status} />
+                </Card>
+              ))}
+            </div>
           )}
         </div>
 
@@ -203,6 +279,10 @@ export default async function AdminCompanyPage() {
                 ? `$${company.monthly_price}`
                 : null
             }
+          />
+          <Field
+            label="Fecha de alta"
+            value={company.subscription_starts_at}
           />
           <Field label="Vencimiento" value={company.subscription_ends_at} />
           <Field label="Estado" value={company.status} />
@@ -223,5 +303,43 @@ function Field({ label, value }: { label: string; value: string | null }) {
       </span>
       <span className="text-sm text-foreground">{value ?? "—"}</span>
     </div>
+  );
+}
+
+function StatusBadge({
+  status,
+}: {
+  status: "pending" | "approved" | "rejected" | "canceled";
+}) {
+  const map = {
+    pending: {
+      label: "Pendiente",
+      cls: "bg-warning/10 text-warning-foreground",
+      icon: Clock,
+    },
+    approved: {
+      label: "Aprobada",
+      cls: "bg-success/10 text-success",
+      icon: CheckCircle2,
+    },
+    rejected: {
+      label: "Rechazada",
+      cls: "bg-destructive/10 text-destructive",
+      icon: XCircle,
+    },
+    canceled: {
+      label: "Cancelada",
+      cls: "bg-muted text-muted-foreground",
+      icon: XCircle,
+    },
+  } as const;
+  const s = map[status];
+  const Icon = s.icon;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${s.cls}`}
+    >
+      <Icon className="size-3" /> {s.label}
+    </span>
   );
 }

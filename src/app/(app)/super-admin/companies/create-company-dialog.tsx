@@ -30,6 +30,7 @@ const billingSchema = z.object({
   cuit: z.string().optional(),
   legal_name: z.string().optional(),
   monthly_price: z.string().optional(),
+  subscription_starts_at: z.string().optional(),
   subscription_ends_at: z.string().optional(),
 });
 
@@ -51,11 +52,22 @@ const STEPS = [
 ] as const;
 
 const emptyCompany: CompanyData = { name: "", address: "", city: "", phone: "" };
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+function plusDaysIso(base: string, days: number) {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const initialStart = todayIso();
 const emptyBilling: BillingData = {
   cuit: "",
   legal_name: "",
   monthly_price: "",
-  subscription_ends_at: "",
+  subscription_starts_at: initialStart,
+  subscription_ends_at: plusDaysIso(initialStart, 30),
 };
 const emptyAdmin: AdminData = {
   first_name: "",
@@ -318,18 +330,39 @@ function BillingStep({
           }
         />
       </Field>
-      <Field
-        label="Fecha de vencimiento de pago"
-        error={errors.subscription_ends_at}
-      >
-        <Input
-          type="date"
-          value={data.subscription_ends_at ?? ""}
-          onChange={(e) =>
-            setData({ ...data, subscription_ends_at: e.target.value })
-          }
-        />
-      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field
+          label="Fecha de alta"
+          error={errors.subscription_starts_at}
+        >
+          <Input
+            type="date"
+            value={data.subscription_starts_at ?? ""}
+            onChange={(e) => {
+              const start = e.target.value;
+              setData({
+                ...data,
+                subscription_starts_at: start,
+                // Auto-calc: si el usuario no editó el vencimiento manualmente
+                // (o lo dejó vacío), reemplazamos por start + 30d.
+                subscription_ends_at: start ? plusDaysIso(start, 30) : "",
+              });
+            }}
+          />
+        </Field>
+        <Field
+          label="Fecha de vencimiento"
+          error={errors.subscription_ends_at}
+        >
+          <Input
+            type="date"
+            value={data.subscription_ends_at ?? ""}
+            onChange={(e) =>
+              setData({ ...data, subscription_ends_at: e.target.value })
+            }
+          />
+        </Field>
+      </div>
     </div>
   );
 }

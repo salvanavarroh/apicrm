@@ -47,6 +47,89 @@ export type Database = {
           },
         ]
       }
+      branch_requests: {
+        Row: {
+          address: string | null
+          city: string | null
+          company_id: string
+          created_at: string
+          created_branch_id: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          requested_by: string | null
+          status: Database["public"]["Enums"]["branch_request_status"]
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company_id: string
+          created_at?: string
+          created_branch_id?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          requested_by?: string | null
+          status?: Database["public"]["Enums"]["branch_request_status"]
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company_id?: string
+          created_at?: string
+          created_branch_id?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          requested_by?: string | null
+          status?: Database["public"]["Enums"]["branch_request_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_requests_created_branch_id_fkey"
+            columns: ["created_branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_requests_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "branch_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branches: {
         Row: {
           address: string | null
@@ -159,6 +242,7 @@ export type Database = {
           phone: string | null
           status: Database["public"]["Enums"]["company_status"]
           subscription_ends_at: string | null
+          subscription_starts_at: string | null
           updated_at: string
         }
         Insert: {
@@ -173,6 +257,7 @@ export type Database = {
           phone?: string | null
           status?: Database["public"]["Enums"]["company_status"]
           subscription_ends_at?: string | null
+          subscription_starts_at?: string | null
           updated_at?: string
         }
         Update: {
@@ -187,6 +272,7 @@ export type Database = {
           phone?: string | null
           status?: Database["public"]["Enums"]["company_status"]
           subscription_ends_at?: string | null
+          subscription_starts_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -469,6 +555,7 @@ export type Database = {
       is_super_admin: { Args: never; Returns: boolean }
     }
     Enums: {
+      branch_request_status: "pending" | "approved" | "rejected" | "canceled"
       branch_status: "active" | "inactive"
       campaign_origin:
         | "meta_ads"
@@ -612,6 +699,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      branch_request_status: ["pending", "approved", "rejected", "canceled"],
       branch_status: ["active", "inactive"],
       campaign_origin: [
         "meta_ads",

@@ -7,11 +7,11 @@ import {
   Building2,
   HelpCircle,
   Home,
+  Inbox,
   LogOut,
   Megaphone,
   Receipt,
   Settings2,
-  Store,
   Users,
   UsersRound,
   type LucideIcon,
@@ -31,12 +31,17 @@ type Item = { href: string; label: string; icon: LucideIcon; match?: string };
 const SUPER_ADMIN_NAV: Item[] = [
   { href: "/super-admin", label: "Inicio", icon: Home, match: "exact" },
   { href: "/super-admin/companies", label: "Concesionarias", icon: Building2 },
+  {
+    href: "/super-admin/branch-requests",
+    label: "Solicitudes",
+    icon: Inbox,
+  },
   { href: "/super-admin/billing", label: "Facturación", icon: Receipt },
 ];
 
 const ADMIN_NAV: Item[] = [
   { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
-  { href: "/admin/branches", label: "Sucursales", icon: Store },
+  { href: "/admin/company", label: "Mi empresa", icon: Building2 },
   {
     href: "/admin/product-types",
     label: "Tipos de producto",
@@ -44,7 +49,6 @@ const ADMIN_NAV: Item[] = [
   },
   { href: "/admin/campaigns", label: "Campañas", icon: Megaphone },
   { href: "/admin/users", label: "Usuarios", icon: UsersRound },
-  { href: "/admin/company", label: "Mi empresa", icon: Building2 },
 ];
 
 const MANAGER_NAV: Item[] = [
@@ -112,6 +116,32 @@ export function AppSidebar({ profile }: { profile: Profile }) {
       </nav>
 
       <div className="flex flex-col gap-1 px-3 pb-5">
+        <Link
+          href="/profile"
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors",
+            pathname === "/profile"
+              ? "bg-white/10"
+              : "hover:bg-white/5",
+          )}
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-accent-foreground">
+            {initials(profile.first_name, profile.last_name)}
+          </span>
+          <span className="flex min-w-0 flex-col text-left">
+            <span className="truncate text-sm font-medium text-sidebar-foreground">
+              {[profile.first_name, profile.last_name]
+                .filter(Boolean)
+                .join(" ") || "Mi perfil"}
+            </span>
+            <span className="truncate text-xs text-sidebar-muted">
+              {ROLE_LABELS[profile.role]}
+            </span>
+          </span>
+        </Link>
+
+        <Separator className="my-1 bg-sidebar-border" />
+
         <button
           type="button"
           className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground"
@@ -133,4 +163,18 @@ export function AppSidebar({ profile }: { profile: Profile }) {
       </div>
     </aside>
   );
+}
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  super_admin: "SuperAdmin",
+  admin: "Admin",
+  manager: "Gerente de ventas",
+  sales: "Vendedor",
+  data_provider: "Proveedor de datos",
+};
+
+function initials(first: string, last: string) {
+  const f = (first || "").trim().charAt(0).toUpperCase();
+  const l = (last || "").trim().charAt(0).toUpperCase();
+  return (f + l) || "U";
 }
