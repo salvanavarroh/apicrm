@@ -5,11 +5,13 @@ import {
   MapPin,
   PencilLine,
   Phone,
-  Plus,
   ShieldCheck,
   Store,
+  TrendingUp,
   UserCog,
+  UserPlus,
   Users,
+  Wallet,
   XCircle,
 } from "lucide-react";
 
@@ -20,7 +22,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
-import { BranchDetailDialog } from "./branch-detail-dialog";
+import { BranchCardActions } from "./branch-card-actions";
 import { EditCompanyDialog } from "./edit-company-dialog";
 import { RequestBranchDialog } from "./request-branch-dialog";
 
@@ -54,12 +56,12 @@ export default async function AdminCompanyPage() {
       .order("created_at", { ascending: true }),
     supabase
       .from("profiles")
-      .select("id, role, status")
+      .select("id, first_name, last_name, role, status, branch_id, manager_id")
       .eq("company_id", profile.company_id)
       .neq("status", "deleted"),
     supabase
       .from("branch_requests")
-      .select("id, name, address, city, phone, status, created_at, decision_note")
+      .select("id, name, address, city, status, decision_note")
       .eq("company_id", profile.company_id)
       .order("created_at", { ascending: false })
       .limit(20),
@@ -81,18 +83,27 @@ export default async function AdminCompanyPage() {
   const profiles = profilesRes.data ?? [];
   const requests = requestsRes.data ?? [];
 
-  const adminsCount = profiles.filter((p) => p.role === "admin").length;
-  const managersCount = profiles.filter((p) => p.role === "manager").length;
-  const sellersCount = profiles.filter((p) => p.role === "sales").length;
+  const admins = profiles.filter((p) => p.role === "admin");
+  const managers = profiles.filter((p) => p.role === "manager");
+  const sellers = profiles.filter((p) => p.role === "sales");
+  const providers = profiles.filter((p) => p.role === "data_provider");
+  const primaryAdmin = admins.find((a) => a.id === profile.id) ?? admins[0];
 
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const hasPendingRequest = pendingRequests.length > 0;
 
+  // Tasa de conversión: placeholder Sprint 7 (sin ventas todavía)
+  const conversionRate = "—";
+
+  // Email del admin actual
   const { data: usersData } = await createAdminClient().auth.admin.listUsers({
     perPage: 1000,
   });
   const me = usersData.users.find((u) => u.id === profile.id);
   const myEmail = me?.email ?? "—";
+  const adminFullName = primaryAdmin
+    ? `${primaryAdmin.first_name} ${primaryAdmin.last_name}`.trim() || "—"
+    : "—";
 
   return (
     <div className="flex flex-col gap-6">
@@ -102,7 +113,13 @@ export default async function AdminCompanyPage() {
           <div className="flex flex-col gap-1 border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
             <p>
               <strong className="text-foreground">Admin:</strong>{" "}
-              {profile.first_name} {profile.last_name} · {myEmail}
+              <a
+                href="/profile"
+                className="text-blue-600 underline-offset-2 hover:underline"
+              >
+                {adminFullName}
+              </a>{" "}
+              · {myEmail}
             </p>
             {company.address && (
               <p className="flex items-center gap-1.5">
@@ -134,6 +151,9 @@ export default async function AdminCompanyPage() {
               </Button>
             }
           />
+          <Button variant="outline" disabled>
+            Ver lista de usuarios
+          </Button>
           {hasPendingRequest ? (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-3 py-2 text-sm font-medium text-success">
               <CheckCircle2 className="size-4" /> Solicitud enviada
@@ -142,7 +162,10 @@ export default async function AdminCompanyPage() {
             <RequestBranchDialog
               trigger={
                 <Button>
-                  Solicitar nueva sucursal <Plus className="ml-1 size-4" />
+                  Solicitar nueva sucursal{" "}
+                  <span aria-hidden className="ml-1">
+                    ›
+                  </span>
                 </Button>
               }
             />
@@ -150,134 +173,170 @@ export default async function AdminCompanyPage() {
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           icon={Store}
           label="Sucursales"
           value={branches.length}
-          caption="Cantidad de sucursales"
+          caption="Cantidad de sucursales activas"
         />
         <KpiCard
           icon={ShieldCheck}
           label="Admins"
-          value={adminsCount}
+          value={admins.length}
           caption="Cantidad de administradores"
         />
         <KpiCard
           icon={UserCog}
           label="Gerentes"
-          value={managersCount}
+          value={managers.length}
           caption="Cantidad de gerentes"
         />
         <KpiCard
           icon={Users}
           label="Vendedores"
-          value={sellersCount}
+          value={sellers.length}
           caption="Cantidad de vendedores"
+        />
+        <KpiCard
+          icon={TrendingUp}
+          label="Tasa de conversión"
+          value={conversionRate}
+          caption="Tasa de conversión mensual"
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <div className="flex flex-col gap-3">
-          <h2 className="text-2xl font-bold">
-            Sucursales ({branches.length})
-          </h2>
-          {branches.length === 0 ? (
-            <Card className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-              <Store className="size-7 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Todavía no tenés sucursales. Solicitá la primera al SuperAdmin.
-              </p>
-              {!hasPendingRequest && (
-                <RequestBranchDialog
-                  trigger={
-                    <Button variant="outline" size="sm">
-                      Solicitar sucursal
-                    </Button>
-                  }
-                />
-              )}
-            </Card>
-          ) : (
-            branches.map((b) => (
-              <BranchDetailDialog
-                key={b.id}
-                branch={b}
+      <div className="flex flex-col gap-3">
+        <h2 className="text-2xl font-bold">
+          Sucursales ({branches.length})
+        </h2>
+
+        {branches.length === 0 ? (
+          <Card className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+            <Store className="size-7 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Todavía no tenés sucursales. Solicitá la primera al SuperAdmin.
+            </p>
+            {!hasPendingRequest && (
+              <RequestBranchDialog
                 trigger={
-                  <button
-                    type="button"
-                    className="text-left transition-colors"
-                  >
-                    <Card className="flex flex-col gap-2 p-5 transition-colors hover:cursor-pointer hover:bg-muted/40">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center gap-2">
-                            <Building2 className="size-4 text-foreground" />
-                            <span className="text-base font-semibold">
-                              {b.name}
-                            </span>
-                            <span
-                              className={
-                                b.status === "active"
-                                  ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
-                                  : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                              }
-                            >
-                              {b.status === "active" ? "Activa" : "Inactiva"}
-                            </span>
-                          </div>
-                          {b.address && (
-                            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                              <MapPin className="size-3.5" /> {b.address}
-                            </p>
-                          )}
-                          {b.phone && (
-                            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                              <Phone className="size-3.5" /> {b.phone}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </Card>
-                  </button>
+                  <Button variant="outline" size="sm">
+                    Solicitar sucursal
+                  </Button>
                 }
               />
-            ))
-          )}
-
-          {requests.length > 0 && (
-            <div className="mt-4 flex flex-col gap-2">
-              <h3 className="text-sm font-semibold text-muted-foreground">
-                Historial de solicitudes
-              </h3>
-              {requests.map((r) => (
-                <Card
-                  key={r.id}
-                  className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{r.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {[r.city, r.address].filter(Boolean).join(", ") || "—"}
-                    </span>
+            )}
+          </Card>
+        ) : (
+          branches.map((b) => {
+            const branchSellers = sellers.filter((s) => s.branch_id === b.id);
+            const branchManagers = managers; // Gerentes de la empresa (no scoped por sucursal acá)
+            return (
+              <Card key={b.id} className="flex flex-col gap-4 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="size-4 text-foreground" />
+                      <span className="text-lg font-semibold">{b.name}</span>
+                      <span
+                        className={
+                          b.status === "active"
+                            ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
+                            : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                        }
+                      >
+                        {b.status === "active" ? "Activa" : "Inactiva"}
+                      </span>
+                    </div>
+                    {b.address && (
+                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <MapPin className="size-3.5" /> {b.address}
+                      </p>
+                    )}
+                    {b.phone && (
+                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <Phone className="size-3.5" /> {b.phone}
+                      </p>
+                    )}
+                    <p className="flex items-center gap-1.5 text-sm">
+                      <Users className="size-3.5 text-muted-foreground" />
+                      <span className="text-muted-foreground">Admin:</span>{" "}
+                      <span className="font-medium">{adminFullName}</span>
+                    </p>
                   </div>
-                  <StatusBadge status={r.status} />
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
 
-        <Card className="flex h-fit flex-col gap-3 p-5">
-          <h3 className="text-lg font-semibold">Datos legales</h3>
+                  <BranchCardActions branch={b} />
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                  <BranchStat
+                    icon={UserPlus}
+                    label="Proveedores de datos"
+                    value={providers.length}
+                    caption="Cantidad de proveedores"
+                  />
+                  <BranchStat
+                    icon={UserCog}
+                    label="Gerentes"
+                    value={branchManagers.length}
+                    caption="Cantidad de gerentes"
+                  />
+                  <BranchStat
+                    icon={Users}
+                    label="Vendedores"
+                    value={branchSellers.length}
+                    caption="Cantidad de vendedores"
+                  />
+                  <BranchStat
+                    icon={Wallet}
+                    label="Leads activos"
+                    value="—"
+                    caption="Disponible en Sprint 4"
+                  />
+                  <BranchStat
+                    icon={Wallet}
+                    label="Ventas"
+                    value="—"
+                    caption="Disponible en Sprint 7"
+                  />
+                </div>
+              </Card>
+            );
+          })
+        )}
+
+        {requests.length > 0 && (
+          <div className="mt-2 flex flex-col gap-2">
+            <h3 className="text-sm font-semibold text-muted-foreground">
+              Historial de solicitudes
+            </h3>
+            {requests.map((r) => (
+              <Card
+                key={r.id}
+                className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-medium">{r.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {[r.city, r.address].filter(Boolean).join(", ") || "—"}
+                  </span>
+                </div>
+                <StatusBadge status={r.status} />
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <Card className="flex h-fit flex-col gap-2 p-5">
+        <h3 className="text-lg font-semibold">Datos legales</h3>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Razón social" value={company.legal_name} />
           <Field label="CUIT" value={company.cuit} />
           <Field
             label="Precio mensual"
             value={
-              company.monthly_price !== null
-                ? `$${company.monthly_price}`
-                : null
+              company.monthly_price !== null ? `$${company.monthly_price}` : null
             }
           />
           <Field
@@ -286,11 +345,11 @@ export default async function AdminCompanyPage() {
           />
           <Field label="Vencimiento" value={company.subscription_ends_at} />
           <Field label="Estado" value={company.status} />
-          <p className="mt-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-            Para modificar estos datos contactá al SuperAdmin.
-          </p>
-        </Card>
-      </div>
+        </div>
+        <p className="mt-2 rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+          Para modificar estos datos contactá al SuperAdmin.
+        </p>
+      </Card>
     </div>
   );
 }
@@ -302,6 +361,31 @@ function Field({ label, value }: { label: string; value: string | null }) {
         {label}
       </span>
       <span className="text-sm text-foreground">{value ?? "—"}</span>
+    </div>
+  );
+}
+
+function BranchStat({
+  icon: Icon,
+  label,
+  value,
+  caption,
+}: {
+  icon: typeof Building2;
+  label: string;
+  value: number | string;
+  caption?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1 rounded-md border border-border p-3">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Icon className="size-3.5 text-accent" />
+        {label}
+      </div>
+      <p className="text-2xl font-bold leading-none tracking-tight">{value}</p>
+      {caption && (
+        <p className="text-[10px] text-muted-foreground">{caption}</p>
+      )}
     </div>
   );
 }
