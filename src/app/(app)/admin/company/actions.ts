@@ -23,29 +23,24 @@ export type UpdateCompanyState = {
   success?: boolean;
 };
 
-export async function updateOperationalCompany(
-  _prev: UpdateCompanyState | undefined,
-  formData: FormData,
-): Promise<UpdateCompanyState> {
+/**
+ * Server action invocada directamente desde el modal de edición.
+ * (Mantengo también la versión con useActionState para casos sin modal.)
+ */
+export async function saveCompanyOperational(
+  input: z.input<typeof schema>,
+): Promise<{ ok: true } | { ok: false; message: string }> {
   const profile = await requireRole(["admin"]);
-
-  const parsed = schema.safeParse({
-    name: formData.get("name"),
-    phone: formData.get("phone"),
-    address: formData.get("address"),
-    logo_url: formData.get("logo_url"),
-  });
-
-  if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const issue of parsed.error.issues) {
-      fieldErrors[issue.path.join(".")] = issue.message;
-    }
-    return { fieldErrors };
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
   }
 
-  if (!profile.company_id) {
-    return { formError: "No tenés empresa asignada" };
+  const parsed = schema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+    };
   }
 
   const supabase = await createClient();
@@ -59,10 +54,23 @@ export async function updateOperationalCompany(
     })
     .eq("id", profile.company_id);
 
-  if (error) {
-    return { formError: error.message };
-  }
+  if (error) return { ok: false, message: error.message };
 
   revalidatePath("/admin/company");
+  return { ok: true };
+}
+
+/** Compat: server action con useActionState — la dejo por si la necesitamos. */
+export async function updateOperationalCompany(
+  _prev: UpdateCompanyState | undefined,
+  formData: FormData,
+): Promise<UpdateCompanyState> {
+  const result = await saveCompanyOperational({
+    name: String(formData.get("name") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    address: String(formData.get("address") ?? ""),
+    logo_url: String(formData.get("logo_url") ?? ""),
+  });
+  if (!result.ok) return { formError: result.message };
   return { success: true };
 }

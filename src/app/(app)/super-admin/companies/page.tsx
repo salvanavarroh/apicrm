@@ -8,6 +8,7 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -172,13 +173,15 @@ export default async function CompaniesPage() {
                           <PencilLine className="size-3.5" />
                         </Button>
                         <Button
+                          asChild
                           variant="outline"
                           size="icon"
                           aria-label="Detalle"
                           className="size-8"
-                          disabled
                         >
-                          <ChevronRight className="size-3.5" />
+                          <Link href={`/super-admin/companies/${c.id}`}>
+                            <ChevronRight className="size-3.5" />
+                          </Link>
                         </Button>
                       </div>
                     </td>
