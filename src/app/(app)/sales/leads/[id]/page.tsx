@@ -1,17 +1,17 @@
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import {
   NotesSection,
   type LeadNote,
 } from "@/components/leads/notes-section";
-import { ReassignDialog } from "@/components/leads/reassign-dialog";
+import { StatusChanger } from "@/components/leads/status-changer";
 import {
   TasksSection,
   type LeadTask,
 } from "@/components/leads/tasks-section";
+import { TemplatesModal } from "@/components/leads/templates-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
@@ -21,33 +21,30 @@ import {
   type LeadPaymentMethod,
 } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
-import { getAssignableSalesUsers } from "@/lib/team";
 
-export default async function AdminLeadDetailPage({
+export default async function SalesLeadDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const profile = await requireRole(["admin"]);
+  const profile = await requireRole(["sales"]);
   const supabase = await createClient();
 
-  const [{ data: lead }, { data: notes }, { data: tasks }, team] =
+  const [{ data: lead }, { data: notes }, { data: tasks }, { data: company }] =
     await Promise.all([
       supabase
         .from("leads")
         .select(
           `
             *,
-            branches:branch_id (name),
+            branches:branch_id (name, phone),
             product_types:product_type_id (name),
-            campaigns:campaign_id (name, origin),
-            assignee:profiles!assigned_user_id (first_name, last_name),
-            created_by_user:profiles!created_by (first_name, last_name, role)
+            campaigns:campaign_id (name)
           `,
         )
         .eq("id", id)
-        .eq("company_id", profile.company_id!)
+        .eq("assigned_user_id", profile.id)
         .maybeSingle(),
       supabase
         .from("lead_notes")
@@ -66,7 +63,13 @@ export default async function AdminLeadDetailPage({
         .select("id, title, description, priority, due_date, completed_at")
         .eq("lead_id", id)
         .order("created_at", { ascending: false }),
-      getAssignableSalesUsers({ companyId: profile.company_id! }),
+      profile.company_id
+        ? supabase
+            .from("companies")
+            .select("name, phone")
+            .eq("id", profile.company_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
   if (!lead) notFound();
@@ -82,10 +85,10 @@ export default async function AdminLeadDetailPage({
   return (
     <div className="flex flex-col gap-6">
       <Link
-        href="/admin/leads"
+        href="/sales/leads"
         className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ChevronLeft className="size-4" /> Volver a leads
+        <ChevronLeft className="size-4" /> Volver al pipeline
       </Link>
 
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -93,34 +96,30 @@ export default async function AdminLeadDetailPage({
           <h1 className="text-2xl font-semibold tracking-tight">
             {fullName(lead.first_name, lead.last_name)}
           </h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <LeadStatusBadge status={lead.status} />
-            <span>·</span>
-            <span>
-              Cargado el{" "}
-              {new Date(lead.created_at).toLocaleDateString("es-AR")}
-            </span>
-            {lead.created_by_user && (
-              <>
-                <span>·</span>
-                <span>
-                  por{" "}
-                  {fullName(
-                    lead.created_by_user.first_name,
-                    lead.created_by_user.last_name,
-                  )}
-                </span>
-              </>
-            )}
-          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {lead.vehicle_model || "—"}
+            {lead.vehicle_version ? ` · ${lead.vehicle_version}` : ""}
+          </p>
         </div>
-        <ReassignDialog
-          leadId={lead.id}
-          leadProductTypeId={lead.product_type_id}
-          currentAssigneeId={lead.assigned_user_id}
-          users={team}
-          trigger={<Button variant="outline">Reasignar</Button>}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusChanger leadId={lead.id} current={lead.status} />
+          <TemplatesModal
+            trigger={
+              <Button variant="outline">
+                <MessageCircle className="mr-2 size-4" /> Plantillas
+              </Button>
+            }
+            leadPhone={lead.phone}
+            context={{
+              nombre: lead.first_name ?? "",
+              nombre_completo: fullName(lead.first_name, lead.last_name),
+              vendedor: fullName(profile.first_name, profile.last_name),
+              vehiculo: lead.vehicle_model ?? "el vehículo",
+              concesionaria: company?.name ?? "",
+              telefono_concesionaria: company?.phone ?? "",
+            }}
+          />
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
@@ -166,6 +165,14 @@ export default async function AdminLeadDetailPage({
                 label="Tiene usado"
                 value={lead.has_used_car ? "Sí" : "No"}
               />
+              {lead.has_used_car && lead.used_car_description && (
+                <div className="col-span-2">
+                  <Detail
+                    label="Descripción del usado"
+                    value={lead.used_car_description}
+                  />
+                </div>
+              )}
               {lead.initial_notes && (
                 <div className="col-span-2">
                   <Detail label="Notas iniciales" value={lead.initial_notes} />
@@ -176,23 +183,10 @@ export default async function AdminLeadDetailPage({
 
           <Card>
             <CardHeader>
-              <CardTitle>Routing comercial</CardTitle>
+              <CardTitle>Generar presupuesto</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm">
-              <Detail label="Sucursal" value={lead.branches?.name} />
-              <Detail label="Tipo producto" value={lead.product_types?.name} />
-              <Detail label="Campaña" value={lead.campaigns?.name} />
-              <Detail
-                label="Vendedor asignado"
-                value={
-                  lead.assignee
-                    ? fullName(
-                        lead.assignee.first_name,
-                        lead.assignee.last_name,
-                      )
-                    : "Sin asignar"
-                }
-              />
+            <CardContent className="text-sm text-muted-foreground">
+              El módulo de presupuestos se habilita en Sprint 6.
             </CardContent>
           </Card>
 

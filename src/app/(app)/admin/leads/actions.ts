@@ -195,6 +195,11 @@ export async function createLead(
     data_snapshot: sanitizedSnapshot(parsed.data),
   });
 
+  // Intento de auto-asignación (no falla si no hay candidatos).
+  if (insert.branch_id && insert.product_type_id) {
+    await supabase.rpc("auto_assign_lead", { p_lead_id: lead.id });
+  }
+
   revalidateLeadsPaths();
   return { ok: true, leadId: lead.id };
 }
@@ -308,6 +313,9 @@ export async function classifyLead(
     .eq("id", id);
 
   if (error) return { ok: false, message: error.message };
+
+  // Auto-asignar después de clasificar.
+  await supabase.rpc("auto_assign_lead", { p_lead_id: id });
 
   revalidateLeadsPaths();
   return { ok: true, id };
@@ -478,4 +486,186 @@ export async function reassignLead(
   revalidatePath(`/admin/leads/${leadId}`);
   revalidatePath(`/manager/leads/${leadId}`);
   return { ok: true, leadId };
+}
+
+// ----------------------------------------------------------------------------
+// Cambio de estado del lead (Sales en su pipeline).
+// ----------------------------------------------------------------------------
+
+const STATUS_VALUES = [
+  "new",
+  "contacted",
+  "interested",
+  "quoted",
+  "not_interested",
+] as const;
+
+export async function updateLeadStatus(
+  leadId: string,
+  newStatus: (typeof STATUS_VALUES)[number],
+): Promise<Result<{ leadId: string }>> {
+  const profile = await requireRole(["sales", "admin", "manager"]);
+  if (!STATUS_VALUES.includes(newStatus)) {
+    return { ok: false, message: "Estado inválido" };
+  }
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("leads")
+    .update({ status: newStatus })
+    .eq("id", leadId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidateLeadsPaths();
+  revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath(`/manager/leads/${leadId}`);
+  revalidatePath(`/sales/leads/${leadId}`);
+  return { ok: true, leadId };
+}
+
+// ----------------------------------------------------------------------------
+// Notas del lead.
+// ----------------------------------------------------------------------------
+
+export async function addLeadNote(
+  leadId: string,
+  content: string,
+): Promise<Result<{ noteId: string }>> {
+  const profile = await requireRole([
+    "admin",
+    "manager",
+    "sales",
+  ]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+  const trimmed = content.trim();
+  if (trimmed.length === 0) {
+    return { ok: false, message: "La nota no puede estar vacía" };
+  }
+  if (trimmed.length > 5000) {
+    return { ok: false, message: "Nota demasiado larga" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("lead_notes")
+    .insert({
+      lead_id: leadId,
+      company_id: profile.company_id,
+      author_id: profile.id,
+      content: trimmed,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    return { ok: false, message: error?.message ?? "Error inesperado" };
+  }
+
+  revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath(`/manager/leads/${leadId}`);
+  revalidatePath(`/sales/leads/${leadId}`);
+  return { ok: true, noteId: data.id };
+}
+
+// ----------------------------------------------------------------------------
+// Tareas del lead.
+// ----------------------------------------------------------------------------
+
+const taskInputSchema = z.object({
+  title: z.string().min(1, "Título obligatorio"),
+  description: z.string().optional().or(z.literal("")),
+  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  due_date: z.string().optional().or(z.literal("")),
+});
+
+export type TaskInput = z.input<typeof taskInputSchema>;
+
+export async function addLeadTask(
+  leadId: string,
+  raw: TaskInput,
+): Promise<Result<{ taskId: string }>> {
+  const profile = await requireRole(["admin", "manager", "sales"]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+
+  const parsed = taskInputSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+    };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("lead_tasks")
+    .insert({
+      lead_id: leadId,
+      company_id: profile.company_id,
+      created_by: profile.id,
+      title: parsed.data.title.trim(),
+      description: parsed.data.description || null,
+      priority: parsed.data.priority,
+      due_date: parsed.data.due_date || null,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    return { ok: false, message: error?.message ?? "Error inesperado" };
+  }
+
+  revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath(`/manager/leads/${leadId}`);
+  revalidatePath(`/sales/leads/${leadId}`);
+  return { ok: true, taskId: data.id };
+}
+
+export async function toggleLeadTask(
+  taskId: string,
+  done: boolean,
+): Promise<Result<{ taskId: string }>> {
+  await requireRole(["admin", "manager", "sales"]);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("lead_tasks")
+    .update({ completed_at: done ? new Date().toISOString() : null })
+    .eq("id", taskId);
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, taskId };
+}
+
+export async function deleteLeadTask(
+  taskId: string,
+): Promise<Result<{ taskId: string }>> {
+  await requireRole(["admin", "manager", "sales"]);
+  const supabase = await createClient();
+  const { error } = await supabase.from("lead_tasks").delete().eq("id", taskId);
+  if (error) return { ok: false, message: error.message };
+  return { ok: true, taskId };
+}
+
+// ----------------------------------------------------------------------------
+// Toggle auto-assignment en una gerencia (Manager o Admin).
+// ----------------------------------------------------------------------------
+
+export async function setAutoAssignment(
+  managementId: string,
+  enabled: boolean,
+): Promise<Result<{ id: string }>> {
+  await requireRole(["admin", "manager"]);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("managements")
+    .update({ auto_assignment_enabled: enabled })
+    .eq("id", managementId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidatePath("/manager/managements");
+  revalidatePath("/admin");
+  return { ok: true, id: managementId };
 }
