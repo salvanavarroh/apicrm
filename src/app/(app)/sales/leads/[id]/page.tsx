@@ -7,6 +7,7 @@ import {
   type LeadNote,
 } from "@/components/leads/notes-section";
 import { StatusChanger } from "@/components/leads/status-changer";
+import { StartSaleButton } from "./start-sale-button";
 import {
   TasksSection,
   type LeadTask,
@@ -115,6 +116,17 @@ export default async function SalesLeadDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {lead.status === "quoted" && quotes && quotes.length > 0 && (
+            <StartSaleButton
+              leadId={lead.id}
+              quotes={quotes.map((q) => ({
+                id: q.id,
+                total: Number(q.total),
+                modality: q.modality,
+                created_at: q.created_at,
+              }))}
+            />
+          )}
           <StatusChanger leadId={lead.id} current={lead.status} />
           <TemplatesModal
             trigger={

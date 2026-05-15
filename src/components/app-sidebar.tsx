@@ -13,6 +13,7 @@ import {
   Megaphone,
   Receipt,
   Settings2,
+  ShoppingBag,
   UserPlus,
   Users,
   UsersRound,
@@ -45,6 +46,7 @@ const ADMIN_NAV: Item[] = [
   { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
   { href: "/admin/company", label: "Mi empresa", icon: Building2 },
   { href: "/admin/leads", label: "Leads", icon: Inbox },
+  { href: "/admin/sales", label: "Ventas", icon: ShoppingBag },
   { href: "/admin/prices", label: "Precios", icon: Receipt },
   {
     href: "/admin/product-types",
@@ -81,6 +83,7 @@ const PROVIDER_NAV: Item[] = [
 const SALES_NAV: Item[] = [
   { href: "/sales", label: "Inicio", icon: Home, match: "exact" },
   { href: "/sales/leads", label: "Mis leads", icon: Inbox },
+  { href: "/sales/sales", label: "Mis ventas", icon: ShoppingBag },
 ];
 
 const APP_NAV: Item[] = [

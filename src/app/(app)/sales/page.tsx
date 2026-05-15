@@ -16,6 +16,9 @@ export default async function SalesHomePage() {
   todayStart.setHours(0, 0, 0, 0);
   const tomorrowStart = new Date(todayStart);
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
 
   const [
     { count: total },
@@ -24,6 +27,7 @@ export default async function SalesHomePage() {
     { count: quoted },
     { data: recent },
     { data: tasksToday },
+    { data: salesMonth },
   ] = await Promise.all([
     supabase
       .from("leads")
@@ -77,7 +81,18 @@ export default async function SalesHomePage() {
       .lt("due_date", tomorrowStart.toISOString())
       .order("due_date", { ascending: true })
       .limit(5),
+    supabase
+      .from("sales")
+      .select("id, status, final_price, commission_percent_snapshot, started_at")
+      .eq("vendor_id", profile.id)
+      .gte("started_at", monthStart.toISOString()),
   ]);
+
+  const accepted = (salesMonth ?? []).filter((s) => s.status === "accepted");
+  const ganancia = accepted.reduce((acc, s) => {
+    const pct = Number(s.commission_percent_snapshot) || 0;
+    return acc + Number(s.final_price) * (pct / 100);
+  }, 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -93,8 +108,16 @@ export default async function SalesHomePage() {
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="Mis leads" value={total ?? 0} />
         <Stat label="Nuevos" value={newCount ?? 0} />
-        <Stat label="Contactados" value={contacted ?? 0} />
         <Stat label="Presupuestados" value={quoted ?? 0} />
+        <Stat
+          label="Ventas del mes"
+          value={accepted.length}
+          hint={
+            ganancia > 0
+              ? `Ganancia: ${ganancia.toLocaleString("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 })}`
+              : `${contacted ?? 0} contactados`
+          }
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -183,13 +206,24 @@ export default async function SalesHomePage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+}) {
   return (
     <Card className="p-4">
       <p className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       <p className="mt-1 text-2xl font-semibold">{value}</p>
+      {hint && (
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>
+      )}
     </Card>
   );
 }

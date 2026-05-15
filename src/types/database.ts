@@ -930,6 +930,114 @@ export type Database = {
           },
         ]
       }
+      sales: {
+        Row: {
+          commission_percent_snapshot: number | null
+          company_id: string
+          created_at: string
+          documentation_check: boolean | null
+          documentation_comment: string | null
+          final_price: number
+          general_comment: string | null
+          id: string
+          lead_id: string
+          payment_check: boolean | null
+          payment_comment: string | null
+          quote_id: string | null
+          rejection_reason: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          scoring_check: boolean | null
+          scoring_comment: string | null
+          started_at: string
+          status: Database["public"]["Enums"]["sale_status"]
+          updated_at: string
+          vendor_id: string | null
+        }
+        Insert: {
+          commission_percent_snapshot?: number | null
+          company_id: string
+          created_at?: string
+          documentation_check?: boolean | null
+          documentation_comment?: string | null
+          final_price: number
+          general_comment?: string | null
+          id?: string
+          lead_id: string
+          payment_check?: boolean | null
+          payment_comment?: string | null
+          quote_id?: string | null
+          rejection_reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          scoring_check?: boolean | null
+          scoring_comment?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["sale_status"]
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Update: {
+          commission_percent_snapshot?: number | null
+          company_id?: string
+          created_at?: string
+          documentation_check?: boolean | null
+          documentation_comment?: string | null
+          final_price?: number
+          general_comment?: string | null
+          id?: string
+          lead_id?: string
+          payment_check?: boolean | null
+          payment_comment?: string | null
+          quote_id?: string | null
+          rejection_reason?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          scoring_check?: boolean | null
+          scoring_comment?: string | null
+          started_at?: string
+          status?: Database["public"]["Enums"]["sale_status"]
+          updated_at?: string
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_payments: {
         Row: {
           amount: number
@@ -1068,6 +1176,7 @@ export type Database = {
       product_type_status: "active" | "inactive"
       profile_status: "pending" | "active" | "inactive" | "deleted"
       quote_modality: "cash" | "financed" | "savings_plan"
+      sale_status: "evaluating" | "accepted" | "rejected"
       task_priority: "low" | "medium" | "high"
       user_role: "super_admin" | "admin" | "manager" | "sales" | "data_provider"
     }
@@ -1229,6 +1338,7 @@ export const Constants = {
       product_type_status: ["active", "inactive"],
       profile_status: ["pending", "active", "inactive", "deleted"],
       quote_modality: ["cash", "financed", "savings_plan"],
+      sale_status: ["evaluating", "accepted", "rejected"],
       task_priority: ["low", "medium", "high"],
       user_role: ["super_admin", "admin", "manager", "sales", "data_provider"],
     },
