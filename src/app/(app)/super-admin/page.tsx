@@ -3,6 +3,9 @@ import {
   ChevronRight,
   CreditCard,
   Link2,
+  ShoppingBag,
+  Store,
+  Users,
   Wallet,
   WalletCards,
 } from "lucide-react";
@@ -11,6 +14,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DonutStat } from "@/components/donut-stat";
+import { KpiCard } from "@/components/kpi-card";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
@@ -25,8 +30,19 @@ export default async function SuperAdminHomePage() {
   await requireRole(["super_admin"]);
 
   const supabase = await createClient();
+  const admin = createAdminClient();
 
-  const [companiesRes, paymentsRes] = await Promise.all([
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const [
+    companiesRes,
+    paymentsRes,
+    branchesCount,
+    usersByRole,
+    salesAccepted,
+  ] = await Promise.all([
     supabase
       .from("companies")
       .select("id, status, monthly_price"),
@@ -36,7 +52,30 @@ export default async function SuperAdminHomePage() {
         "id, status, amount, due_date, period_year, period_month, company:companies!subscription_payments_company_id_fkey(id, name, phone, status, profiles!profiles_company_id_fkey(first_name, last_name, role))",
       )
       .order("due_date", { ascending: true }),
+    admin.from("branches").select("id", { count: "exact", head: true }),
+    admin
+      .from("profiles")
+      .select("role, status")
+      .neq("status", "deleted"),
+    admin
+      .from("sales")
+      .select("final_price")
+      .eq("status", "accepted"),
   ]);
+
+  const totalBranches = branchesCount.count ?? 0;
+  const users = usersByRole.data ?? [];
+  const adminsCount = users.filter((u) => u.role === "admin").length;
+  const managersCount = users.filter((u) => u.role === "manager").length;
+  const salesCount = users.filter((u) => u.role === "sales").length;
+  const providersCount = users.filter(
+    (u) => u.role === "data_provider",
+  ).length;
+  const totalSalesCount = salesAccepted.data?.length ?? 0;
+  const totalSalesAmount = (salesAccepted.data ?? []).reduce(
+    (acc, s) => acc + Number(s.final_price),
+    0,
+  );
 
   const companies = companiesRes.data ?? [];
   type Payment = {
@@ -129,6 +168,37 @@ export default async function SuperAdminHomePage() {
           </Link>
         </Button>
       </header>
+
+      <div className="grid gap-3 sm:grid-cols-4">
+        <KpiCard
+          icon={Building2}
+          label="Empresas"
+          value={companies.length}
+          caption={`${activeCount} activas`}
+        />
+        <KpiCard
+          icon={Store}
+          label="Sucursales"
+          value={totalBranches}
+          caption="Total en la plataforma"
+        />
+        <KpiCard
+          icon={Users}
+          label="Usuarios"
+          value={users.length}
+          caption={`${adminsCount}A · ${managersCount}G · ${salesCount}V · ${providersCount}P`}
+        />
+        <KpiCard
+          icon={ShoppingBag}
+          label="Ventas totales"
+          value={totalSalesCount}
+          caption={totalSalesAmount.toLocaleString("es-AR", {
+            style: "currency",
+            currency: "ARS",
+            minimumFractionDigits: 0,
+          })}
+        />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="flex flex-col gap-3 p-5">
