@@ -8,10 +8,12 @@ import {
   HelpCircle,
   Home,
   Inbox,
+  Layers,
   LogOut,
   Megaphone,
   Receipt,
   Settings2,
+  UserPlus,
   Users,
   UsersRound,
   type LucideIcon,
@@ -42,6 +44,7 @@ const SUPER_ADMIN_NAV: Item[] = [
 const ADMIN_NAV: Item[] = [
   { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
   { href: "/admin/company", label: "Mi empresa", icon: Building2 },
+  { href: "/admin/leads", label: "Leads", icon: Inbox },
   {
     href: "/admin/product-types",
     label: "Tipos de producto",
@@ -53,8 +56,25 @@ const ADMIN_NAV: Item[] = [
 
 const MANAGER_NAV: Item[] = [
   { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/manager/leads", label: "Leads", icon: Inbox },
   { href: "/manager/team", label: "Equipo", icon: Users },
   { href: "/manager/managements", label: "Gerencias", icon: Settings2 },
+];
+
+const PROVIDER_NAV: Item[] = [
+  { href: "/data-provider", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/data-provider/leads", label: "Mis cargas", icon: Inbox },
+  { href: "/data-provider/pool", label: "Sin clasificar", icon: Layers },
+  {
+    href: "/data-provider/leads/new",
+    label: "Nuevo lead",
+    icon: UserPlus,
+  },
+];
+
+const SALES_NAV: Item[] = [
+  { href: "/sales", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/sales/leads", label: "Mis leads", icon: Inbox },
 ];
 
 const APP_NAV: Item[] = [
@@ -65,6 +85,8 @@ function navForRole(role: UserRole): Item[] {
   if (role === "super_admin") return SUPER_ADMIN_NAV;
   if (role === "admin") return ADMIN_NAV;
   if (role === "manager") return MANAGER_NAV;
+  if (role === "sales") return SALES_NAV;
+  if (role === "data_provider") return PROVIDER_NAV;
   return APP_NAV;
 }
 

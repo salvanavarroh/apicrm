@@ -277,6 +277,201 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_submissions: {
+        Row: {
+          campaign_id: string | null
+          company_id: string
+          created_at: string
+          data_snapshot: Json
+          id: string
+          lead_id: string
+          submitted_by: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          company_id: string
+          created_at?: string
+          data_snapshot: Json
+          id?: string
+          lead_id: string
+          submitted_by?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          company_id?: string
+          created_at?: string
+          data_snapshot?: Json
+          id?: string
+          lead_id?: string
+          submitted_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_submissions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_submissions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_submissions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_submissions_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_at: string | null
+          assigned_user_id: string | null
+          branch_id: string | null
+          budget_max: number | null
+          budget_min: number | null
+          campaign_id: string | null
+          city: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          declared_payment_method:
+            | Database["public"]["Enums"]["lead_payment_method"]
+            | null
+          email: string | null
+          first_name: string | null
+          has_used_car: boolean
+          id: string
+          initial_notes: string | null
+          last_name: string | null
+          phone: string | null
+          preferred_color: string | null
+          product_type_id: string | null
+          status: Database["public"]["Enums"]["lead_status"]
+          status_changed_at: string
+          updated_at: string
+          used_car_description: string | null
+          vehicle_model: string | null
+          vehicle_version: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_user_id?: string | null
+          branch_id?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          campaign_id?: string | null
+          city?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          declared_payment_method?:
+            | Database["public"]["Enums"]["lead_payment_method"]
+            | null
+          email?: string | null
+          first_name?: string | null
+          has_used_car?: boolean
+          id?: string
+          initial_notes?: string | null
+          last_name?: string | null
+          phone?: string | null
+          preferred_color?: string | null
+          product_type_id?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          status_changed_at?: string
+          updated_at?: string
+          used_car_description?: string | null
+          vehicle_model?: string | null
+          vehicle_version?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_user_id?: string | null
+          branch_id?: string | null
+          budget_max?: number | null
+          budget_min?: number | null
+          campaign_id?: string | null
+          city?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          declared_payment_method?:
+            | Database["public"]["Enums"]["lead_payment_method"]
+            | null
+          email?: string | null
+          first_name?: string | null
+          has_used_car?: boolean
+          id?: string
+          initial_notes?: string | null
+          last_name?: string | null
+          phone?: string | null
+          preferred_color?: string | null
+          product_type_id?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          status_changed_at?: string
+          updated_at?: string
+          used_car_description?: string | null
+          vehicle_model?: string | null
+          vehicle_version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       managements: {
         Row: {
           auto_assignment_enabled: boolean
@@ -568,6 +763,18 @@ export type Database = {
         | "other"
       campaign_status: "active" | "inactive"
       company_status: "pending" | "active" | "suspended"
+      lead_payment_method:
+        | "cash"
+        | "financed"
+        | "savings_plan"
+        | "used_car"
+        | "other"
+      lead_status:
+        | "new"
+        | "contacted"
+        | "interested"
+        | "quoted"
+        | "not_interested"
       payment_status: "pending" | "paid" | "overdue"
       product_type_status: "active" | "inactive"
       profile_status: "pending" | "active" | "inactive" | "deleted"
@@ -713,6 +920,20 @@ export const Constants = {
       ],
       campaign_status: ["active", "inactive"],
       company_status: ["pending", "active", "suspended"],
+      lead_payment_method: [
+        "cash",
+        "financed",
+        "savings_plan",
+        "used_car",
+        "other",
+      ],
+      lead_status: [
+        "new",
+        "contacted",
+        "interested",
+        "quoted",
+        "not_interested",
+      ],
       payment_status: ["pending", "paid", "overdue"],
       product_type_status: ["active", "inactive"],
       profile_status: ["pending", "active", "inactive", "deleted"],
