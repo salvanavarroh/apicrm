@@ -45,6 +45,7 @@ const ADMIN_NAV: Item[] = [
   { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
   { href: "/admin/company", label: "Mi empresa", icon: Building2 },
   { href: "/admin/leads", label: "Leads", icon: Inbox },
+  { href: "/admin/prices", label: "Precios", icon: Receipt },
   {
     href: "/admin/product-types",
     label: "Tipos de producto",

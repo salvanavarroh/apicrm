@@ -647,6 +647,69 @@ export type Database = {
           },
         ]
       }
+      prices: {
+        Row: {
+          brand: string
+          company_id: string
+          created_at: string
+          currency: string
+          id: string
+          list_price: number
+          model: string
+          model_year: string | null
+          notes: string | null
+          product_type_id: string | null
+          status: string
+          updated_at: string
+          version: string | null
+        }
+        Insert: {
+          brand: string
+          company_id: string
+          created_at?: string
+          currency?: string
+          id?: string
+          list_price: number
+          model: string
+          model_year?: string | null
+          notes?: string | null
+          product_type_id?: string | null
+          status?: string
+          updated_at?: string
+          version?: string | null
+        }
+        Update: {
+          brand?: string
+          company_id?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          list_price?: number
+          model?: string
+          model_year?: string | null
+          notes?: string | null
+          product_type_id?: string | null
+          status?: string
+          updated_at?: string
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prices_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_types: {
         Row: {
           company_id: string
@@ -749,6 +812,118 @@ export type Database = {
           {
             foreignKeyName: "profiles_manager_id_fkey"
             columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          base_price: number
+          client_dni: string | null
+          client_email: string | null
+          client_first_name: string | null
+          client_last_name: string | null
+          client_phone: string | null
+          company_id: string
+          created_at: string
+          discount: number
+          id: string
+          lead_id: string
+          modality: Database["public"]["Enums"]["quote_modality"]
+          modality_data: Json
+          notes: string | null
+          pdf_path: string | null
+          pdf_url: string | null
+          sent_at: string | null
+          total: number
+          updated_at: string
+          used_car_value: number
+          valid_until: string | null
+          vehicle_brand: string | null
+          vehicle_color: string | null
+          vehicle_model: string | null
+          vehicle_version: string | null
+          vehicle_year: string | null
+          vendor_id: string | null
+        }
+        Insert: {
+          base_price: number
+          client_dni?: string | null
+          client_email?: string | null
+          client_first_name?: string | null
+          client_last_name?: string | null
+          client_phone?: string | null
+          company_id: string
+          created_at?: string
+          discount?: number
+          id?: string
+          lead_id: string
+          modality: Database["public"]["Enums"]["quote_modality"]
+          modality_data?: Json
+          notes?: string | null
+          pdf_path?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          total: number
+          updated_at?: string
+          used_car_value?: number
+          valid_until?: string | null
+          vehicle_brand?: string | null
+          vehicle_color?: string | null
+          vehicle_model?: string | null
+          vehicle_version?: string | null
+          vehicle_year?: string | null
+          vendor_id?: string | null
+        }
+        Update: {
+          base_price?: number
+          client_dni?: string | null
+          client_email?: string | null
+          client_first_name?: string | null
+          client_last_name?: string | null
+          client_phone?: string | null
+          company_id?: string
+          created_at?: string
+          discount?: number
+          id?: string
+          lead_id?: string
+          modality?: Database["public"]["Enums"]["quote_modality"]
+          modality_data?: Json
+          notes?: string | null
+          pdf_path?: string | null
+          pdf_url?: string | null
+          sent_at?: string | null
+          total?: number
+          updated_at?: string
+          used_car_value?: number
+          valid_until?: string | null
+          vehicle_brand?: string | null
+          vehicle_color?: string | null
+          vehicle_model?: string | null
+          vehicle_version?: string | null
+          vehicle_year?: string | null
+          vendor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_vendor_id_fkey"
+            columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -892,6 +1067,7 @@ export type Database = {
       payment_status: "pending" | "paid" | "overdue"
       product_type_status: "active" | "inactive"
       profile_status: "pending" | "active" | "inactive" | "deleted"
+      quote_modality: "cash" | "financed" | "savings_plan"
       task_priority: "low" | "medium" | "high"
       user_role: "super_admin" | "admin" | "manager" | "sales" | "data_provider"
     }
@@ -1052,6 +1228,7 @@ export const Constants = {
       payment_status: ["pending", "paid", "overdue"],
       product_type_status: ["active", "inactive"],
       profile_status: ["pending", "active", "inactive", "deleted"],
+      quote_modality: ["cash", "financed", "savings_plan"],
       task_priority: ["low", "medium", "high"],
       user_role: ["super_admin", "admin", "manager", "sales", "data_provider"],
     },
