@@ -121,7 +121,7 @@ function SalesTable({
         </thead>
         <tbody>
           {rows.map((s) => (
-            <tr key={s.id} className="border-b bg-background last:border-0 hover:bg-muted/40">
+            <tr key={s.id} className="border-b bg-card last:border-0 hover:bg-muted/40">
               <td className="px-4 py-3 font-medium">
                 {s.lead ? (
                   <>

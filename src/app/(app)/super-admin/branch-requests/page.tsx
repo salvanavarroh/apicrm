@@ -80,7 +80,7 @@ export default async function BranchRequestsPage() {
                       "—"
                     : "—";
                   return (
-                    <tr key={r.id} className="border-t border-border bg-background hover:bg-muted/40">
+                    <tr key={r.id} className="border-t border-border bg-card hover:bg-muted/40">
                       <td className="px-4 py-3 font-medium">
                         {r.company?.name ?? "—"}
                       </td>
@@ -128,7 +128,7 @@ export default async function BranchRequestsPage() {
               </thead>
               <tbody>
                 {resolved.map((r) => (
-                  <tr key={r.id} className="border-t border-border bg-background hover:bg-muted/40">
+                  <tr key={r.id} className="border-t border-border bg-card hover:bg-muted/40">
                     <td className="px-4 py-3">{r.company?.name ?? "—"}</td>
                     <td className="px-4 py-3 font-medium">{r.name}</td>
                     <td className="px-4 py-3">

@@ -110,7 +110,7 @@ export default async function BillingPage() {
                 });
 
                 return (
-                  <tr key={p.id} className="border-t border-border bg-background hover:bg-muted/40">
+                  <tr key={p.id} className="border-t border-border bg-card hover:bg-muted/40">
                     <td className="px-4 py-3 font-medium">{p.company.name}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {adminName}

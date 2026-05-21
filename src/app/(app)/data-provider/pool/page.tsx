@@ -89,7 +89,7 @@ export default async function DataProviderPoolPage() {
             </thead>
             <tbody>
               {rows.map((lead) => (
-                <tr key={lead.id} className="border-b bg-background last:border-0 hover:bg-muted/40">
+                <tr key={lead.id} className="border-b bg-card last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-3 font-medium">
                     {fullName(lead.first_name, lead.last_name)}
                   </td>

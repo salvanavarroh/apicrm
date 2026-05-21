@@ -103,7 +103,7 @@ export default async function AdminPricesPage() {
               </tr>
             )}
             {rows.map((p) => (
-              <tr key={p.id} className="border-b bg-background last:border-0 hover:bg-muted/40">
+              <tr key={p.id} className="border-b bg-card last:border-0 hover:bg-muted/40">
                 <td className="px-4 py-3 font-medium">{p.brand}</td>
                 <td className="px-4 py-3">{p.model}</td>
                 <td className="px-4 py-3 text-muted-foreground">

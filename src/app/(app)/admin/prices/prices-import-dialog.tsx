@@ -100,7 +100,7 @@ export function PricesImportDialog({ trigger }: Props) {
                 </thead>
                 <tbody>
                   {rows.slice(0, 20).map((r, i) => (
-                    <tr key={i} className="border-b bg-background last:border-0 hover:bg-muted/40">
+                    <tr key={i} className="border-b bg-card last:border-0 hover:bg-muted/40">
                       <td className="px-2 py-1">{r.brand || "—"}</td>
                       <td className="px-2 py-1">{r.model || "—"}</td>
                       <td className="px-2 py-1">{r.list_price || "—"}</td>

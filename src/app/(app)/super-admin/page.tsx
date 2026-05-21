@@ -310,7 +310,7 @@ export default async function SuperAdminHomePage() {
                     : "—";
                   const overdue = new Date(p.due_date) < new Date();
                   return (
-                    <tr key={p.id} className="border-t border-border bg-background hover:bg-muted/40">
+                    <tr key={p.id} className="border-t border-border bg-card hover:bg-muted/40">
                       <td className="px-4 py-3 font-medium">
                         {p.company.name}
                       </td>

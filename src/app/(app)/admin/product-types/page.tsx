@@ -82,7 +82,7 @@ export default async function ProductTypesPage() {
                   .map((id) => branches.find((b) => b.id === id)?.name)
                   .filter(Boolean) as string[];
                 return (
-                  <tr key={pt.id} className="border-t border-border bg-background hover:bg-muted/40">
+                  <tr key={pt.id} className="border-t border-border bg-card hover:bg-muted/40">
                     <td className="px-4 py-3 font-medium">
                       <span className="flex items-center gap-2">
                         <Briefcase className="size-3.5 text-accent" />

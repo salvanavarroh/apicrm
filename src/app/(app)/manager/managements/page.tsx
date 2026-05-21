@@ -57,7 +57,7 @@ export default async function ManagementsPage() {
             </thead>
             <tbody>
               {list.map((m) => (
-                <tr key={m.id} className="border-t border-border bg-background hover:bg-muted/40">
+                <tr key={m.id} className="border-t border-border bg-card hover:bg-muted/40">
                   <td className="px-4 py-3 font-medium">
                     {m.branch?.name ?? "—"}
                   </td>
