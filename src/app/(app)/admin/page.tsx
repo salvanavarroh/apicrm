@@ -295,7 +295,7 @@ export default async function AdminHomePage() {
             <h2 className="text-sm font-semibold">Ventas pendientes de aprobar</h2>
           </div>
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase text-muted-foreground">
+            <thead className="border-b bg-muted text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-5 py-2">Lead</th>
                 <th className="px-5 py-2">Vendedor</th>

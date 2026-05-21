@@ -71,7 +71,7 @@ export function UsersTable({
                 <tr
                   key={u.id}
                   onClick={() => setSelectedId(u.id)}
-                  className="cursor-pointer border-t border-border hover:bg-muted/40"
+                  className="cursor-pointer border-t border-border bg-background hover:bg-muted/40"
                 >
                   <td className="px-4 py-3 font-medium">{name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{email}</td>

@@ -83,7 +83,7 @@ export default async function CampaignsPage() {
                   ? branches.find((b) => b.id === c.branch_id)?.name
                   : null;
                 return (
-                  <tr key={c.id} className="border-t border-border" >
+                  <tr key={c.id} className="border-t border-border bg-background hover:bg-muted/40">
                     <td className="px-4 py-3 font-medium">
                       <span className="flex items-center gap-2">
                         <Megaphone className="size-3.5 text-accent" />

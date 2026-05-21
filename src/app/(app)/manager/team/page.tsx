@@ -111,7 +111,7 @@ export default async function ManagerTeamPage() {
                 const name =
                   `${s.first_name} ${s.last_name}`.trim() || "(sin nombre)";
                 return (
-                  <tr key={s.id} className="border-t border-border" >
+                  <tr key={s.id} className="border-t border-border bg-background hover:bg-muted/40">
                     <td className="px-4 py-3 font-medium">{name}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {emailMap.get(s.id) ?? "—"}

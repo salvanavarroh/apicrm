@@ -144,7 +144,7 @@ export default async function CompaniesPage() {
                   : "—";
 
                 return (
-                  <tr key={c.id} className="border-t border-border" >
+                  <tr key={c.id} className="border-t border-border bg-background hover:bg-muted/40">
                     <td className="px-4 py-3 font-medium">
                       <span className="flex items-center gap-2">
                         <Shield className="size-3.5 text-accent" />

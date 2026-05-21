@@ -192,7 +192,7 @@ export default async function ManagerHomePage() {
             </p>
           ) : (
             <table className="w-full text-xs">
-              <thead className="text-[10px] uppercase text-muted-foreground">
+              <thead className="border-b bg-muted text-[10px] uppercase text-muted-foreground">
                 <tr>
                   <th className="pb-2 text-left">Vendedor</th>
                   <th className="pb-2 text-right">Asignados</th>
