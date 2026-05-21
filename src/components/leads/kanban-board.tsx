@@ -141,8 +141,8 @@ function Column({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col gap-2 rounded-lg bg-muted/40 p-2 transition-colors ${
-        isOver ? "bg-accent/10" : ""
+      className={`flex flex-col gap-2 rounded-lg border border-border bg-muted/60 p-3 transition-colors ${
+        isOver ? "border-accent bg-accent/10" : ""
       }`}
     >
       <div className="flex items-center justify-between px-1">

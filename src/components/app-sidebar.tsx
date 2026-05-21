@@ -99,18 +99,29 @@ function navForRole(role: UserRole): Item[] {
   return APP_NAV;
 }
 
-function isActive(pathname: string, item: Item) {
-  if (item.match === "exact") return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+function activeHref(pathname: string, items: Item[]): string | null {
+  // Devuelve el href más específico (más largo) que matchea con la URL actual.
+  let bestMatch: { href: string; length: number } | null = null;
+  for (const item of items) {
+    const matches =
+      item.match === "exact"
+        ? pathname === item.href
+        : pathname === item.href || pathname.startsWith(`${item.href}/`);
+    if (matches && (!bestMatch || item.href.length > bestMatch.length)) {
+      bestMatch = { href: item.href, length: item.href.length };
+    }
+  }
+  return bestMatch?.href ?? null;
 }
 
 export function AppSidebar({ profile }: { profile: Profile }) {
   const pathname = usePathname();
   const items = navForRole(profile.role);
+  const activeItemHref = activeHref(pathname, items);
 
   return (
     <aside className="flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center justify-center px-6 pt-7 pb-5">
+      <div className="flex items-center px-6 pt-7 pb-5">
         <Link href="/" aria-label="Ir al inicio">
           <Logo size={44} />
         </Link>
@@ -120,7 +131,7 @@ export function AppSidebar({ profile }: { profile: Profile }) {
 
       <nav className="flex-1 flex-col gap-1 px-3 py-4">
         {items.map((item) => {
-          const active = isActive(pathname, item);
+          const active = item.href === activeItemHref;
           const Icon = item.icon;
           return (
             <Link
