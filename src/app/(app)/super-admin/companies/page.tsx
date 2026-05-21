@@ -123,7 +123,7 @@ export default async function CompaniesPage() {
       ) : (
         <Card className="overflow-hidden p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Concesionaria</th>
                 <th className="px-4 py-3 font-medium">Administrador</th>
@@ -144,7 +144,7 @@ export default async function CompaniesPage() {
                   : "—";
 
                 return (
-                  <tr key={c.id} className="border-t border-border">
+                  <tr key={c.id} className="border-t border-border" >
                     <td className="px-4 py-3 font-medium">
                       <span className="flex items-center gap-2">
                         <Shield className="size-3.5 text-accent" />

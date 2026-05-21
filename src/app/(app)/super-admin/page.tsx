@@ -18,6 +18,7 @@ import { KpiCard } from "@/components/kpi-card";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 
 function periodLabel(p: { period_year: number; period_month: number }) {
   const months = [
@@ -192,11 +193,7 @@ export default async function SuperAdminHomePage() {
           icon={ShoppingBag}
           label="Ventas totales"
           value={totalSalesCount}
-          caption={totalSalesAmount.toLocaleString("es-AR", {
-            style: "currency",
-            currency: "ARS",
-            minimumFractionDigits: 0,
-          })}
+          caption={formatARS(totalSalesAmount)}
         />
       </div>
 
@@ -274,7 +271,7 @@ export default async function SuperAdminHomePage() {
             Facturación mensual
           </div>
           <p className="text-3xl font-bold leading-none tracking-tight">
-            ${monthRevenue.toLocaleString("es-AR")}
+            {formatARS(monthRevenue)}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Ingresos mensuales
@@ -292,7 +289,7 @@ export default async function SuperAdminHomePage() {
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Concesionaria</th>
                   <th className="px-4 py-3 font-medium">Administrador</th>
@@ -313,7 +310,7 @@ export default async function SuperAdminHomePage() {
                     : "—";
                   const overdue = new Date(p.due_date) < new Date();
                   return (
-                    <tr key={p.id} className="border-t border-border">
+                    <tr key={p.id} className="border-t border-border" >
                       <td className="px-4 py-3 font-medium">
                         {p.company.name}
                       </td>
@@ -324,7 +321,7 @@ export default async function SuperAdminHomePage() {
                         {p.company.phone ?? "—"}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        ${p.amount}
+                        {formatARS(p.amount)}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {periodLabel(p)}

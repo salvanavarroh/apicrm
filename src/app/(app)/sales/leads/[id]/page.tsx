@@ -21,6 +21,7 @@ import {
   fullName,
   type LeadPaymentMethod,
 } from "@/lib/leads";
+import { formatARS } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SalesLeadDetailPage({
@@ -172,7 +173,7 @@ export default async function SalesLeadDetailPage({
                 label="Presupuesto"
                 value={
                   lead.budget_min || lead.budget_max
-                    ? `$${lead.budget_min ?? "—"} - $${lead.budget_max ?? "—"}`
+                    ? formatARS(lead.budget_min) + " - " + formatARS(lead.budget_max)
                     : "—"
                 }
               />
@@ -240,13 +241,7 @@ export default async function SalesLeadDetailPage({
                         </span>
                       </Link>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="font-mono">
-                          {Number(q.total).toLocaleString("es-AR", {
-                            style: "currency",
-                            currency: "ARS",
-                            minimumFractionDigits: 0,
-                          })}
-                        </span>
+                        <span className="font-mono">{formatARS(q.total)}</span>
                         {q.sent_at && (
                           <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] text-success">
                             Enviado

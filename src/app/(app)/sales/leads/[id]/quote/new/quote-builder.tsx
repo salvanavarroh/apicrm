@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { formatARS } from "@/lib/format";
 
 import {
   createQuote,
@@ -280,8 +281,7 @@ export function QuoteBuilder({
                   <SelectContent>
                     {prices.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.label} — $
-                        {p.price.toLocaleString("es-AR")}
+                        {p.label} — {formatARS(p.price)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -565,13 +565,7 @@ function Row({
   return (
     <div className="flex items-center justify-between">
       <span className={bold ? "" : "text-muted-foreground"}>{label}</span>
-      <span className={bold ? "" : "font-mono"}>
-        {value.toLocaleString("es-AR", {
-          style: "currency",
-          currency: "ARS",
-          minimumFractionDigits: 0,
-        })}
-      </span>
+      <span className={bold ? "" : "font-mono"}>{formatARS(value)}</span>
     </div>
   );
 }

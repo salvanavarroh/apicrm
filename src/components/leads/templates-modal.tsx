@@ -63,7 +63,7 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-[200px_1fr] gap-4">
+        <div className="grid min-w-0 grid-cols-[180px_minmax(0,1fr)] gap-4">
           <ul className="flex flex-col gap-1">
             {LEAD_TEMPLATES.map((t) => (
               <li key={t.id}>
@@ -82,7 +82,7 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
             ))}
           </ul>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex min-w-0 flex-col gap-3">
             <div>
               <p className="text-xs text-muted-foreground">
                 {selected.description}
@@ -91,7 +91,7 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
             <textarea
               readOnly
               value={body}
-              className="min-h-[140px] w-full resize-none rounded-md border bg-muted/30 px-3 py-2 text-sm"
+              className="min-h-[140px] w-full resize-none rounded-md border bg-white px-3 py-2 text-sm"
             />
             <div className="flex gap-2">
               <Button

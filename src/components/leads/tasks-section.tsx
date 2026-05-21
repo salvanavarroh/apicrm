@@ -53,44 +53,92 @@ const PRIORITY_CLS = {
 export function TasksSection({ leadId, tasks, readonly }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [items, setItems] = useState<LeadTask[]>(tasks);
+  const [lastSyncedTasks, setLastSyncedTasks] = useState(tasks);
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
   const [dueDate, setDueDate] = useState("");
 
+  // Re-sync cuando el server entrega tasks nuevas (post-refresh / navegación).
+  if (tasks !== lastSyncedTasks) {
+    setLastSyncedTasks(tasks);
+    setItems(tasks);
+  }
+
   function submit() {
     if (!title.trim()) return;
+    const tempId = `tmp_${Date.now()}`;
+    const optimistic: LeadTask = {
+      id: tempId,
+      title: title.trim(),
+      description: null,
+      priority,
+      due_date: dueDate || null,
+      completed_at: null,
+    };
+    setItems((prev) => [optimistic, ...prev]);
+    const snapshotTitle = title;
+    const snapshotDate = dueDate;
+    setTitle("");
+    setDueDate("");
+
     startTransition(async () => {
-      const result = await addLeadTask(leadId, { title, priority, due_date: dueDate });
+      const result = await addLeadTask(leadId, {
+        title: snapshotTitle,
+        priority,
+        due_date: snapshotDate,
+      });
       if (!result.ok) {
         toast.error(result.message);
+        setItems((prev) => prev.filter((t) => t.id !== tempId));
+        setTitle(snapshotTitle);
+        setDueDate(snapshotDate);
         return;
       }
-      setTitle("");
-      setDueDate("");
-      toast.success("Tarea agregada");
+      // Reemplazar el id temporal por el real (no refrescamos toda la página).
+      setItems((prev) =>
+        prev.map((t) =>
+          t.id === tempId ? { ...t, id: result.taskId } : t,
+        ),
+      );
       router.refresh();
     });
   }
 
   function toggle(taskId: string, done: boolean) {
+    // Optimistic: aplica el cambio en UI al toque.
+    setItems((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, completed_at: done ? new Date().toISOString() : null }
+          : t,
+      ),
+    );
     startTransition(async () => {
       const result = await toggleLeadTask(taskId, done);
       if (!result.ok) {
         toast.error(result.message);
-        return;
+        // Revertir
+        setItems((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? { ...t, completed_at: done ? null : new Date().toISOString() }
+              : t,
+          ),
+        );
       }
-      router.refresh();
     });
   }
 
   function remove(taskId: string) {
+    const snapshot = items;
+    setItems((prev) => prev.filter((t) => t.id !== taskId));
     startTransition(async () => {
       const result = await deleteLeadTask(taskId);
       if (!result.ok) {
         toast.error(result.message);
-        return;
+        setItems(snapshot);
       }
-      router.refresh();
     });
   }
 
@@ -149,12 +197,12 @@ export function TasksSection({ leadId, tasks, readonly }: Props) {
         )}
 
         <div className="flex flex-col gap-1.5">
-          {tasks.length === 0 && (
+          {items.length === 0 && (
             <p className="py-2 text-center text-xs text-muted-foreground">
               Sin tareas
             </p>
           )}
-          {tasks.map((task) => {
+          {items.map((task) => {
             const done = !!task.completed_at;
             return (
               <div

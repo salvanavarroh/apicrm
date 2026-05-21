@@ -59,7 +59,7 @@ export default async function BranchRequestsPage() {
         ) : (
           <Card className="overflow-hidden p-0">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Concesionaria</th>
                   <th className="px-4 py-3 font-medium">Sucursal</th>
@@ -80,7 +80,7 @@ export default async function BranchRequestsPage() {
                       "—"
                     : "—";
                   return (
-                    <tr key={r.id} className="border-t border-border">
+                    <tr key={r.id} className="border-t border-border" >
                       <td className="px-4 py-3 font-medium">
                         {r.company?.name ?? "—"}
                       </td>
@@ -117,7 +117,7 @@ export default async function BranchRequestsPage() {
           <h2 className="text-2xl font-bold">Historial</h2>
           <Card className="overflow-hidden p-0">
             <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Concesionaria</th>
                   <th className="px-4 py-3 font-medium">Sucursal</th>
@@ -128,7 +128,7 @@ export default async function BranchRequestsPage() {
               </thead>
               <tbody>
                 {resolved.map((r) => (
-                  <tr key={r.id} className="border-t border-border">
+                  <tr key={r.id} className="border-t border-border" >
                     <td className="px-4 py-3">{r.company?.name ?? "—"}</td>
                     <td className="px-4 py-3 font-medium">{r.name}</td>
                     <td className="px-4 py-3">

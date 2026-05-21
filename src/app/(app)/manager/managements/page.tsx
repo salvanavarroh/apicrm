@@ -48,7 +48,7 @@ export default async function ManagementsPage() {
       ) : (
         <Card className="overflow-hidden p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Sucursal</th>
                 <th className="px-4 py-3 font-medium">Tipo de producto</th>
@@ -57,7 +57,7 @@ export default async function ManagementsPage() {
             </thead>
             <tbody>
               {list.map((m) => (
-                <tr key={m.id} className="border-t border-border">
+                <tr key={m.id} className="border-t border-border" >
                   <td className="px-4 py-3 font-medium">
                     {m.branch?.name ?? "—"}
                   </td>

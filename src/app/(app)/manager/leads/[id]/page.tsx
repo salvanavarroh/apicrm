@@ -20,6 +20,7 @@ import {
   fullName,
   type LeadPaymentMethod,
 } from "@/lib/leads";
+import { formatARS } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
 
@@ -137,7 +138,7 @@ export default async function ManagerLeadDetailPage({
                 label="Presupuesto"
                 value={
                   lead.budget_min || lead.budget_max
-                    ? `$${lead.budget_min ?? "—"} - $${lead.budget_max ?? "—"}`
+                    ? formatARS(lead.budget_min) + " - " + formatARS(lead.budget_max)
                     : "—"
                 }
               />

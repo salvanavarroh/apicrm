@@ -16,6 +16,7 @@ import { DonutStat } from "@/components/donut-stat";
 import { KpiCard } from "@/components/kpi-card";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 import { fullName, type LeadStatus } from "@/lib/leads";
 
 const ACTIVE_LEAD_STATUSES: LeadStatus[] = [
@@ -189,11 +190,7 @@ export default async function AdminHomePage() {
           icon={ShoppingBag}
           label="Ventas del mes"
           value={acceptedMonth.length}
-          caption={ventasMonto.toLocaleString("es-AR", {
-            style: "currency",
-            currency: "ARS",
-            minimumFractionDigits: 0,
-          })}
+          caption={formatARS(ventasMonto)}
         />
         <KpiCard
           icon={ShoppingBag}
@@ -294,7 +291,7 @@ export default async function AdminHomePage() {
 
       {pendingSales.length > 0 && (
         <Card className="overflow-hidden p-0">
-          <div className="border-b bg-muted/30 px-5 py-3">
+          <div className="border-b bg-muted px-5 py-3">
             <h2 className="text-sm font-semibold">Ventas pendientes de aprobar</h2>
           </div>
           <table className="w-full text-sm">
@@ -326,11 +323,7 @@ export default async function AdminHomePage() {
                       : "—"}
                   </td>
                   <td className="px-5 py-3 text-right font-mono">
-                    {Number(s.final_price).toLocaleString("es-AR", {
-                      style: "currency",
-                      currency: "ARS",
-                      minimumFractionDigits: 0,
-                    })}
+                    {formatARS(s.final_price)}
                   </td>
                   <td className="px-5 py-3 text-xs text-muted-foreground">
                     {new Date(s.started_at).toLocaleDateString("es-AR")}

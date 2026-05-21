@@ -68,7 +68,7 @@ export default async function ProductTypesPage() {
       ) : (
         <Card className="overflow-hidden p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Tipo</th>
                 <th className="px-4 py-3 font-medium">Sucursales habilitadas</th>
@@ -82,7 +82,7 @@ export default async function ProductTypesPage() {
                   .map((id) => branches.find((b) => b.id === id)?.name)
                   .filter(Boolean) as string[];
                 return (
-                  <tr key={pt.id} className="border-t border-border">
+                  <tr key={pt.id} className="border-t border-border" >
                     <td className="px-4 py-3 font-medium">
                       <span className="flex items-center gap-2">
                         <Briefcase className="size-3.5 text-accent" />

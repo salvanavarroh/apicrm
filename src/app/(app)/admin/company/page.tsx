@@ -21,6 +21,7 @@ import { KpiCard } from "@/components/kpi-card";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 
 import { BranchCardActions } from "./branch-card-actions";
 import { EditCompanyDialog } from "./edit-company-dialog";
@@ -336,7 +337,7 @@ export default async function AdminCompanyPage() {
           <Field
             label="Precio mensual"
             value={
-              company.monthly_price !== null ? `$${company.monthly_price}` : null
+              company.monthly_price !== null ? formatARS(company.monthly_price) : null
             }
           />
           <Field

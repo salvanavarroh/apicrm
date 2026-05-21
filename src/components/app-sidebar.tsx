@@ -60,11 +60,6 @@ const ADMIN_NAV: Item[] = [
 const MANAGER_NAV: Item[] = [
   { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
   { href: "/manager/leads", label: "Leads", icon: Inbox },
-  {
-    href: "/manager/leads/unassigned",
-    label: "Sin asignar",
-    icon: Layers,
-  },
   { href: "/manager/team", label: "Equipo", icon: Users },
   { href: "/manager/managements", label: "Gerencias", icon: Settings2 },
 ];

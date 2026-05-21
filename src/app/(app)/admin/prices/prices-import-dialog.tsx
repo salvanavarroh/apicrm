@@ -91,7 +91,7 @@ export function PricesImportDialog({ trigger }: Props) {
           {rows.length > 0 && (
             <div className="max-h-60 overflow-auto rounded-md border">
               <table className="w-full text-xs">
-                <thead className="border-b bg-muted/30">
+                <thead className="border-b bg-muted">
                   <tr>
                     <th className="px-2 py-1 text-left">Marca</th>
                     <th className="px-2 py-1 text-left">Modelo</th>
@@ -100,7 +100,7 @@ export function PricesImportDialog({ trigger }: Props) {
                 </thead>
                 <tbody>
                   {rows.slice(0, 20).map((r, i) => (
-                    <tr key={i} className="border-b last:border-0">
+                    <tr key={i} className="border-b bg-background last:border-0 hover:bg-muted/40">
                       <td className="px-2 py-1">{r.brand || "—"}</td>
                       <td className="px-2 py-1">{r.model || "—"}</td>
                       <td className="px-2 py-1">{r.list_price || "—"}</td>

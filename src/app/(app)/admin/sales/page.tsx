@@ -8,6 +8,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
@@ -108,7 +109,7 @@ function SalesTable({
   return (
     <div className="overflow-hidden rounded-md border">
       <table className="w-full text-sm">
-        <thead className="border-b bg-muted/30 text-xs uppercase text-muted-foreground">
+        <thead className="border-b bg-muted text-xs uppercase text-muted-foreground">
           <tr>
             <th className="px-4 py-2 text-left">Lead</th>
             <th className="px-4 py-2 text-left">Vendedor</th>
@@ -120,7 +121,7 @@ function SalesTable({
         </thead>
         <tbody>
           {rows.map((s) => (
-            <tr key={s.id} className="border-b last:border-0">
+            <tr key={s.id} className="border-b bg-background last:border-0 hover:bg-muted/40">
               <td className="px-4 py-3 font-medium">
                 {s.lead ? (
                   <>
@@ -143,11 +144,7 @@ function SalesTable({
                   : "—"}
               </td>
               <td className="px-4 py-3 text-right font-mono">
-                {Number(s.final_price).toLocaleString("es-AR", {
-                  style: "currency",
-                  currency: "ARS",
-                  minimumFractionDigits: 0,
-                })}
+                {formatARS(s.final_price)}
               </td>
               <td className="px-4 py-3 text-xs text-muted-foreground">
                 {new Date(s.started_at).toLocaleDateString("es-AR")}

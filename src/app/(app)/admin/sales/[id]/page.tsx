@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
@@ -104,11 +105,7 @@ export default async function AdminSaleDetailPage({
               />
               <Detail
                 label="Monto final"
-                value={Number(sale.final_price).toLocaleString("es-AR", {
-                  style: "currency",
-                  currency: "ARS",
-                  minimumFractionDigits: 0,
-                })}
+                value={formatARS(sale.final_price)}
               />
               <Detail
                 label="Comisión actual del vendedor"

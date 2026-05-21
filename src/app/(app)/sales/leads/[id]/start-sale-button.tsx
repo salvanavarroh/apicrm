@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { formatARS } from "@/lib/format";
+
 import { initiateSale } from "@/app/(app)/sales/sales/actions";
 
 type Quote = { id: string; total: number; modality: string; created_at: string };
@@ -84,13 +86,7 @@ export function StartSaleButton({ leadId, quotes }: Props) {
           <SelectContent>
             {quotes.map((q) => (
               <SelectItem key={q.id} value={q.id}>
-                #{q.id.slice(0, 8)} ·{" "}
-                {Number(q.total).toLocaleString("es-AR", {
-                  style: "currency",
-                  currency: "ARS",
-                  minimumFractionDigits: 0,
-                })}{" "}
-                · {q.modality}
+                #{q.id.slice(0, 8)} · {formatARS(q.total)} · {q.modality}
               </SelectItem>
             ))}
           </SelectContent>

@@ -28,17 +28,38 @@ export function NotesSection({ leadId, notes, readonly }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [content, setContent] = useState("");
+  const [items, setItems] = useState<LeadNote[]>(notes);
+  const [lastSynced, setLastSynced] = useState(notes);
+
+  if (notes !== lastSynced) {
+    setLastSynced(notes);
+    setItems(notes);
+  }
 
   function submit() {
     if (!content.trim()) return;
+    const tempId = `tmp_${Date.now()}`;
+    const snapshot = content;
+    const optimistic: LeadNote = {
+      id: tempId,
+      content: snapshot.trim(),
+      created_at: new Date().toISOString(),
+      author: null,
+    };
+    setItems((prev) => [optimistic, ...prev]);
+    setContent("");
+
     startTransition(async () => {
-      const result = await addLeadNote(leadId, content);
+      const result = await addLeadNote(leadId, snapshot);
       if (!result.ok) {
         toast.error(result.message);
+        setItems((prev) => prev.filter((n) => n.id !== tempId));
+        setContent(snapshot);
         return;
       }
-      setContent("");
-      toast.success("Nota agregada");
+      setItems((prev) =>
+        prev.map((n) => (n.id === tempId ? { ...n, id: result.noteId } : n)),
+      );
       router.refresh();
     });
   }
@@ -48,7 +69,7 @@ export function NotesSection({ leadId, notes, readonly }: Props) {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Notas internas</CardTitle>
         <span className="text-xs text-muted-foreground">
-          {notes.length} {notes.length === 1 ? "nota" : "notas"}
+          {items.length} {items.length === 1 ? "nota" : "notas"}
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -69,12 +90,12 @@ export function NotesSection({ leadId, notes, readonly }: Props) {
           </div>
         )}
         <div className="flex flex-col gap-2">
-          {notes.length === 0 && (
+          {items.length === 0 && (
             <p className="py-2 text-center text-xs text-muted-foreground">
               Sin notas
             </p>
           )}
-          {notes.map((note) => (
+          {items.map((note) => (
             <div
               key={note.id}
               className="rounded-md bg-muted px-3 py-2 text-sm"

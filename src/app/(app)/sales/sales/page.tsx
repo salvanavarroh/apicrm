@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
@@ -60,14 +61,7 @@ export default async function VendorSalesPage() {
           label="Aceptadas"
           value={`${accepted.length}`}
         />
-        <Stat
-          label="Comisión acumulada"
-          value={totalGanancia.toLocaleString("es-AR", {
-            style: "currency",
-            currency: "ARS",
-            minimumFractionDigits: 0,
-          })}
-        />
+        <Stat label="Comisión acumulada" value={formatARS(totalGanancia)} />
       </div>
 
       {rows.length === 0 ? (
@@ -77,7 +71,7 @@ export default async function VendorSalesPage() {
       ) : (
         <div className="overflow-hidden rounded-md border">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/30 text-xs uppercase text-muted-foreground">
+            <thead className="border-b bg-muted text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left">Cliente</th>
                 <th className="px-4 py-2 text-left">Vehículo</th>
@@ -89,7 +83,7 @@ export default async function VendorSalesPage() {
             </thead>
             <tbody>
               {rows.map((s) => (
-                <tr key={s.id} className="border-b last:border-0">
+                <tr key={s.id} className="border-b bg-background last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-3 font-medium">
                     {s.lead ? (
                       <Link
@@ -106,25 +100,17 @@ export default async function VendorSalesPage() {
                     {s.lead?.vehicle_model ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-right font-mono">
-                    {Number(s.final_price).toLocaleString("es-AR", {
-                      style: "currency",
-                      currency: "ARS",
-                      minimumFractionDigits: 0,
-                    })}
+                    {formatARS(s.final_price)}
                   </td>
                   <td className="px-4 py-3 text-right text-xs">
                     {s.commission_percent_snapshot ? (
                       <>
                         {s.commission_percent_snapshot}% ·{" "}
                         <span className="font-mono">
-                          {(
+                          {formatARS(
                             Number(s.final_price) *
-                            (Number(s.commission_percent_snapshot) / 100)
-                          ).toLocaleString("es-AR", {
-                            style: "currency",
-                            currency: "ARS",
-                            minimumFractionDigits: 0,
-                          })}
+                              (Number(s.commission_percent_snapshot) / 100),
+                          )}
                         </span>
                       </>
                     ) : (

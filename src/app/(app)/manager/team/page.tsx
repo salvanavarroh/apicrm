@@ -94,7 +94,7 @@ export default async function ManagerTeamPage() {
       ) : (
         <Card className="overflow-hidden p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Vendedor</th>
                 <th className="px-4 py-3 font-medium">Email</th>
@@ -111,7 +111,7 @@ export default async function ManagerTeamPage() {
                 const name =
                   `${s.first_name} ${s.last_name}`.trim() || "(sin nombre)";
                 return (
-                  <tr key={s.id} className="border-t border-border">
+                  <tr key={s.id} className="border-t border-border" >
                     <td className="px-4 py-3 font-medium">{name}</td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {emailMap.get(s.id) ?? "—"}

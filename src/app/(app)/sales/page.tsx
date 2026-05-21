@@ -5,6 +5,7 @@ import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
@@ -114,7 +115,7 @@ export default async function SalesHomePage() {
           value={accepted.length}
           hint={
             ganancia > 0
-              ? `Ganancia: ${ganancia.toLocaleString("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 })}`
+              ? `Ganancia: ${formatARS(ganancia)}`
               : `${contacted ?? 0} contactados`
           }
         />

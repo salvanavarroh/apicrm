@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 import { QUOTE_MODALITY_LABEL } from "@/lib/quote-pdf";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -152,11 +153,7 @@ function Stat({
           highlight ? "text-xl font-semibold text-accent" : "text-base"
         }`}
       >
-        {Number(value).toLocaleString("es-AR", {
-          style: "currency",
-          currency: "ARS",
-          minimumFractionDigits: 0,
-        })}
+        {formatARS(value)}
       </p>
     </div>
   );

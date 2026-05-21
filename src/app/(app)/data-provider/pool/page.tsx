@@ -78,7 +78,7 @@ export default async function DataProviderPoolPage() {
       ) : (
         <div className="overflow-hidden rounded-md border">
           <table className="w-full text-sm">
-            <thead className="border-b bg-muted/30 text-xs uppercase text-muted-foreground">
+            <thead className="border-b bg-muted text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left">Cliente</th>
                 <th className="px-4 py-2 text-left">Contacto</th>
@@ -89,7 +89,7 @@ export default async function DataProviderPoolPage() {
             </thead>
             <tbody>
               {rows.map((lead) => (
-                <tr key={lead.id} className="border-b last:border-0">
+                <tr key={lead.id} className="border-b bg-background last:border-0 hover:bg-muted/40">
                   <td className="px-4 py-3 font-medium">
                     {fullName(lead.first_name, lead.last_name)}
                   </td>

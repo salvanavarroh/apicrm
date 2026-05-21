@@ -3,6 +3,7 @@ import { Plus, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
+import { formatARS } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
 import { PriceDialog } from "./price-dialog";
@@ -78,7 +79,7 @@ export default async function AdminPricesPage() {
 
       <div className="overflow-hidden rounded-md border">
         <table className="w-full text-sm">
-          <thead className="border-b bg-muted/30 text-xs uppercase text-muted-foreground">
+          <thead className="border-b bg-muted text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-4 py-2 text-left">Marca</th>
               <th className="px-4 py-2 text-left">Modelo</th>
@@ -102,7 +103,7 @@ export default async function AdminPricesPage() {
               </tr>
             )}
             {rows.map((p) => (
-              <tr key={p.id} className="border-b last:border-0">
+              <tr key={p.id} className="border-b bg-background last:border-0 hover:bg-muted/40">
                 <td className="px-4 py-3 font-medium">{p.brand}</td>
                 <td className="px-4 py-3">{p.model}</td>
                 <td className="px-4 py-3 text-muted-foreground">
@@ -115,11 +116,7 @@ export default async function AdminPricesPage() {
                   {p.product_types?.name ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-right font-mono">
-                  {Number(p.list_price).toLocaleString("es-AR", {
-                    style: "currency",
-                    currency: p.currency || "ARS",
-                    minimumFractionDigits: 0,
-                  })}
+                  {formatARS(p.list_price)}
                 </td>
                 <td className="px-4 py-3">
                   <Badge
