@@ -36,7 +36,9 @@ export default async function ManagerLeadsPage() {
           phone,
           email,
           vehicle_model,
+          vehicle_version,
           status,
+          status_changed_at,
           created_at,
           branch_id,
           product_type_id,
@@ -63,9 +65,14 @@ export default async function ManagerLeadsPage() {
     last_name: l.last_name,
     phone: l.phone,
     vehicle_model: l.vehicle_model,
+    vehicle_version: l.vehicle_version,
     status: l.status,
+    status_changed_at: l.status_changed_at,
     branch_name: l.branches?.name ?? null,
     product_type_name: l.product_types?.name ?? null,
+    assignee_name: l.assignee
+      ? fullName(l.assignee.first_name, l.assignee.last_name)
+      : null,
   }));
 
   const tableRows: LeadsTableRow[] = leads.map((l) => ({

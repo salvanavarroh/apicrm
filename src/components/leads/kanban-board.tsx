@@ -32,9 +32,12 @@ export type KanbanLead = {
   last_name: string | null;
   phone: string | null;
   vehicle_model: string | null;
+  vehicle_version: string | null;
   status: LeadStatus;
   branch_name: string | null;
   product_type_name: string | null;
+  assignee_name: string | null;
+  status_changed_at: string | null;
 };
 
 const COLUMN_ORDER: LeadStatus[] = [
@@ -48,6 +51,32 @@ const COLUMN_ORDER: LeadStatus[] = [
   "closed",
   "not_interested",
 ];
+
+// Fondo suave de columna por estado (header tinted + body con misma tinta).
+const COLUMN_TINT: Record<LeadStatus, string> = {
+  new: "bg-blue-50/80",
+  contacted: "bg-amber-50/80",
+  interested: "bg-emerald-50/80",
+  quoted: "bg-green-50/80",
+  evaluating: "bg-orange-50/80",
+  accepted: "bg-emerald-50",
+  rejected: "bg-red-50/80",
+  closed: "bg-zinc-100/80",
+  not_interested: "bg-zinc-100/60",
+};
+
+function timeAgo(iso: string | null) {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Recién";
+  if (mins < 60) return `${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} d`;
+  return `${Math.floor(days / 30)} m`;
+}
 
 type Props = {
   leads: KanbanLead[];
@@ -144,25 +173,26 @@ function Column({
   detailHrefPrefix: string;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: status });
+  const tint = COLUMN_TINT[status];
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col gap-2 rounded-lg border border-border bg-muted/60 p-3 transition-colors ${
-        isOver ? "border-accent bg-accent/10" : ""
+      className={`flex flex-col gap-2 rounded-lg border border-border p-3 transition-colors ${tint} ${
+        isOver ? "ring-2 ring-accent" : ""
       }`}
     >
-      <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="flex items-center justify-between px-1 py-1">
+        <span className="text-sm font-semibold text-foreground">
           {LEAD_STATUS_LABELS[status]}
         </span>
-        <span className="rounded-full bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <span className="inline-flex min-w-6 items-center justify-center rounded-md bg-card px-2 py-0.5 text-xs font-semibold text-foreground shadow-sm">
           {count}
         </span>
       </div>
 
       <div className="flex flex-col gap-2">
         {items.length === 0 && (
-          <p className="py-6 text-center text-[11px] text-muted-foreground">
+          <p className="py-6 text-center text-xs text-muted-foreground">
             Sin leads
           </p>
         )}
@@ -194,31 +224,59 @@ function Card({
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
     : undefined;
 
+  const vehicle = [lead.vehicle_model, lead.vehicle_version]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className={`rounded-md border border-border bg-card p-2.5 text-xs shadow-sm transition-shadow ${
-        isDragging || dragging ? "shadow-md opacity-90" : "hover:shadow-md"
+      className={`rounded-md border border-border bg-card p-3 text-xs shadow-sm transition-shadow ${
+        isDragging || dragging ? "opacity-90 shadow-md" : "hover:shadow-md"
       } cursor-grab active:cursor-grabbing`}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="font-medium text-foreground">
+        <p className="text-sm font-semibold text-foreground">
           {fullName(lead.first_name, lead.last_name)}
         </p>
-        <LeadStatusBadge status={lead.status} className="text-[9px]" />
+        <LeadStatusBadge status={lead.status} className="shrink-0 text-[10px]" />
       </div>
-      {lead.vehicle_model && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          {lead.vehicle_model}
-        </p>
-      )}
-      <p className="mt-0.5 text-[11px] text-muted-foreground">
-        {lead.phone || "—"}
+
+      <p className="mt-1 text-xs text-muted-foreground">
+        {vehicle || "—"}
       </p>
-      {detailHrefPrefix && (
+
+      <div className="mt-3 border-t pt-2">
+        {detailHrefPrefix && !lead.assignee_name && lead.status === "new" ? (
+          <div className="flex items-center justify-between">
+            <Link
+              href={`${detailHrefPrefix}/${lead.id}`}
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="text-xs font-medium text-accent underline-offset-2 hover:underline"
+            >
+              Asignar vendedor
+            </Link>
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <ClockIcon /> {timeAgo(lead.status_changed_at)}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span className="truncate text-xs text-muted-foreground">
+              {lead.assignee_name ?? "Sin asignar"}
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+              <ClockIcon /> {timeAgo(lead.status_changed_at)}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {detailHrefPrefix && (lead.assignee_name || lead.status !== "new") && (
         <Link
           href={`${detailHrefPrefix}/${lead.id}`}
           onClick={(e) => e.stopPropagation()}
@@ -229,5 +287,24 @@ function Card({
         </Link>
       )}
     </div>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      width="11"
+      height="11"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
   );
 }

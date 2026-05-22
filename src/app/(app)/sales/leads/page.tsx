@@ -28,7 +28,9 @@ export default async function SalesLeadsPage() {
         phone,
         email,
         vehicle_model,
+        vehicle_version,
         status,
+        status_changed_at,
         created_at,
         branches:branch_id (name),
         product_types:product_type_id (name),
@@ -38,15 +40,19 @@ export default async function SalesLeadsPage() {
     .eq("assigned_user_id", profile.id)
     .order("created_at", { ascending: false });
 
+  const myName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || null;
   const kanbanItems: KanbanLead[] = (data ?? []).map((l) => ({
     id: l.id,
     first_name: l.first_name,
     last_name: l.last_name,
     phone: l.phone,
     vehicle_model: l.vehicle_model,
+    vehicle_version: l.vehicle_version,
     status: l.status,
+    status_changed_at: l.status_changed_at,
     branch_name: l.branches?.name ?? null,
     product_type_name: l.product_types?.name ?? null,
+    assignee_name: myName,
   }));
 
   const tableRows: LeadsTableRow[] = (data ?? []).map((l) => ({
