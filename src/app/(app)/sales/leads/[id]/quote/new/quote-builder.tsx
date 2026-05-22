@@ -139,6 +139,107 @@ export function QuoteBuilder({
     };
   }, [data.base_price, data.discount, data.used_car_value]);
 
+  // Auto-calc para Detalle financiado.
+  // - Si hay anticipo y no se cargó monto a financiar manualmente, sugerimos
+  //   total − anticipo.
+  // - Si hay monto a financiar + cuotas + TNA, calculamos valor de cuota por
+  //   amortización francesa.
+  const finance = useMemo(() => {
+    const downPayment = Number(data.down_payment) || 0;
+    const financedAmount =
+      Number(data.financed_amount) ||
+      Math.max(0, totals.total - downPayment);
+    const installments = Number(data.installments) || 0;
+    const tnaPct = Number((data.tna || "").replace(",", ".")) || 0;
+    const cftPct = Number((data.cft || "").replace(",", ".")) || 0;
+
+    let monthlyPayment = Number(data.installment_value) || 0;
+    if (installments > 0 && financedAmount > 0) {
+      if (tnaPct > 0) {
+        // Amortización francesa: PMT = P * r * (1+r)^n / ((1+r)^n - 1)
+        const r = tnaPct / 100 / 12;
+        const f = Math.pow(1 + r, installments);
+        monthlyPayment = (financedAmount * r * f) / (f - 1);
+      } else if (!data.installment_value) {
+        // Sin TNA: cuota plana = monto / cuotas.
+        monthlyPayment = financedAmount / installments;
+      }
+    }
+
+    const totalToPay = monthlyPayment * installments + downPayment;
+    const totalInterest = Math.max(
+      0,
+      monthlyPayment * installments - financedAmount,
+    );
+
+    return {
+      downPayment,
+      financedAmount,
+      installments,
+      tnaPct,
+      cftPct,
+      monthlyPayment,
+      totalToPay,
+      totalInterest,
+    };
+  }, [
+    data.down_payment,
+    data.financed_amount,
+    data.installments,
+    data.tna,
+    data.cft,
+    data.installment_value,
+    totals.total,
+  ]);
+
+  // Auto-rellenado: cuando cambia anticipo (y financed_amount está vacío) →
+  // financed_amount = total − anticipo. Cuando cambia financed_amount / cuotas
+  // / tna → installment_value se setea con el valor calculado, salvo que el
+  // user lo haya escrito.
+  function handleDownPayment(v: string) {
+    setData((d) => {
+      const next = { ...d, down_payment: v };
+      const dp = Number(v) || 0;
+      if (totals.total > 0) {
+        next.financed_amount = String(Math.max(0, totals.total - dp));
+      }
+      return next;
+    });
+  }
+
+  function handleFinancedAmount(v: string) {
+    update("financed_amount", v);
+  }
+
+  function handleInstallments(v: string) {
+    update("installments", v);
+  }
+
+  function handleTna(v: string) {
+    update("tna", v);
+  }
+
+  // Plan de ahorro: auto-llena cuota inicial si está vacía.
+  const savingsPlan = useMemo(() => {
+    const total = Number(data.current_installment_value) || 0;
+    const totalInstallments = Number(data.total_installments) || 0;
+    const initial =
+      Number(data.initial_installment) ||
+      (totalInstallments > 0 && totals.total > 0
+        ? totals.total / totalInstallments
+        : 0);
+    const adminFees = Number(data.administrative_fees) || 0;
+    const planTotal =
+      total * totalInstallments + adminFees + initial;
+    return { total, totalInstallments, initial, adminFees, planTotal };
+  }, [
+    data.current_installment_value,
+    data.total_installments,
+    data.initial_installment,
+    data.administrative_fees,
+    totals.total,
+  ]);
+
   function buildPayload(): QuoteInput {
     const modalityData: Record<string, string | number> = {};
     if (data.modality === "financed") {
@@ -360,13 +461,13 @@ export function QuoteBuilder({
               <Field label="Anticipo">
                 <MoneyInput
                   value={data.down_payment}
-                  onValueChange={(v) => update("down_payment", v)}
+                  onValueChange={handleDownPayment}
                 />
               </Field>
               <Field label="Monto a financiar">
                 <MoneyInput
                   value={data.financed_amount}
-                  onValueChange={(v) => update("financed_amount", v)}
+                  onValueChange={handleFinancedAmount}
                 />
               </Field>
               <Field label="Cuotas">
@@ -374,27 +475,81 @@ export function QuoteBuilder({
                   type="number"
                   min={1}
                   value={data.installments}
-                  onChange={(e) => update("installments", e.target.value)}
+                  onChange={(e) => handleInstallments(e.target.value)}
                 />
               </Field>
               <Field label="Valor cuota">
                 <MoneyInput
-                  value={data.installment_value}
+                  value={
+                    data.installment_value ||
+                    (finance.monthlyPayment > 0
+                      ? String(Math.round(finance.monthlyPayment))
+                      : "")
+                  }
                   onValueChange={(v) => update("installment_value", v)}
+                  placeholder={
+                    finance.monthlyPayment > 0
+                      ? `Sugerido: ${Math.round(finance.monthlyPayment).toLocaleString("es-AR")}`
+                      : "—"
+                  }
                 />
               </Field>
               <Field label="TNA (%)">
                 <Input
                   value={data.tna}
-                  onChange={(e) => update("tna", e.target.value)}
+                  onChange={(e) => handleTna(e.target.value)}
+                  placeholder="Ej: 75"
                 />
               </Field>
               <Field label="CFT (%)">
                 <Input
                   value={data.cft}
                   onChange={(e) => update("cft", e.target.value)}
+                  placeholder="Ej: 95"
                 />
               </Field>
+
+              {(finance.installments > 0 ||
+                finance.monthlyPayment > 0) && (
+                <div className="col-span-2 mt-2 rounded-md border bg-muted/40 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Resumen del financiamiento
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <ResumenRow
+                      label="Anticipo"
+                      value={formatARS(finance.downPayment)}
+                    />
+                    <ResumenRow
+                      label="Monto a financiar"
+                      value={formatARS(finance.financedAmount)}
+                    />
+                    <ResumenRow
+                      label={`Cuotas`}
+                      value={`${finance.installments} × ${formatARS(finance.monthlyPayment)}`}
+                    />
+                    <ResumenRow
+                      label="Intereses estimados"
+                      value={formatARS(finance.totalInterest)}
+                    />
+                    <div className="col-span-2 mt-1 flex items-center justify-between border-t pt-2">
+                      <span className="text-sm font-semibold">
+                        Total a pagar
+                      </span>
+                      <span className="font-mono text-sm font-semibold text-accent">
+                        {formatARS(finance.totalToPay)}
+                      </span>
+                    </div>
+                    {finance.cftPct > 0 &&
+                      finance.cftPct !== finance.tnaPct && (
+                        <p className="col-span-2 text-[10px] text-muted-foreground">
+                          CFT informado: {finance.cftPct}% (incluye gastos
+                          administrativos e impositivos).
+                        </p>
+                      )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -441,6 +596,42 @@ export function QuoteBuilder({
                   onValueChange={(v) => update("administrative_fees", v)}
                 />
               </Field>
+
+              {savingsPlan.totalInstallments > 0 && (
+                <div className="col-span-2 mt-2 rounded-md border bg-muted/40 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Resumen del plan
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <ResumenRow
+                      label="Cuotas totales"
+                      value={String(savingsPlan.totalInstallments)}
+                    />
+                    <ResumenRow
+                      label="Cuota inicial"
+                      value={formatARS(savingsPlan.initial)}
+                    />
+                    <ResumenRow
+                      label="Valor cuota actual"
+                      value={formatARS(savingsPlan.total)}
+                    />
+                    <ResumenRow
+                      label="Gastos administrativos"
+                      value={formatARS(savingsPlan.adminFees)}
+                    />
+                    {savingsPlan.planTotal > 0 && (
+                      <div className="col-span-2 mt-1 flex items-center justify-between border-t pt-2">
+                        <span className="text-sm font-semibold">
+                          Total estimado del plan
+                        </span>
+                        <span className="font-mono text-sm font-semibold text-accent">
+                          {formatARS(savingsPlan.planTotal)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -526,6 +717,15 @@ function Field({
     <div className="flex flex-col gap-1">
       <Label className="text-xs">{label}</Label>
       {children}
+    </div>
+  );
+}
+
+function ResumenRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-mono text-foreground">{value}</span>
     </div>
   );
 }
