@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   Select,
   SelectContent,
@@ -330,27 +331,21 @@ export function QuoteBuilder({
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-3">
             <Field label="Precio base">
-              <Input
-                type="number"
-                min={0}
+              <MoneyInput
                 value={data.base_price}
-                onChange={(e) => update("base_price", e.target.value)}
+                onValueChange={(v) => update("base_price", v)}
               />
             </Field>
             <Field label="Descuento">
-              <Input
-                type="number"
-                min={0}
+              <MoneyInput
                 value={data.discount}
-                onChange={(e) => update("discount", e.target.value)}
+                onValueChange={(v) => update("discount", v)}
               />
             </Field>
             <Field label="Auto usado">
-              <Input
-                type="number"
-                min={0}
+              <MoneyInput
                 value={data.used_car_value}
-                onChange={(e) => update("used_car_value", e.target.value)}
+                onValueChange={(v) => update("used_car_value", v)}
               />
             </Field>
           </CardContent>
@@ -363,19 +358,15 @@ export function QuoteBuilder({
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-3">
               <Field label="Anticipo">
-                <Input
-                  type="number"
-                  min={0}
+                <MoneyInput
                   value={data.down_payment}
-                  onChange={(e) => update("down_payment", e.target.value)}
+                  onValueChange={(v) => update("down_payment", v)}
                 />
               </Field>
               <Field label="Monto a financiar">
-                <Input
-                  type="number"
-                  min={0}
+                <MoneyInput
                   value={data.financed_amount}
-                  onChange={(e) => update("financed_amount", e.target.value)}
+                  onValueChange={(v) => update("financed_amount", v)}
                 />
               </Field>
               <Field label="Cuotas">
@@ -387,13 +378,9 @@ export function QuoteBuilder({
                 />
               </Field>
               <Field label="Valor cuota">
-                <Input
-                  type="number"
-                  min={0}
+                <MoneyInput
                   value={data.installment_value}
-                  onChange={(e) =>
-                    update("installment_value", e.target.value)
-                  }
+                  onValueChange={(v) => update("installment_value", v)}
                 />
               </Field>
               <Field label="TNA (%)">
@@ -435,33 +422,23 @@ export function QuoteBuilder({
                 />
               </Field>
               <Field label="Cuota inicial">
-                <Input
-                  type="number"
-                  min={0}
+                <MoneyInput
                   value={data.initial_installment}
-                  onChange={(e) =>
-                    update("initial_installment", e.target.value)
-                  }
+                  onValueChange={(v) => update("initial_installment", v)}
                 />
               </Field>
               <Field label="Valor cuota actual">
-                <Input
-                  type="number"
-                  min={0}
+                <MoneyInput
                   value={data.current_installment_value}
-                  onChange={(e) =>
-                    update("current_installment_value", e.target.value)
+                  onValueChange={(v) =>
+                    update("current_installment_value", v)
                   }
                 />
               </Field>
               <Field label="Gastos administrativos">
-                <Input
-                  type="number"
-                  min={0}
+                <MoneyInput
                   value={data.administrative_fees}
-                  onChange={(e) =>
-                    update("administrative_fees", e.target.value)
-                  }
+                  onValueChange={(v) => update("administrative_fees", v)}
                 />
               </Field>
             </CardContent>

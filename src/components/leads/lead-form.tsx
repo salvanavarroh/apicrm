@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   Select,
   SelectContent,
@@ -191,22 +192,18 @@ export function LeadForm({
             </Select>
           </Field>
           <Field label="Presupuesto mínimo">
-            <Input
-              type="number"
-              min={0}
+            <MoneyInput
               value={data.budget_min as string | number}
-              onChange={(e) =>
-                update("budget_min", e.target.value as LeadInput["budget_min"])
+              onValueChange={(v) =>
+                update("budget_min", v as LeadInput["budget_min"])
               }
             />
           </Field>
           <Field label="Presupuesto máximo">
-            <Input
-              type="number"
-              min={0}
+            <MoneyInput
               value={data.budget_max as string | number}
-              onChange={(e) =>
-                update("budget_max", e.target.value as LeadInput["budget_max"])
+              onValueChange={(v) =>
+                update("budget_max", v as LeadInput["budget_max"])
               }
             />
           </Field>

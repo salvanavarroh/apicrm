@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   Select,
   SelectContent,
@@ -151,15 +152,12 @@ export function PriceDialog({ trigger, initial, productTypes }: Props) {
             </div>
             <div>
               <Label className="text-xs">Precio</Label>
-              <Input
-                type="number"
-                min={0}
-                step="100"
+              <MoneyInput
                 value={data.list_price as string | number}
-                onChange={(e) =>
+                onValueChange={(v) =>
                   update(
                     "list_price",
-                    e.target.value as unknown as PriceInput["list_price"],
+                    v as unknown as PriceInput["list_price"],
                   )
                 }
               />

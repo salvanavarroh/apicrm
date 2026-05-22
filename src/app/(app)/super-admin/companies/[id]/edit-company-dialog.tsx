@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   Select,
   SelectContent,
@@ -176,21 +177,12 @@ export function EditCompanyAsSuperAdminDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ec-price">Precio mensual a cobrar</Label>
-            <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
-                $
-              </span>
-              <Input
-                id="ec-price"
-                type="number"
-                min={0}
-                step="0.01"
-                placeholder="0"
-                className="pl-7"
-                value={monthlyPrice}
-                onChange={(e) => setMonthlyPrice(e.target.value)}
-              />
-            </div>
+            <MoneyInput
+              id="ec-price"
+              placeholder="0"
+              value={monthlyPrice}
+              onValueChange={setMonthlyPrice}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

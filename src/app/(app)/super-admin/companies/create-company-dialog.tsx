@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/ui/money-input";
 import { Stepper } from "@/components/stepper";
 
 import { createCompanyWithAdmin } from "./actions";
@@ -319,22 +320,13 @@ function BillingStep({
         />
       </Field>
       <Field label="Precio mensual a cobrar" error={errors.monthly_price}>
-        <div className="relative">
-          <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm text-muted-foreground">
-            $
-          </span>
-          <Input
-            type="number"
-            min={0}
-            step="0.01"
-            placeholder="0"
-            className="pl-7"
-            value={data.monthly_price ?? ""}
-            onChange={(e) =>
-              setData({ ...data, monthly_price: e.target.value })
-            }
-          />
-        </div>
+        <MoneyInput
+          placeholder="0"
+          value={data.monthly_price ?? ""}
+          onValueChange={(v) =>
+            setData({ ...data, monthly_price: v })
+          }
+        />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field
