@@ -70,9 +70,17 @@ export async function initiateSale(
     return { ok: false, message: error?.message ?? "Error inesperado" };
   }
 
+  // El lead pasa a "Evaluando" cuando se inicia la venta.
+  await supabase
+    .from("leads")
+    .update({ status: "evaluating" })
+    .eq("id", parsed.data.lead_id);
+
   revalidatePath("/sales");
   revalidatePath("/sales/leads");
   revalidatePath(`/sales/leads/${parsed.data.lead_id}`);
+  revalidatePath("/manager/leads");
   revalidatePath("/admin/sales");
+  revalidatePath("/admin/leads");
   return { ok: true, saleId: sale.id };
 }

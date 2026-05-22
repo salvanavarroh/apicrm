@@ -2,6 +2,7 @@ import { ChevronLeft, FileText, MessageCircle, Plus } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import {
   NotesSection,
   type LeadNote,
@@ -39,6 +40,7 @@ export default async function SalesLeadDetailPage({
     { data: tasks },
     { data: company },
     { data: quotes },
+    { data: sales },
   ] = await Promise.all([
     supabase
       .from("leads")
@@ -85,6 +87,14 @@ export default async function SalesLeadDetailPage({
       .eq("lead_id", id)
       .eq("vendor_id", profile.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("sales")
+      .select(
+        "id, status, final_price, started_at, resolved_at, rejection_reason, general_comment, scoring_comment, documentation_comment, payment_comment, commission_percent_snapshot",
+      )
+      .eq("lead_id", id)
+      .eq("vendor_id", profile.id)
+      .order("started_at", { ascending: false }),
   ]);
 
   if (!lead) notFound();
@@ -96,6 +106,10 @@ export default async function SalesLeadDetailPage({
     author: n.author ?? null,
   }));
   const taskRows: LeadTask[] = (tasks ?? []) as LeadTask[];
+
+  const saleRows = sales ?? [];
+  const activeSale = saleRows.find((s) => s.status === "evaluating") ?? null;
+  const hasQuotedAvailable = lead.status === "quoted";
 
   return (
     <div className="flex flex-col gap-6">
@@ -111,13 +125,17 @@ export default async function SalesLeadDetailPage({
           <h1 className="text-2xl font-semibold tracking-tight">
             {fullName(lead.first_name, lead.last_name)}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {lead.vehicle_model || "—"}
-            {lead.vehicle_version ? ` · ${lead.vehicle_version}` : ""}
-          </p>
+          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <LeadStatusBadge status={lead.status} />
+            <span>·</span>
+            <span>
+              {lead.vehicle_model || "—"}
+              {lead.vehicle_version ? ` ${lead.vehicle_version}` : ""}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {lead.status === "quoted" && quotes && quotes.length > 0 && (
+          {hasQuotedAvailable && quotes && quotes.length > 0 && !activeSale && (
             <StartSaleButton
               leadId={lead.id}
               quotes={quotes.map((q) => ({
@@ -255,6 +273,90 @@ export default async function SalesLeadDetailPage({
             </CardContent>
           </Card>
 
+          {saleRows.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Estado de venta</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3 text-sm">
+                {saleRows.map((s) => (
+                  <div
+                    key={s.id}
+                    className="rounded-md border bg-card px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">
+                        Venta #{s.id.slice(0, 8)} ·{" "}
+                        <span className="font-mono">
+                          {formatARS(s.final_price)}
+                        </span>
+                      </span>
+                      <SaleStateBadge status={s.status} />
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Iniciada{" "}
+                      {new Date(s.started_at).toLocaleDateString("es-AR")}
+                      {s.resolved_at && (
+                        <>
+                          {" "}
+                          · Resuelta{" "}
+                          {new Date(s.resolved_at).toLocaleDateString("es-AR")}
+                        </>
+                      )}
+                    </p>
+                    {s.status === "evaluating" && (
+                      <p className="mt-2 rounded bg-warning/10 px-2 py-1 text-xs text-warning-foreground">
+                        Esperando aprobación del Admin. No podés iniciar otra
+                        venta hasta que esta se resuelva.
+                      </p>
+                    )}
+                    {s.status === "rejected" && s.rejection_reason && (
+                      <p className="mt-2 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">
+                        <strong>Motivo:</strong> {s.rejection_reason}
+                      </p>
+                    )}
+                    {s.status === "accepted" && (
+                      <p className="mt-2 rounded bg-success/10 px-2 py-1 text-xs text-success">
+                        Venta aprobada
+                        {s.commission_percent_snapshot !== null
+                          ? ` · Comisión congelada en ${s.commission_percent_snapshot}%`
+                          : ""}
+                      </p>
+                    )}
+                    {(s.scoring_comment ||
+                      s.documentation_comment ||
+                      s.payment_comment ||
+                      s.general_comment) && (
+                      <ul className="mt-2 flex flex-col gap-0.5 text-[11px] text-muted-foreground">
+                        {s.scoring_comment && (
+                          <li>
+                            <strong>Scoring:</strong> {s.scoring_comment}
+                          </li>
+                        )}
+                        {s.documentation_comment && (
+                          <li>
+                            <strong>Documentación:</strong>{" "}
+                            {s.documentation_comment}
+                          </li>
+                        )}
+                        {s.payment_comment && (
+                          <li>
+                            <strong>Pago:</strong> {s.payment_comment}
+                          </li>
+                        )}
+                        {s.general_comment && (
+                          <li>
+                            <strong>Observación:</strong> {s.general_comment}
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
           <TasksSection leadId={lead.id} tasks={taskRows} />
         </div>
 
@@ -263,6 +365,29 @@ export default async function SalesLeadDetailPage({
         </div>
       </div>
     </div>
+  );
+}
+
+function SaleStateBadge({
+  status,
+}: {
+  status: "evaluating" | "accepted" | "rejected";
+}) {
+  const map = {
+    evaluating: {
+      label: "En evaluación",
+      cls: "bg-warning/10 text-warning-foreground",
+    },
+    accepted: { label: "Aprobada", cls: "bg-success/10 text-success" },
+    rejected: { label: "Rechazada", cls: "bg-destructive/10 text-destructive" },
+  } as const;
+  const m = map[status];
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${m.cls}`}
+    >
+      {m.label}
+    </span>
   );
 }
 

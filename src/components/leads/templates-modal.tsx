@@ -55,7 +55,7 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[calc(100%-2rem)] !max-w-2xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>Plantillas de mensaje</DialogTitle>
           <DialogDescription>
@@ -63,14 +63,14 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid min-w-0 grid-cols-[180px_minmax(0,1fr)] gap-4">
-          <ul className="flex flex-col gap-1">
+        <div className="grid w-full min-w-0 grid-cols-[160px_minmax(0,1fr)] gap-4">
+          <ul className="flex min-w-0 flex-col gap-1">
             {LEAD_TEMPLATES.map((t) => (
-              <li key={t.id}>
+              <li key={t.id} className="min-w-0">
                 <button
                   type="button"
                   onClick={() => setSelectedId(t.id)}
-                  className={`w-full rounded-md px-3 py-2 text-left text-sm ${
+                  className={`w-full truncate rounded-md px-3 py-2 text-left text-sm ${
                     t.id === selected.id
                       ? "bg-accent/10 font-medium text-accent"
                       : "hover:bg-muted"
@@ -83,25 +83,23 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
           </ul>
 
           <div className="flex min-w-0 flex-col gap-3">
-            <div>
-              <p className="text-xs text-muted-foreground">
-                {selected.description}
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              {selected.description}
+            </p>
             <textarea
               readOnly
               value={body}
               className="min-h-[140px] w-full resize-none rounded-md border bg-white px-3 py-2 text-sm"
             />
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 onClick={openWhatsApp}
                 disabled={!leadPhone}
-                className="flex-1"
+                size="sm"
               >
                 <MessageCircle className="mr-2 size-4" /> Enviar por WhatsApp
               </Button>
-              <Button variant="outline" onClick={copy} className="flex-1">
+              <Button variant="outline" onClick={copy} size="sm">
                 <Copy className="mr-2 size-4" /> Copiar
               </Button>
             </div>

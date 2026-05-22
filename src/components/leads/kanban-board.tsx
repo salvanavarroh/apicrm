@@ -42,6 +42,10 @@ const COLUMN_ORDER: LeadStatus[] = [
   "contacted",
   "interested",
   "quoted",
+  "evaluating",
+  "accepted",
+  "rejected",
+  "closed",
   "not_interested",
 ];
 
@@ -105,19 +109,21 @@ export function KanbanBoard({ leads, detailHrefPrefix }: Props) {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      <div className="grid auto-rows-min gap-3 overflow-x-auto pb-2 sm:grid-cols-5">
-        {COLUMN_ORDER.map((status) => {
-          const items = optimistic.filter((l) => l.status === status);
-          return (
-            <Column
-              key={status}
-              status={status}
-              count={items.length}
-              items={items}
-              detailHrefPrefix={detailHrefPrefix}
-            />
-          );
-        })}
+      <div className="overflow-x-auto pb-2">
+        <div className="grid auto-rows-min grid-flow-col gap-3 [grid-auto-columns:minmax(220px,1fr)]">
+          {COLUMN_ORDER.map((status) => {
+            const items = optimistic.filter((l) => l.status === status);
+            return (
+              <Column
+                key={status}
+                status={status}
+                count={items.length}
+                items={items}
+                detailHrefPrefix={detailHrefPrefix}
+              />
+            );
+          })}
+        </div>
       </div>
       <DragOverlay>
         {activeLead && <Card lead={activeLead} dragging detailHrefPrefix="" />}

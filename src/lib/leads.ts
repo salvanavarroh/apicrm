@@ -12,6 +12,10 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   contacted: "Contactado",
   interested: "Interesado",
   quoted: "Presupuestado",
+  evaluating: "Evaluando",
+  accepted: "Aprobado",
+  rejected: "Rechazado",
+  closed: "Cerrado",
   not_interested: "No interesado",
 };
 
@@ -23,6 +27,10 @@ export const LEAD_STATUS_TONE: Record<
   contacted: "warning",
   interested: "success",
   quoted: "success",
+  evaluating: "warning",
+  accepted: "success",
+  rejected: "danger",
+  closed: "muted",
   not_interested: "muted",
 };
 

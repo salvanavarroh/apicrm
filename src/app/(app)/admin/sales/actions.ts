@@ -81,10 +81,20 @@ export async function approveSale(
 
   if (error) return { ok: false, message: error.message };
 
+  // El lead pasa a "Aprobado" cuando se aprueba la venta.
+  await supabase
+    .from("leads")
+    .update({ status: "accepted" })
+    .eq("id", sale.lead_id);
+
   revalidatePath("/admin/sales");
   revalidatePath(`/admin/sales/${saleId}`);
   revalidatePath("/admin");
+  revalidatePath("/admin/leads");
   revalidatePath(`/admin/leads/${sale.lead_id}`);
+  revalidatePath("/sales/leads");
+  revalidatePath(`/sales/leads/${sale.lead_id}`);
+  revalidatePath("/manager/leads");
   return { ok: true, saleId };
 }
 
@@ -142,9 +152,19 @@ export async function rejectSale(
 
   if (error) return { ok: false, message: error.message };
 
+  // El lead pasa a "Rechazado" cuando se rechaza la venta.
+  await supabase
+    .from("leads")
+    .update({ status: "rejected" })
+    .eq("id", sale.lead_id);
+
   revalidatePath("/admin/sales");
   revalidatePath(`/admin/sales/${saleId}`);
   revalidatePath("/admin");
+  revalidatePath("/admin/leads");
   revalidatePath(`/admin/leads/${sale.lead_id}`);
+  revalidatePath("/sales/leads");
+  revalidatePath(`/sales/leads/${sale.lead_id}`);
+  revalidatePath("/manager/leads");
   return { ok: true, saleId };
 }

@@ -1172,6 +1172,10 @@ export type Database = {
         | "interested"
         | "quoted"
         | "not_interested"
+        | "evaluating"
+        | "accepted"
+        | "rejected"
+        | "closed"
       payment_status: "pending" | "paid" | "overdue"
       product_type_status: "active" | "inactive"
       profile_status: "pending" | "active" | "inactive" | "deleted"
@@ -1333,6 +1337,10 @@ export const Constants = {
         "interested",
         "quoted",
         "not_interested",
+        "evaluating",
+        "accepted",
+        "rejected",
+        "closed",
       ],
       payment_status: ["pending", "paid", "overdue"],
       product_type_status: ["active", "inactive"],

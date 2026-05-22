@@ -20,6 +20,10 @@ const OPTIONS: LeadStatus[] = [
   "contacted",
   "interested",
   "quoted",
+  "evaluating",
+  "accepted",
+  "rejected",
+  "closed",
   "not_interested",
 ];
 
