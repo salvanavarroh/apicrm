@@ -169,12 +169,17 @@ function Hero() {
 function HeroMockup() {
   return (
     <div className="rounded-xl border border-[#262b35] bg-[#13161c] p-5 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.6)]">
-      <div className="mb-4 flex items-center justify-between border-b border-[#262b35] pb-3">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
-          Pipeline · Concesionaria central
+      <div className="mb-4 grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-[#262b35] pb-3">
+        <div className="flex items-center gap-1.5">
+          <span className="size-2 rounded-full bg-white/15" />
+          <span className="size-2 rounded-full bg-white/15" />
+          <span className="size-2 rounded-full bg-white/15" />
+        </div>
+        <span className="text-center font-mono text-[10px] uppercase tracking-[0.18em] text-white/50">
+          Pipeline · Concesionaria Central
         </span>
         <div className="text-right">
-          <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-white/40">
+          <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-white/40">
             Conversión mes
           </div>
           <div className="font-mono text-sm font-semibold text-white">
@@ -183,58 +188,58 @@ function HeroMockup() {
         </div>
       </div>
 
-      <table className="w-full table-fixed text-xs">
-        <thead>
-          <tr className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/35">
-            <th className="pb-2 text-left font-semibold">Prospecto</th>
-            <th className="pb-2 text-left font-semibold">Vehículo</th>
-            <th className="pb-2 text-left font-semibold">Estado</th>
-            <th className="pb-2 text-left font-semibold">Vendedor</th>
-          </tr>
-        </thead>
-        <tbody className="text-white/85">
-          <MockRow
-            name="Ricardo Salinas"
-            origin="Facebook Ads"
-            vehicleA="SUV X-Trail"
-            vehicleB="2024"
-            statusDot="#FF5906"
-            statusLabel="Nuevo"
-            vendor="Asignar..."
-            vendorMuted
-          />
-          <MockRow
-            name="María Elena Torres"
-            origin="Sitio web"
-            vehicleA="Civic Hybrid"
-            statusDot="#f5a524"
-            statusLabel="Contactado"
-            vendor="L. Pérez"
-          />
-          <MockRow
-            name="Santiago Méndez"
-            origin="WhatsApp"
-            vehicleA="V-Class"
-            vehicleB="Executive"
-            statusDot="#8a92a3"
-            statusLabel="Prueba de manejo"
-            vendor="M. Romero"
-          />
-          <MockRow
-            name="Carolina Ruiz"
-            origin="Mercado Libre"
-            vehicleA="Corolla Cross"
-            statusDot="#8a92a3"
-            statusLabel="Presupuestado"
-            vendor="L. Pérez"
-            last
-          />
-        </tbody>
-      </table>
+      <div className="rounded-md border border-[#262b35]">
+        <table className="w-full table-fixed text-xs">
+          <thead>
+            <tr className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/40">
+              <th className="px-3 py-2 text-left font-medium">Prospecto</th>
+              <th className="px-3 py-2 text-left font-medium">Vehículo</th>
+              <th className="px-3 py-2 text-left font-medium">Estado</th>
+              <th className="px-3 py-2 text-left font-medium">Vendedor</th>
+            </tr>
+          </thead>
+          <tbody className="text-white/85">
+            <MockRow
+              name="Ricardo Salinas"
+              origin="Facebook Ads"
+              vehicleA="SUV X-Trail 2024"
+              statusDot="#FF5906"
+              statusLabel="Nuevo"
+              vendor="Asignar..."
+              vendorMuted
+            />
+            <MockRow
+              name="María Elena Torres"
+              origin="Sitio web"
+              vehicleA="Civic Hybrid"
+              statusDot="#f59e0b"
+              statusLabel="Contactado"
+              vendor="L. Pérez"
+            />
+            <MockRow
+              name="Santiago Méndez"
+              origin="WhatsApp"
+              vehicleA="V-Class Executive"
+              statusDot="#3b82f6"
+              statusLabel="Prueba de manejo"
+              vendor="M. Romero"
+            />
+            <MockRow
+              name="Carolina Ruiz"
+              origin="Mercado Libre"
+              vehicleA="Corolla Cross"
+              statusDot="#22c55e"
+              statusLabel="Presupuestado"
+              vendor="L. Pérez"
+              last
+            />
+          </tbody>
+        </table>
+      </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-[#262b35] pt-4">
-        <MiniStat label="Tiempo respuesta" value="1.2m" trend="-12%" trendUp />
-        <MiniStat label="Leads activos" value="487" trend="+13%" trendUp />
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <MiniStat label="Tiempo respuesta" value="1.2m" trend="-42%" good />
+        <MiniStat label="Leads activos" value="487" trend="+12%" good />
         <MiniStat label="Sin asignar" value="03" trend="bajo" muted />
       </div>
     </div>
@@ -245,7 +250,6 @@ function MockRow({
   name,
   origin,
   vehicleA,
-  vehicleB,
   statusDot,
   statusLabel,
   vendor,
@@ -255,7 +259,6 @@ function MockRow({
   name: string;
   origin: string;
   vehicleA: string;
-  vehicleB?: string;
   statusDot: string;
   statusLabel: string;
   vendor: string;
@@ -263,25 +266,26 @@ function MockRow({
   last?: boolean;
 }) {
   return (
-    <tr className={last ? "" : "border-b border-[#262b35]"}>
-      <td className="py-3">
+    <tr className={last ? "" : "border-t border-[#262b35]"}>
+      <td className="px-3 py-3 align-top">
         <div className="font-medium text-white">{name}</div>
-        <div className="text-[10px] text-white/40">{origin}</div>
+        <div className="font-mono text-[10px] text-white/40">{origin}</div>
       </td>
-      <td className="py-3">
-        <div>{vehicleA}</div>
-        {vehicleB && <div className="text-[10px] text-white/40">{vehicleB}</div>}
+      <td className="px-3 py-3 align-top font-mono text-[11px] text-white/75">
+        {vehicleA}
       </td>
-      <td className="py-3">
+      <td className="px-3 py-3 align-top">
         <span className="inline-flex items-center gap-1.5">
           <span
-            className="inline-block size-1.5 rounded-full"
+            className="mt-0.5 inline-block size-1.5 shrink-0 rounded-full"
             style={{ backgroundColor: statusDot }}
           />
           <span className="text-[11px]">{statusLabel}</span>
         </span>
       </td>
-      <td className={`py-3 text-[11px] ${vendorMuted ? "text-white/40" : ""}`}>
+      <td
+        className={`px-3 py-3 align-top text-[11px] ${vendorMuted ? "text-white/40" : ""}`}
+      >
         {vendor}
       </td>
     </tr>
@@ -292,27 +296,27 @@ function MiniStat({
   label,
   value,
   trend,
-  trendUp,
+  good,
   muted,
 }: {
   label: string;
   value: string;
   trend: string;
-  trendUp?: boolean;
+  good?: boolean;
   muted?: boolean;
 }) {
   return (
-    <div>
-      <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/40">
+    <div className="rounded-md border border-[#262b35] px-3 py-2.5">
+      <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/40">
         {label}
       </div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className="font-mono text-lg font-semibold">{value}</span>
+      <div className="mt-1 flex items-baseline justify-between gap-2">
+        <span className="font-mono text-base font-semibold">{value}</span>
         <span
-          className={`text-[10px] font-medium ${
+          className={`font-mono text-[10px] font-medium ${
             muted
               ? "text-white/40"
-              : trendUp
+              : good
                 ? "text-emerald-400"
                 : "text-rose-400"
           }`}
@@ -343,33 +347,50 @@ function Diagnostico() {
           </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ProblemCard
-            title="Leads que se enfrían"
-            body="Las consultas llegan por Facebook Ads, WhatsApp y la web pero nadie las responde a tiempo. Cada minuto perdido es una venta menos."
-          />
-          <ProblemCard
-            title="Asignación manual y desordenada"
-            body="Los gerentes pasan horas decidiendo a quién mandar cada consulta. Sin reglas claras ni control real, el reparto queda librado al azar."
-          />
-          <ProblemCard
-            title="Sin trazabilidad del vendedor"
-            body="No sabés qué hizo cada vendedor con sus leads, ni en qué etapa está cada oportunidad. La gestión queda librada al criterio individual."
-          />
-          <ProblemCard
-            title="Oportunidades que se pierden"
-            body="Sin métricas, no sabés dónde mejorar. Las decisiones se toman por intuición y el equipo termina apagando incendios en lugar de cerrar."
-          />
+        <div className="rounded-xl border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
+          <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2">
+            <NumberedItem
+              num="01"
+              title="Leads que se enfrían"
+              body="Las consultas llegan por Facebook, WhatsApp y la web pero nadie las responde a tiempo. Cada minuto perdido es una venta menos."
+            />
+            <NumberedItem
+              num="02"
+              title="Asignación manual y desordenada"
+              body="Los leads quedan en planillas, mensajes sueltos o en la cabeza del gerente. No hay un criterio claro para decidir a quién le toca cada uno."
+            />
+            <NumberedItem
+              num="03"
+              title="Sin trazabilidad del vendedor"
+              body="No sabés qué hizo cada vendedor con su lead, en qué etapa está ni cuánto demora en responder. La gestión queda librada al criterio individual."
+            />
+            <NumberedItem
+              num="04"
+              title="Oportunidades que se pierden"
+              body="Sin pipeline, sin recordatorios y sin métricas, el equipo deja escapar prospectos que estaban listos para comprar."
+            />
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-function ProblemCard({ title, body }: { title: string; body: string }) {
+function NumberedItem({
+  num,
+  title,
+  body,
+}: {
+  num: string;
+  title: string;
+  body: string;
+}) {
   return (
-    <div className="rounded-lg border border-[#1f242c] bg-[#0d1015] p-5">
-      <h3 className="text-base font-semibold text-white">{title}</h3>
+    <div className="border-t border-[#FF5906]/70 pt-4">
+      <span className="font-mono text-[11px] font-semibold text-[#FF5906]">
+        {num}
+      </span>
+      <h3 className="mt-3 text-base font-semibold text-white">{title}</h3>
       <p className="mt-2 text-[13px] leading-relaxed text-white/55">{body}</p>
     </div>
   );
@@ -401,50 +422,49 @@ function Solucion() {
           <Image
             src="/landing-showroom.jpg"
             alt="Concesionaria con autos en exhibición"
-            width={2400}
-            height={900}
-            priority={false}
+            width={1206}
+            height={290}
+            priority
             className="h-auto w-full"
           />
         </div>
 
-        <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-          <Feature
-            title="Asignación automática"
-            body="Cada lead se distribuye al vendedor correcto según producto, sucursal y carga de trabajo. Ningún prospecto queda sin asignación."
-          />
-          <Feature
-            title="Pipeline centralizado"
-            body="Etapas estandarizadas — Nuevo, Contactado, Interesado, Presupuestado, Vendido — visibles para todo el equipo en tiempo real."
-          />
-          <Feature
-            title="Performance del equipo"
-            body="Métricas en vivo por vendedor: tasa de contacto, ventas cerradas, tiempo de respuesta y conversión."
-          />
-          <Feature
-            title="Alertas y SLA"
-            body="Avisos automáticos cuando un lead lleva tiempo sin gestión, cuando vence una tarea o cuando hay una operación lista para aprobar."
-          />
-          <Feature
-            title="Contacto vía WhatsApp"
-            body="Plantillas de mensajes con placeholders dinámicos. Tu equipo responde en un click sin abandonar la plataforma."
-          />
-          <Feature
-            title="Multi-sucursal y multi-rol"
-            body="Configuración granular por sucursal, tipo de producto y proveedores de datos. Cada perfil con su vista y sus permisos."
-          />
+        <div className="rounded-xl border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
+          <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+            <NumberedItem
+              num="01"
+              title="Asignación automática"
+              body="Cada lead se distribuye al vendedor correcto según producto, sucursal y carga de trabajo. Ningún prospecto queda sin responsable."
+            />
+            <NumberedItem
+              num="02"
+              title="Pipeline centralizado"
+              body="Etapas estandarizadas — Nuevo, Contactado, Interesado, Presupuestado, Vendido — con notas, tareas y recordatorios por lead."
+            />
+            <NumberedItem
+              num="03"
+              title="Performance del equipo"
+              body="Métricas en vivo por vendedor: tasa de contacto, ventas cerradas, tiempo de respuesta y comisiones liquidables."
+            />
+            <NumberedItem
+              num="04"
+              title="Alertas y SLA"
+              body="Avisos automáticos cuando un lead lleva tiempo sin gestión, cuando vence una tarea o cuando hay una venta pendiente de aprobación."
+            />
+            <NumberedItem
+              num="05"
+              title="Contacto vía WhatsApp"
+              body="Plantillas de mensajes precargadas con placeholders dinámicos. Tu equipo responde en un click, sin errores ni demoras."
+            />
+            <NumberedItem
+              num="06"
+              title="Multi-sucursal y multi-rol"
+              body="Administradores, gerentes por producto, vendedores y proveedores de datos. Cada perfil con su vista y sus permisos."
+            />
+          </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function Feature({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="border-t border-[#1f242c] pt-5">
-      <h3 className="text-base font-semibold text-white">{title}</h3>
-      <p className="mt-2 text-[13px] leading-relaxed text-white/55">{body}</p>
-    </div>
   );
 }
 
@@ -454,12 +474,14 @@ function Feature({ title, body }: { title: string; body: string }) {
 
 function Kpis() {
   return (
-    <section className="border-y border-[#1f242c]/60 bg-[#07090c]">
-      <div className="mx-auto grid w-full max-w-7xl gap-10 px-6 py-16 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi value="-42%" label="Tiempo de respuesta al lead" />
-        <Kpi value="+28%" label="Mejora en tasa de conversión" />
-        <Kpi value="100%" label="Leads rastreados sin pérdida" />
-        <Kpi value="360°" label="Visibilidad del pipeline" />
+    <section className="bg-[#07090c]">
+      <div className="mx-auto w-full max-w-7xl px-6 py-16">
+        <div className="grid divide-x divide-[#1f242c] rounded-xl border border-[#1f242c] bg-[#0d1015]/60 sm:grid-cols-2 lg:grid-cols-4">
+          <Kpi value="-42%" label="Tiempo de respuesta al lead" />
+          <Kpi value="+28%" label="Mejora en tasa de conversión" />
+          <Kpi value="100%" label="Leads asignados sin pérdida" />
+          <Kpi value="360°" label="Visibilidad del pipeline" />
+        </div>
       </div>
     </section>
   );
@@ -467,8 +489,8 @@ function Kpis() {
 
 function Kpi({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-5xl font-bold tracking-tight text-[#FF5906] md:text-[56px]">
+    <div className="flex flex-col gap-2 px-6 py-7">
+      <span className="font-mono text-5xl font-semibold tracking-tight text-[#FF5906] md:text-[52px]">
         {value}
       </span>
       <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55">
@@ -503,9 +525,9 @@ function Contacto() {
           </ul>
         </div>
 
-        <div className="rounded-xl border border-[#1f242c] bg-[#0d1015] p-6 md:p-8">
-          <form className="flex flex-col gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
+          <form className="flex flex-col gap-5">
+            <div className="grid gap-5 sm:grid-cols-2">
               <FormField label="Nombre y apellido" required>
                 <FormInput placeholder="Juan Pérez" />
               </FormField>
@@ -524,7 +546,7 @@ function Contacto() {
             </div>
 
             <FormField label="Tamaño del equipo de ventas">
-              <select className="h-11 w-full appearance-none rounded-md border border-[#262b35] bg-[#13161c] bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22white%22 viewBox=%220 0 20 20%22><path d=%22M5.5 7.5L10 12l4.5-4.5%22 stroke=%22white%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22/></svg>')] bg-[right_0.75rem_center] bg-[length:18px_18px] bg-no-repeat px-3 pr-10 text-sm text-white outline-none transition focus:border-[#FF5906]/60">
+              <select className="h-11 w-full appearance-none border border-[#262b35] bg-[#13161c] bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22><path d=%22M5.5 7.5L10 12l4.5-4.5%22 stroke=%22white%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22/></svg>')] bg-[right_0.75rem_center] bg-[length:18px_18px] bg-no-repeat px-3 pr-10 text-sm text-white outline-none transition focus:border-[#FF5906]/60">
                 <option>1-5 vendedores</option>
                 <option>6-15 vendedores</option>
                 <option>16-30 vendedores</option>
@@ -534,7 +556,7 @@ function Contacto() {
 
             <button
               type="button"
-              className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-md bg-[#FF5906] text-sm font-semibold text-white transition hover:bg-[#FF5906]/90"
+              className="mt-1 inline-flex h-12 w-full items-center justify-center bg-[#FF5906] text-sm font-semibold text-white transition hover:bg-[#FF5906]/90"
             >
               Solicitar demo
             </button>
@@ -583,7 +605,7 @@ function FormInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="h-11 w-full rounded-md border border-[#262b35] bg-[#13161c] px-3 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-[#FF5906]/60"
+      className="h-11 w-full border border-[#262b35] bg-[#13161c] px-3 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-[#FF5906]/60"
     />
   );
 }
