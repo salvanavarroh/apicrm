@@ -19,11 +19,13 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
 import { CreateBranchDialog } from "./create-branch-dialog";
 import { EditCompanyAsSuperAdminDialog } from "./edit-company-dialog";
+import { UsersDialog, type CompanyUser } from "./users-dialog";
 
 export default async function CompanyDetailPage({
   params,
@@ -34,8 +36,9 @@ export default async function CompanyDetailPage({
   const { id } = await params;
 
   const supabase = await createClient();
+  const adminClient = createAdminClient();
 
-  const [companyRes, branchesRes, profilesRes] = await Promise.all([
+  const [companyRes, branchesRes, profilesRes, usersList] = await Promise.all([
     supabase
       .from("companies")
       .select(
@@ -53,6 +56,7 @@ export default async function CompanyDetailPage({
       .select("id, first_name, last_name, role, status, branch_id")
       .eq("company_id", id)
       .neq("status", "deleted"),
+    adminClient.auth.admin.listUsers({ perPage: 1000 }),
   ]);
 
   if (!companyRes.data) notFound();
@@ -65,6 +69,22 @@ export default async function CompanyDetailPage({
   const sellers = profiles.filter((p) => p.role === "sales");
   const providers = profiles.filter((p) => p.role === "data_provider");
   const primaryAdmin = admins[0];
+
+  const emailById = new Map<string, string>();
+  for (const u of usersList.data?.users ?? []) {
+    if (u.email) emailById.set(u.id, u.email);
+  }
+  const branchNameById = new Map<string, string>();
+  for (const b of branches) branchNameById.set(b.id, b.name);
+  const companyUsers: CompanyUser[] = profiles.map((p) => ({
+    id: p.id,
+    first_name: p.first_name,
+    last_name: p.last_name,
+    email: emailById.get(p.id) ?? "—",
+    role: p.role as CompanyUser["role"],
+    status: p.status as CompanyUser["status"],
+    branch_name: p.branch_id ? (branchNameById.get(p.branch_id) ?? null) : null,
+  }));
 
   function adminName(p: typeof primaryAdmin | undefined) {
     if (!p) return "—";
@@ -131,9 +151,15 @@ export default async function CompanyDetailPage({
               </Button>
             }
           />
-          <Button variant="outline" disabled>
-            Ver lista de usuarios
-          </Button>
+          <UsersDialog
+            companyName={company.name}
+            users={companyUsers}
+            trigger={
+              <Button variant="outline">
+                <Users className="mr-1 size-4" /> Ver lista de usuarios
+              </Button>
+            }
+          />
           <CreateBranchDialog
             companyId={company.id}
             trigger={
