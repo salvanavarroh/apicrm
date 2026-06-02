@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Briefcase,
   Building2,
+  FileInput,
   HelpCircle,
   Home,
   Inbox,
@@ -46,6 +47,7 @@ const ADMIN_NAV: Item[] = [
   { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
   { href: "/admin/company", label: "Mi empresa", icon: Building2 },
   { href: "/admin/leads", label: "Leads", icon: Inbox },
+  { href: "/admin/forms", label: "Formularios", icon: FileInput },
   { href: "/admin/sales", label: "Ventas", icon: ShoppingBag },
   { href: "/admin/prices", label: "Precios", icon: Receipt },
   {
@@ -60,6 +62,7 @@ const ADMIN_NAV: Item[] = [
 const MANAGER_NAV: Item[] = [
   { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
   { href: "/manager/leads", label: "Leads", icon: Inbox },
+  { href: "/manager/forms", label: "Formularios", icon: FileInput },
   { href: "/manager/team", label: "Equipo", icon: Users },
   { href: "/manager/managements", label: "Gerencias", icon: Settings2 },
 ];

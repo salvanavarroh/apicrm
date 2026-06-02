@@ -277,6 +277,111 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_capture_forms: {
+        Row: {
+          banner_url: string | null
+          branch_id: string
+          campaign_id: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          fields: Json
+          id: string
+          logo_url: string | null
+          name: string
+          primary_color: string
+          product_type_id: string
+          slug: string
+          status: string
+          submissions_count: number
+          submit_label: string
+          subtitle: string | null
+          success_message: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          banner_url?: string | null
+          branch_id: string
+          campaign_id?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          id?: string
+          logo_url?: string | null
+          name: string
+          primary_color?: string
+          product_type_id: string
+          slug: string
+          status?: string
+          submissions_count?: number
+          submit_label?: string
+          subtitle?: string | null
+          success_message?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          banner_url?: string | null
+          branch_id?: string
+          campaign_id?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          id?: string
+          logo_url?: string | null
+          name?: string
+          primary_color?: string
+          product_type_id?: string
+          slug?: string
+          status?: string
+          submissions_count?: number
+          submit_label?: string
+          subtitle?: string | null
+          success_message?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_capture_forms_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_capture_forms_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_capture_forms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_capture_forms_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_capture_forms_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_notes: {
         Row: {
           author_id: string | null
@@ -1143,6 +1248,10 @@ export type Database = {
       has_overdue_payment: {
         Args: { p_company_id: string; p_grace_days?: number }
         Returns: boolean
+      }
+      increment_form_submissions: {
+        Args: { p_form_id: string }
+        Returns: undefined
       }
       is_super_admin: { Args: never; Returns: boolean }
     }
