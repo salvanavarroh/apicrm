@@ -60,6 +60,9 @@ const EMPTY: FormInput = {
   fields: DEFAULT_FIELDS,
 };
 
+// Sentinel para representar 'sin campaña' en el Select (Radix no acepta value="").
+const NONE = "__none__";
+
 export function FormBuilder({
   mode,
   initial,
@@ -123,6 +126,23 @@ export function FormBuilder({
   }
 
   function submit() {
+    // Validaciones rápidas pre-submit con mensajes claros.
+    if (!data.name.trim()) {
+      toast.error("Ponele un nombre interno al form.");
+      return;
+    }
+    if (!data.branch_id) {
+      toast.error("Elegí una sucursal antes de guardar.");
+      return;
+    }
+    if (!data.product_type_id) {
+      toast.error("Elegí un tipo de producto antes de guardar.");
+      return;
+    }
+    if (!data.title.trim()) {
+      toast.error("Cargá un título visible para el form.");
+      return;
+    }
     startTransition(async () => {
       const result =
         mode === "edit" && initial?.id
@@ -130,6 +150,9 @@ export function FormBuilder({
           : await createForm(data);
       if (!result.ok) {
         toast.error(result.message);
+        if (process.env.NODE_ENV !== "production") {
+          console.error("Form save error:", result.message);
+        }
         return;
       }
       toast.success(mode === "edit" ? "Form actualizado" : "Form creado");
@@ -155,57 +178,78 @@ export function FormBuilder({
             </Row>
             <div className="grid grid-cols-2 gap-4">
               <Row label="Sucursal *">
-                <Select
-                  value={data.branch_id}
-                  onValueChange={(v) => update("branch_id", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="—" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {branches.length === 0 ? (
+                  <EmptySelector tone="warning">
+                    No hay sucursales activas. Cargá una desde Mi Empresa.
+                  </EmptySelector>
+                ) : (
+                  <Select
+                    value={data.branch_id}
+                    onValueChange={(v) => update("branch_id", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Row>
               <Row label="Tipo de producto *">
-                <Select
-                  value={data.product_type_id}
-                  onValueChange={(v) => update("product_type_id", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="—" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productTypes.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {productTypes.length === 0 ? (
+                  <EmptySelector tone="warning">
+                    No hay tipos activos. Cargá uno desde Tipos de Producto.
+                  </EmptySelector>
+                ) : (
+                  <Select
+                    value={data.product_type_id}
+                    onValueChange={(v) => update("product_type_id", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productTypes.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Row>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Row label="Campaña (opcional)">
-                <Select
-                  value={data.campaign_id ?? ""}
-                  onValueChange={(v) => update("campaign_id", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="—" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {campaigns.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {campaigns.length === 0 ? (
+                  <EmptySelector>
+                    No hay campañas creadas. Podés crear el form igual.
+                  </EmptySelector>
+                ) : (
+                  <Select
+                    value={data.campaign_id || NONE}
+                    onValueChange={(v) =>
+                      update("campaign_id", v === NONE ? "" : v)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="—" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>— Sin campaña —</SelectItem>
+                      {campaigns.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </Row>
               <Row label="Estado">
                 <Select
@@ -401,6 +445,26 @@ function Row({
   return (
     <div className="flex flex-col gap-1.5">
       <Label className="text-xs">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function EmptySelector({
+  children,
+  tone = "muted",
+}: {
+  children: React.ReactNode;
+  tone?: "muted" | "warning";
+}) {
+  return (
+    <div
+      className={
+        tone === "warning"
+          ? "flex h-9 items-center border border-warning/40 bg-warning/5 px-3 text-xs text-warning-foreground"
+          : "flex h-9 items-center border border-input bg-card px-3 text-xs text-muted-foreground"
+      }
+    >
       {children}
     </div>
   );
