@@ -1,15 +1,12 @@
 import { Receipt } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 
-import {
-  CompanyStatusToggle,
-  MarkAsPaidButton,
-} from "./billing-row-actions";
+import { BillingTable, type BillingRow } from "./billing-table";
 
-type PaymentWithCompany = {
+type PaymentRow = {
   id: string;
   status: "pending" | "paid" | "overdue";
   amount: number;
@@ -22,45 +19,67 @@ type PaymentWithCompany = {
     name: string;
     phone: string | null;
     status: "active" | "pending" | "suspended";
+    subscription_starts_at: string | null;
     subscription_ends_at: string | null;
-    profiles: { first_name: string; last_name: string; role: string }[];
+    profiles: { id: string; first_name: string; last_name: string; role: string; status: string }[];
   };
 };
-
-function isOverdue(p: { status: string; due_date: string }) {
-  return p.status === "pending" && new Date(p.due_date) < new Date();
-}
-
-function periodLabel(p: { period_year: number; period_month: number }) {
-  const months = [
-    "Ene",
-    "Feb",
-    "Mar",
-    "Abr",
-    "May",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dic",
-  ];
-  return `${months[p.period_month - 1]} ${String(p.period_year).slice(2)}`;
-}
 
 export default async function BillingPage() {
   await requireRole(["super_admin"]);
 
-  const supabase = await createClient();
-  const { data } = await supabase
+  const admin = createAdminClient();
+
+  // Pagos + datos de empresa + usuarios para contar activos.
+  const { data: payments } = await admin
     .from("subscription_payments")
     .select(
-      "id, status, amount, due_date, period_year, period_month, paid_at, company:companies!subscription_payments_company_id_fkey(id, name, phone, status, subscription_ends_at, profiles!profiles_company_id_fkey(first_name, last_name, role))",
+      `id, status, amount, due_date, period_year, period_month, paid_at,
+       company:companies!subscription_payments_company_id_fkey(
+         id, name, phone, status, subscription_starts_at, subscription_ends_at,
+         profiles!profiles_company_id_fkey(id, first_name, last_name, role, status)
+       )`,
     )
     .order("due_date", { ascending: false });
 
-  const payments = (data ?? []) as unknown as PaymentWithCompany[];
+  // Emails de los admins.
+  const { data: usersList } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const emailByUserId = new Map<string, string>();
+  for (const u of usersList?.users ?? []) {
+    if (u.email) emailByUserId.set(u.id, u.email);
+  }
+
+  const rows: BillingRow[] = ((payments ?? []) as unknown as PaymentRow[]).map(
+    (p) => {
+      const admins = p.company.profiles.filter((pr) => pr.role === "admin");
+      const adminProfile = admins[0];
+      const activeUsers = p.company.profiles.filter(
+        (pr) => pr.status === "active",
+      ).length;
+      const overdue =
+        p.status === "pending" && new Date(p.due_date) < new Date();
+      return {
+        id: p.id,
+        companyId: p.company.id,
+        companyName: p.company.name,
+        companyStatus: p.company.status,
+        adminName: adminProfile
+          ? `${adminProfile.first_name} ${adminProfile.last_name}`.trim()
+          : "—",
+        adminEmail: adminProfile
+          ? (emailByUserId.get(adminProfile.id) ?? "—")
+          : "—",
+        phone: p.company.phone,
+        amount: Number(p.amount),
+        users: activeUsers,
+        subscriptionStartsAt:
+          p.company.subscription_starts_at ?? p.company.subscription_ends_at,
+        paymentStatus: overdue ? "overdue" : p.status,
+        dueDate: p.due_date,
+        paidAt: p.paid_at,
+      };
+    },
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -72,7 +91,7 @@ export default async function BillingPage() {
         </p>
       </header>
 
-      {payments.length === 0 ? (
+      {rows.length === 0 ? (
         <Card className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
           <Receipt className="size-7 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
@@ -81,90 +100,7 @@ export default async function BillingPage() {
           </p>
         </Card>
       ) : (
-        <Card className="overflow-hidden p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">Concesionaria</th>
-                <th className="px-4 py-3 font-medium">Administrador</th>
-                <th className="px-4 py-3 font-medium">Teléfono</th>
-                <th className="px-4 py-3 font-medium">Período</th>
-                <th className="px-4 py-3 font-medium">Monto</th>
-                <th className="px-4 py-3 font-medium">Vencimiento</th>
-                <th className="px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3 font-medium">Empresa</th>
-                <th className="px-4 py-3 text-right font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.map((p) => {
-                const admin = p.company.profiles.find(
-                  (pr) => pr.role === "admin",
-                );
-                const adminName = admin
-                  ? `${admin.first_name} ${admin.last_name}`.trim()
-                  : "—";
-                const overdue = isOverdue({
-                  status: p.status,
-                  due_date: p.due_date,
-                });
-
-                return (
-                  <tr key={p.id} className="border-t border-border bg-card hover:bg-muted/40">
-                    <td className="px-4 py-3 font-medium">{p.company.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {adminName}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {p.company.phone ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {periodLabel(p)}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      ${p.amount}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {p.due_date}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={
-                          p.status === "paid"
-                            ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
-                            : overdue
-                              ? "rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
-                              : "rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-foreground"
-                        }
-                      >
-                        {p.status === "paid"
-                          ? "Pagado"
-                          : overdue
-                            ? "Vencido"
-                            : "Pendiente"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <CompanyStatusToggle
-                        companyId={p.company.id}
-                        status={p.company.status}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      {p.status === "pending" || overdue ? (
-                        <MarkAsPaidButton paymentId={p.id} />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {p.paid_at?.slice(0, 10)}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+        <BillingTable rows={rows} />
       )}
     </div>
   );
