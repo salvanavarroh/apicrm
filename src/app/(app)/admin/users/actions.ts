@@ -164,3 +164,35 @@ export async function softDeleteUser(
   revalidatePath("/admin/users");
   return { ok: true };
 }
+
+export type UpdateProfileInput = {
+  first_name: string;
+  last_name: string;
+  phone: string;
+  branch_id: string | null;
+  commission_percent: number | null;
+  commission_conditions: string;
+};
+
+export async function updateUserProfile(
+  userId: string,
+  data: UpdateProfileInput,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await requireRole(["admin"]);
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      first_name: data.first_name.trim(),
+      last_name: data.last_name.trim(),
+      phone: data.phone.trim() || null,
+      branch_id: data.branch_id,
+      commission_percent: data.commission_percent,
+      commission_conditions: data.commission_conditions.trim() || null,
+    })
+    .eq("id", userId);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/admin/users");
+  revalidatePath(`/admin/users/${userId}`);
+  return { ok: true };
+}
