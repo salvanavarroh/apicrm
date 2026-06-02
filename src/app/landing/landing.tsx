@@ -1,19 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { Logo } from "@/components/logo";
+
 /**
  * Landing pública — Figma node 539:1079.
- * Dark theme, naranja API (#FF5906), DM Sans (heredado del layout root).
+ * Dark theme, naranja API (#FF5906), DM Sans, bordes cuadrados (sin radius).
  */
-
-const COLORS = {
-  bg: "#0a0c10",
-  bgDeep: "#07090c",
-  card: "#13161c",
-  border: "#1f242c",
-  accent: "#FF5906",
-  textMuted: "#8a92a3",
-} as const;
 
 export function Landing() {
   return (
@@ -37,11 +30,8 @@ function Nav() {
   return (
     <header className="border-b border-[#1f242c]/60">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <Hexagon />
-          <span className="text-lg font-semibold tracking-wide text-white">
-            API
-          </span>
+        <Link href="/" className="flex items-center" aria-label="API">
+          <Logo size={32} />
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm text-white/80 md:flex">
@@ -65,40 +55,13 @@ function Nav() {
           </Link>
           <a
             href="#contacto"
-            className="inline-flex items-center rounded-md bg-[#FF5906] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#FF5906]/90"
+            className="inline-flex items-center bg-[#FF5906] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#FF5906]/90"
           >
             Solicitar demo
           </a>
         </div>
       </div>
     </header>
-  );
-}
-
-function Hexagon() {
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      width="28"
-      height="32"
-      aria-hidden
-      className="shrink-0"
-    >
-      <defs>
-        <linearGradient id="hexGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#FF8A4C" />
-          <stop offset="100%" stopColor="#FF5906" />
-        </linearGradient>
-      </defs>
-      <polygon
-        points="16,1 30,9 30,23 16,31 2,23 2,9"
-        fill="url(#hexGrad)"
-      />
-      <path
-        d="M16 8 L23 22 L20 22 L18.5 19 L13.5 19 L12 22 L9 22 Z M16 14 L14.5 17 L17.5 17 Z"
-        fill="#ffffff"
-      />
-    </svg>
   );
 }
 
@@ -135,13 +98,13 @@ function Hero() {
           <div className="flex flex-wrap items-center gap-3">
             <a
               href="#contacto"
-              className="inline-flex items-center rounded-md bg-[#FF5906] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#FF5906]/90"
+              className="inline-flex items-center bg-[#FF5906] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#FF5906]/90"
             >
               Solicitar demo
             </a>
             <a
               href="#como-funciona"
-              className="inline-flex items-center rounded-md border border-white/15 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
+              className="inline-flex items-center border border-white/15 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
             >
               Ver cómo funciona
             </a>
@@ -168,7 +131,7 @@ function Hero() {
 
 function HeroMockup() {
   return (
-    <div className="rounded-xl border border-[#262b35] bg-[#13161c] p-5 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.6)]">
+    <div className="border border-[#262b35] bg-[#13161c] p-5 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.6)]">
       <div className="mb-4 grid grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-[#262b35] pb-3">
         <div className="flex items-center gap-1.5">
           <span className="size-2 rounded-full bg-white/15" />
@@ -188,7 +151,7 @@ function HeroMockup() {
         </div>
       </div>
 
-      <div className="rounded-md border border-[#262b35]">
+      <div className="border border-[#262b35]">
         <table className="w-full table-fixed text-xs">
           <thead>
             <tr className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/40">
@@ -306,7 +269,7 @@ function MiniStat({
   muted?: boolean;
 }) {
   return (
-    <div className="rounded-md border border-[#262b35] px-3 py-2.5">
+    <div className="border border-[#262b35] px-3 py-2.5">
       <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-white/40">
         {label}
       </div>
@@ -347,8 +310,8 @@ function Diagnostico() {
           </p>
         </div>
 
-        <div className="rounded-xl border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
-          <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2">
+        <div className="border border-[#1f242c] bg-[#0d1015]/60">
+          <div className="grid gap-px bg-[#1f242c] sm:grid-cols-2">
             <NumberedItem
               num="01"
               title="Leads que se enfrían"
@@ -386,7 +349,8 @@ function NumberedItem({
   body: string;
 }) {
   return (
-    <div className="border-t border-[#FF5906]/70 pt-4">
+    <div className="relative bg-[#0a0c10] p-6 md:p-7">
+      <span className="absolute left-0 top-0 h-px w-10 bg-[#FF5906]" />
       <span className="font-mono text-[11px] font-semibold text-[#FF5906]">
         {num}
       </span>
@@ -418,7 +382,7 @@ function Solucion() {
           </p>
         </div>
 
-        <div className="relative overflow-hidden rounded-xl border border-[#1f242c]">
+        <div className="relative overflow-hidden border border-[#1f242c]">
           <Image
             src="/landing-showroom.jpg"
             alt="Concesionaria con autos en exhibición"
@@ -429,8 +393,8 @@ function Solucion() {
           />
         </div>
 
-        <div className="rounded-xl border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
-          <div className="grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="border border-[#1f242c] bg-[#0d1015]/60">
+          <div className="grid gap-px bg-[#1f242c] sm:grid-cols-2 lg:grid-cols-3">
             <NumberedItem
               num="01"
               title="Asignación automática"
@@ -476,11 +440,13 @@ function Kpis() {
   return (
     <section className="bg-[#07090c]">
       <div className="mx-auto w-full max-w-7xl px-6 py-16">
-        <div className="grid divide-x divide-[#1f242c] rounded-xl border border-[#1f242c] bg-[#0d1015]/60 sm:grid-cols-2 lg:grid-cols-4">
-          <Kpi value="-42%" label="Tiempo de respuesta al lead" />
-          <Kpi value="+28%" label="Mejora en tasa de conversión" />
-          <Kpi value="100%" label="Leads asignados sin pérdida" />
-          <Kpi value="360°" label="Visibilidad del pipeline" />
+        <div className="border border-[#1f242c]">
+          <div className="grid gap-px bg-[#1f242c] sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi value="-42%" label="Tiempo de respuesta al lead" />
+            <Kpi value="+28%" label="Mejora en tasa de conversión" />
+            <Kpi value="100%" label="Leads asignados sin pérdida" />
+            <Kpi value="360°" label="Visibilidad del pipeline" />
+          </div>
         </div>
       </div>
     </section>
@@ -489,7 +455,7 @@ function Kpis() {
 
 function Kpi({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-col gap-2 px-6 py-7">
+    <div className="flex flex-col gap-2 bg-[#0d1015]/60 px-6 py-7">
       <span className="font-mono text-5xl font-semibold tracking-tight text-[#FF5906] md:text-[52px]">
         {value}
       </span>
@@ -525,7 +491,7 @@ function Contacto() {
           </ul>
         </div>
 
-        <div className="rounded-xl border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
+        <div className="border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
           <form className="flex flex-col gap-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <FormField label="Nombre y apellido" required>
@@ -620,12 +586,7 @@ function Footer() {
       <div className="mx-auto w-full max-w-7xl px-6 py-16">
         <div className="grid gap-12 lg:grid-cols-[1.2fr_repeat(3,_1fr)]">
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <Hexagon />
-              <span className="text-lg font-semibold tracking-wide text-white">
-                API
-              </span>
-            </div>
+            <Logo size={32} />
             <p className="max-w-xs text-[13px] leading-relaxed text-white/45">
               CRM de leads para concesionarias. Asigná, seguí y cerrá más
               ventas, sin perder oportunidades.
@@ -685,4 +646,3 @@ function FooterCol({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-void COLORS;
