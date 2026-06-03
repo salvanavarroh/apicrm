@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Check } from "lucide-react";
+import { useState, type CSSProperties } from "react";
 
 import { FIELD_KEYS, type FieldsConfig } from "@/lib/forms";
 
@@ -18,7 +19,8 @@ export type PublicFormProps = {
 
 /**
  * Renderiza el form público que va en /f/[slug] y /embed/[slug].
- * Hace POST a /api/forms/[slug]/submit. Sin libs externas.
+ * Card blanca con tipografía oscura. El primaryColor del dealer se aplica
+ * vía CSS var (--form-accent) → focus borders, asterisco de required y CTA.
  */
 export function PublicForm(props: PublicFormProps) {
   const {
@@ -36,6 +38,10 @@ export function PublicForm(props: PublicFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [doneMessage, setDoneMessage] = useState(successMessage);
+
+  const accentStyle = {
+    "--form-accent": primaryColor,
+  } as CSSProperties;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -73,15 +79,18 @@ export function PublicForm(props: PublicFormProps) {
 
   if (done) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-md bg-card p-8 text-center">
+      <div
+        style={accentStyle}
+        className="flex flex-col items-center gap-4 bg-white p-10 text-center text-slate-900 shadow-xl"
+      >
         <span
-          className="flex size-12 items-center justify-center rounded-full text-white"
+          className="flex size-14 items-center justify-center rounded-full text-white"
           style={{ backgroundColor: primaryColor }}
         >
-          ✓
+          <Check className="size-7" strokeWidth={3} />
         </span>
-        <h2 className="text-lg font-semibold">¡Recibimos tus datos!</h2>
-        <p className="text-sm text-muted-foreground">{doneMessage}</p>
+        <h2 className="text-xl font-semibold">¡Recibimos tus datos!</h2>
+        <p className="max-w-sm text-sm text-slate-600">{doneMessage}</p>
       </div>
     );
   }
@@ -89,16 +98,19 @@ export function PublicForm(props: PublicFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-4 rounded-md bg-card p-6"
+      style={accentStyle}
+      className="flex flex-col gap-6 bg-white p-7 text-slate-900 shadow-xl sm:p-8"
     >
-      <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+      <div className="flex flex-col gap-1.5">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-900">
+          {title}
+        </h2>
         {subtitle && (
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <p className="text-sm leading-relaxed text-slate-600">{subtitle}</p>
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field
           name="first_name"
           cfg={fields.first_name}
@@ -131,7 +143,7 @@ export function PublicForm(props: PublicFormProps) {
 
       <Field name="initial_notes" cfg={fields.initial_notes} multiline />
 
-      {/* Honeypot field — escondido para humanos, lleno por bots = descartado */}
+      {/* Honeypot — escondido para humanos, lleno por bots = descartado */}
       <div className="hidden" aria-hidden="true">
         <label>
           Sitio web
@@ -145,7 +157,7 @@ export function PublicForm(props: PublicFormProps) {
       </div>
 
       {error && (
-        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -153,8 +165,8 @@ export function PublicForm(props: PublicFormProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="mt-1 inline-flex h-11 items-center justify-center px-5 text-sm font-semibold text-white transition disabled:opacity-60"
         style={{ backgroundColor: primaryColor }}
+        className="mt-1 inline-flex h-12 items-center justify-center px-6 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
       >
         {submitting ? "Enviando…" : submitLabel}
       </button>
@@ -175,28 +187,34 @@ function Field({
   multiline?: boolean;
   autoComplete?: string;
 }) {
-  const shared = {
-    name,
-    required: cfg.required,
-    placeholder: cfg.placeholder,
-    autoComplete,
-    className:
-      "h-11 w-full border border-[#262b35] bg-[#13161c] px-3 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-white/40",
-  };
+  const sharedInputClass =
+    "w-full border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-(--form-accent) focus:ring-2 focus:ring-(--form-accent)/20";
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700">
         {cfg.label}
-        {cfg.required && <span className="text-[#FF5906]"> *</span>}
+        {cfg.required && (
+          <span className="text-(--form-accent)"> *</span>
+        )}
       </span>
       {multiline ? (
         <textarea
-          {...shared}
+          name={name}
+          required={cfg.required}
+          placeholder={cfg.placeholder}
+          autoComplete={autoComplete}
           rows={3}
-          className="min-h-[88px] w-full border border-[#262b35] bg-[#13161c] px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-white/40"
+          className={`min-h-[96px] py-2.5 ${sharedInputClass}`}
         />
       ) : (
-        <input {...shared} type={type} />
+        <input
+          name={name}
+          required={cfg.required}
+          placeholder={cfg.placeholder}
+          autoComplete={autoComplete}
+          type={type}
+          className={`h-11 ${sharedInputClass}`}
+        />
       )}
     </label>
   );

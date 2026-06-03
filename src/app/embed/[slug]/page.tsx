@@ -25,17 +25,21 @@ export default async function PublicFormEmbedPage({
 
   if (!form || form.status !== "active") notFound();
 
+  // Embed: fondo transparente para que se adapte al sitio host (claro u oscuro).
+  // La PublicForm card tiene su propio bg blanco + shadow para destacar.
   return (
-    <div className="min-h-screen bg-[#0a0c10] p-4 text-white">
-      <PublicForm
-        slug={form.slug}
-        title={form.title}
-        subtitle={form.subtitle}
-        submitLabel={form.submit_label}
-        successMessage={form.success_message}
-        primaryColor={form.primary_color}
-        fields={parseFields(form.fields)}
-      />
+    <div className="min-h-screen bg-transparent p-3 sm:p-4">
+      <div className="mx-auto max-w-xl">
+        <PublicForm
+          slug={form.slug}
+          title={form.title}
+          subtitle={form.subtitle}
+          submitLabel={form.submit_label}
+          successMessage={form.success_message}
+          primaryColor={form.primary_color}
+          fields={parseFields(form.fields)}
+        />
+      </div>
     </div>
   );
 }
