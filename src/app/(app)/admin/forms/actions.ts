@@ -4,10 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
 import {
-  DEFAULT_FIELDS,
   formInputSchema,
   generateSlug,
-  parseFields,
   type FormInput,
 } from "@/lib/forms";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -243,6 +241,3 @@ export async function uploadFormAsset(
   const { data: pub } = admin.storage.from("form-assets").getPublicUrl(filename);
   return { ok: true, url: pub.publicUrl };
 }
-
-// Re-export helpers para el form UI.
-export { DEFAULT_FIELDS, parseFields };
