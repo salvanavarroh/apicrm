@@ -2,7 +2,6 @@
 
 import {
   Building2,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -11,6 +10,7 @@ import { useMemo, useState } from "react";
 
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,6 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { formatARS } from "@/lib/format";
 
 import {
@@ -35,50 +41,140 @@ export type BillingRow = {
   phone: string | null;
   amount: number;
   users: number;
-  /** Mes del que es ESTE pago (no la fecha de habilitación). YYYY-MM. */
-  periodKey: string;
+  periodKey: string;   // YYYY-MM
   periodLabel: string; // "Junio 2026"
   paymentStatus: "pending" | "paid" | "overdue";
-  dueDate: string;
+  dueDate: string;     // YYYY-MM-DD
   paidAt: string | null;
 };
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+type PaymentStatusFilter = "all" | "pending" | "paid" | "overdue";
 
-const MONTH_NAMES = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-];
+// ============================================================================
+// Root: 2 tabs (Mes actual / Histórico)
+// ============================================================================
 
 export function BillingTable({ rows }: { rows: BillingRow[] }) {
   const todayKey = currentMonthKey();
+  const currentRows = rows.filter((r) => r.periodKey === todayKey);
+  const pendingCount = currentRows.filter(
+    (r) => r.paymentStatus !== "paid",
+  ).length;
+
+  return (
+    <Tabs defaultValue="current" className="gap-4">
+      <TabsList>
+        <TabsTrigger value="current">
+          Mes actual
+          {pendingCount > 0 && (
+            <span className="ml-2 inline-flex items-center justify-center rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning-foreground">
+              {pendingCount} por cobrar
+            </span>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="history">Histórico</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="current">
+        <CurrentMonthView rows={currentRows} />
+      </TabsContent>
+
+      <TabsContent value="history">
+        <HistoryView rows={rows} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+// ============================================================================
+// Tab 1: Mes actual — foco en "qué concesionarias faltan pagar".
+// ============================================================================
+
+function CurrentMonthView({ rows }: { rows: BillingRow[] }) {
   const [query, setQuery] = useState("");
-  // Default: si hay datos del mes actual, mostrarlo. Sino, "all".
-  const [periodFilter, setPeriodFilter] = useState<string>(() => {
-    return rows.some((r) => r.periodKey === todayKey) ? todayKey : "all";
-  });
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "paid" | "pending" | "overdue"
-  >("all");
+  const [statusFilter, setStatusFilter] =
+    useState<PaymentStatusFilter>("pending");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (statusFilter !== "all") {
+        if (statusFilter === "pending") {
+          // En este tab "pending" agrupa pending + overdue (todo lo NO cobrado).
+          if (r.paymentStatus === "paid") return false;
+        } else if (r.paymentStatus !== statusFilter) {
+          return false;
+        }
+      }
+      if (!q) return true;
+      const hay = [r.companyName, r.adminName, r.adminEmail, r.phone]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [rows, query, statusFilter]);
+
+  const kpis = computeKpis(filtered);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <BillingKpis kpis={kpis} />
+
+      <Card className="grid items-center gap-3 p-4 md:grid-cols-[1fr_auto]">
+        <SearchInput value={query} onChange={setQuery} />
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as PaymentStatusFilter)}
+        >
+          <SelectTrigger className="w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">Por cobrar</SelectItem>
+            <SelectItem value="paid">Cobradas</SelectItem>
+            <SelectItem value="all">Todas</SelectItem>
+          </SelectContent>
+        </Select>
+      </Card>
+
+      <BillingRowsTable
+        rows={filtered}
+        emptyMessage={
+          statusFilter === "pending"
+            ? "Todas las concesionarias ya pagaron este mes 🎉"
+            : "No hay registros para este filtro."
+        }
+        hidePeriodColumn
+      />
+    </div>
+  );
+}
+
+// ============================================================================
+// Tab 2: Histórico — buscador + rango de fechas + status + paginación.
+// ============================================================================
+
+function HistoryView({ rows }: { rows: BillingRow[] }) {
+  // Default: últimos 6 meses (basados en due_date).
+  const defaultDates = useMemo(() => {
+    if (rows.length === 0) return { from: "", to: "" };
+    const sortedDueDates = rows
+      .map((r) => r.dueDate)
+      .filter(Boolean)
+      .sort();
+    const minDate = sortedDueDates[0] ?? "";
+    const maxDate = sortedDueDates[sortedDueDates.length - 1] ?? "";
+    return { from: minDate.slice(0, 10), to: maxDate.slice(0, 10) };
+  }, [rows]);
+
+  const [query, setQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState(defaultDates.from);
+  const [dateTo, setDateTo] = useState(defaultDates.to);
+  const [statusFilter, setStatusFilter] =
+    useState<PaymentStatusFilter>("all");
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
-
-  // Genera lista de meses disponibles desde la data (más reciente primero).
-  const availablePeriods = useMemo(() => {
-    const set = new Set<string>();
-    for (const r of rows) set.add(r.periodKey);
-    return Array.from(set).sort().reverse();
-  }, [rows]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -90,154 +186,293 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
           .toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (periodFilter !== "all" && r.periodKey !== periodFilter) return false;
+      const due = r.dueDate.slice(0, 10);
+      if (dateFrom && due < dateFrom) return false;
+      if (dateTo && due > dateTo) return false;
       if (statusFilter !== "all" && r.paymentStatus !== statusFilter)
         return false;
       return true;
     });
-  }, [rows, query, periodFilter, statusFilter]);
+  }, [rows, query, dateFrom, dateTo, statusFilter]);
 
-  // KPIs sobre el set filtrado (no sobre rows, así reflejan el período).
-  const kpis = useMemo(() => {
-    let billed = 0;
-    let collected = 0;
-    let pendingAmt = 0;
-    let overdueAmt = 0;
-    for (const r of filtered) {
-      billed += r.amount;
-      if (r.paymentStatus === "paid") collected += r.amount;
-      else if (r.paymentStatus === "overdue") overdueAmt += r.amount;
-      else pendingAmt += r.amount;
-    }
-    return { billed, collected, pendingAmt, overdueAmt };
-  }, [filtered]);
-
+  const kpis = computeKpis(filtered);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const startIdx = (safePage - 1) * pageSize;
   const endIdx = Math.min(startIdx + pageSize, filtered.length);
   const visible = filtered.slice(startIdx, endIdx);
 
-  function changePageSize(n: number) {
-    setPageSize(n);
+  function reset() {
+    setQuery("");
+    setDateFrom(defaultDates.from);
+    setDateTo(defaultDates.to);
+    setStatusFilter("all");
     setPage(1);
   }
 
   return (
     <div className="flex flex-col gap-4">
-      {/* KPIs del período seleccionado */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiTile
-          label="Facturado"
-          value={kpis.billed}
-          hint={`${filtered.length} pago${filtered.length === 1 ? "" : "s"}`}
-          tone="muted"
-        />
-        <KpiTile
-          label="Cobrado"
-          value={kpis.collected}
-          hint={`${Math.round(
-            (kpis.billed === 0 ? 0 : (kpis.collected / kpis.billed) * 100),
-          )}% del total`}
-          tone="success"
-        />
-        <KpiTile
-          label="Pendiente"
-          value={kpis.pendingAmt}
-          hint="Sin vencer"
-          tone="warning"
-        />
-        <KpiTile
-          label="Vencido"
-          value={kpis.overdueAmt}
-          hint="Requiere acción"
-          tone="destructive"
-        />
-      </div>
+      <BillingKpis kpis={kpis} />
 
-      <Card className="flex flex-wrap items-center gap-3 p-4">
-        <div className="relative min-w-[240px] flex-1">
-          <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Card className="grid items-end gap-3 p-4 md:grid-cols-[1fr_auto_auto_auto_auto]">
+        <div className="flex flex-col gap-1">
+          <Label className="text-[11px]">Buscar</Label>
+          <SearchInput value={query} onChange={(v) => { setQuery(v); setPage(1); }} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[11px]">Desde</Label>
           <Input
-            placeholder="Buscar concesionaria, administrador, email…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setPage(1);
-            }}
-            className="pl-9"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+            className="h-9 w-40"
           />
         </div>
-
-        <div className="flex items-center gap-2">
-          <Calendar className="size-4 text-muted-foreground" />
+        <div className="flex flex-col gap-1">
+          <Label className="text-[11px]">Hasta</Label>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+            className="h-9 w-40"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[11px]">Estado</Label>
           <Select
-            value={periodFilter}
+            value={statusFilter}
             onValueChange={(v) => {
-              setPeriodFilter(v);
+              setStatusFilter(v as PaymentStatusFilter);
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="h-9 w-40">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos los períodos</SelectItem>
-              {availablePeriods.map((p) => (
-                <SelectItem key={p} value={p}>
-                  {periodLabel(p)}
-                </SelectItem>
-              ))}
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="paid">Pagados</SelectItem>
+              <SelectItem value="pending">Pendientes</SelectItem>
+              <SelectItem value="overdue">Vencidos</SelectItem>
             </SelectContent>
           </Select>
         </div>
-
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v as "all" | "paid" | "pending" | "overdue");
-            setPage(1);
-          }}
+        <button
+          type="button"
+          onClick={reset}
+          className="h-9 self-end rounded-md border border-input bg-card px-3 text-xs font-medium hover:bg-muted"
         >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
-            <SelectItem value="paid">Pagados</SelectItem>
-            <SelectItem value="pending">Pendientes</SelectItem>
-            <SelectItem value="overdue">Vencidos</SelectItem>
-          </SelectContent>
-        </Select>
+          Limpiar
+        </button>
       </Card>
 
-      <Card className="overflow-hidden p-0">
+      <BillingRowsTable
+        rows={visible}
+        emptyMessage="No hay pagos para esos filtros."
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-4 text-sm">
+        <div className="flex items-center gap-4 text-muted-foreground">
+          <span>
+            {filtered.length === 0
+              ? "0 resultados"
+              : `${startIdx + 1}-${endIdx} de ${filtered.length}`}
+          </span>
+          <span className="hidden h-4 w-px bg-border sm:inline-block" />
+          <div className="flex items-center gap-2">
+            <span>Filas por página:</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[80px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <Pagination
+          page={safePage}
+          totalPages={totalPages}
+          onChange={setPage}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Subcomponentes compartidos
+// ============================================================================
+
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+function SearchInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        placeholder="Concesionaria, administrador, email…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-9 w-full pl-9"
+      />
+    </div>
+  );
+}
+
+type Kpis = {
+  billed: number;
+  collected: number;
+  pendingAmt: number;
+  overdueAmt: number;
+  count: number;
+};
+
+function computeKpis(rows: BillingRow[]): Kpis {
+  let billed = 0;
+  let collected = 0;
+  let pendingAmt = 0;
+  let overdueAmt = 0;
+  for (const r of rows) {
+    billed += r.amount;
+    if (r.paymentStatus === "paid") collected += r.amount;
+    else if (r.paymentStatus === "overdue") overdueAmt += r.amount;
+    else pendingAmt += r.amount;
+  }
+  return { billed, collected, pendingAmt, overdueAmt, count: rows.length };
+}
+
+function BillingKpis({ kpis }: { kpis: Kpis }) {
+  const pct =
+    kpis.billed === 0 ? 0 : Math.round((kpis.collected / kpis.billed) * 100);
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <KpiTile
+        label="Facturado"
+        value={kpis.billed}
+        hint={`${kpis.count} pago${kpis.count === 1 ? "" : "s"}`}
+        tone="muted"
+      />
+      <KpiTile
+        label="Cobrado"
+        value={kpis.collected}
+        hint={`${pct}% del total`}
+        tone="success"
+      />
+      <KpiTile
+        label="Pendiente"
+        value={kpis.pendingAmt}
+        hint="Sin vencer"
+        tone="warning"
+      />
+      <KpiTile
+        label="Vencido"
+        value={kpis.overdueAmt}
+        hint="Requiere acción"
+        tone="destructive"
+      />
+    </div>
+  );
+}
+
+const KPI_TONE_CLS = {
+  muted: "border-border bg-card",
+  success: "border-success/30 bg-success/5",
+  warning: "border-warning/30 bg-warning/5",
+  destructive: "border-destructive/30 bg-destructive/5",
+} as const;
+
+const KPI_LABEL_CLS = {
+  muted: "text-muted-foreground",
+  success: "text-success",
+  warning: "text-warning-foreground",
+  destructive: "text-destructive",
+} as const;
+
+function KpiTile({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  tone: keyof typeof KPI_TONE_CLS;
+}) {
+  return (
+    <Card className={`flex flex-col gap-1 p-4 ${KPI_TONE_CLS[tone]}`}>
+      <span
+        className={`text-[10px] font-semibold uppercase tracking-wider ${KPI_LABEL_CLS[tone]}`}
+      >
+        {label}
+      </span>
+      <span className="text-2xl font-bold tracking-tight text-foreground">
+        {formatARS(value)}
+      </span>
+      <span className="text-[11px] text-muted-foreground">{hint}</span>
+    </Card>
+  );
+}
+
+function BillingRowsTable({
+  rows,
+  emptyMessage,
+  hidePeriodColumn,
+}: {
+  rows: BillingRow[];
+  emptyMessage: string;
+  hidePeriodColumn?: boolean;
+}) {
+  const colSpan = hidePeriodColumn ? 8 : 9;
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-medium">Concesionaria</th>
               <th className="px-4 py-3 font-medium">Administrador</th>
-              <th className="px-4 py-3 font-medium">Período</th>
+              {!hidePeriodColumn && (
+                <th className="px-4 py-3 font-medium">Período</th>
+              )}
               <th className="px-4 py-3 text-right font-medium">Monto</th>
               <th className="px-4 py-3 text-center font-medium">Usuarios</th>
               <th className="px-4 py-3 font-medium">Vencimiento</th>
-              <th className="px-4 py-3 font-medium">Estado del pago</th>
-              <th className="px-4 py-3 font-medium">Activar / Desactivar</th>
+              <th className="px-4 py-3 font-medium">Estado</th>
+              <th className="px-4 py-3 font-medium">Activación</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {visible.length === 0 && (
+            {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={colSpan}
                   className="bg-card px-4 py-10 text-center text-sm text-muted-foreground"
                 >
-                  No hay resultados para esos filtros.
+                  {emptyMessage}
                 </td>
               </tr>
             )}
-            {visible.map((r) => (
+            {rows.map((r) => (
               <tr
                 key={r.id}
                 className="border-t border-border bg-card hover:bg-muted/40"
@@ -256,9 +491,11 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
                     {r.adminEmail}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-sm text-foreground">
-                  {r.periodLabel}
-                </td>
+                {!hidePeriodColumn && (
+                  <td className="px-4 py-3 text-sm text-foreground">
+                    {r.periodLabel}
+                  </td>
+                )}
                 <td className="px-4 py-3 text-right font-mono text-foreground">
                   {formatARS(r.amount)}
                 </td>
@@ -269,21 +506,7 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
                   {formatShortDate(r.dueDate)}
                 </td>
                 <td className="px-4 py-3">
-                  <span
-                    className={
-                      r.paymentStatus === "paid"
-                        ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
-                        : r.paymentStatus === "overdue"
-                          ? "rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
-                          : "rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-foreground"
-                    }
-                  >
-                    {r.paymentStatus === "paid"
-                      ? "Pagado"
-                      : r.paymentStatus === "overdue"
-                        ? "Vencido"
-                        : "Pendiente"}
-                  </span>
+                  <PaymentStatusBadge status={r.paymentStatus} />
                 </td>
                 <td className="px-4 py-3">
                   <CompanyStatusToggle
@@ -304,45 +527,38 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
             ))}
           </tbody>
         </table>
-      </Card>
-
-      <div className="flex flex-wrap items-center justify-between gap-4 text-sm">
-        <div className="flex items-center gap-4 text-muted-foreground">
-          <span>
-            {filtered.length === 0
-              ? "0 resultados"
-              : `${startIdx + 1}-${endIdx} de ${filtered.length}`}
-          </span>
-          <span className="hidden h-4 w-px bg-border sm:inline-block" />
-          <div className="flex items-center gap-2">
-            <span>Filas por página:</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => changePageSize(Number(v))}
-            >
-              <SelectTrigger className="h-8 w-[80px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <Pagination
-          page={safePage}
-          totalPages={totalPages}
-          onChange={setPage}
-        />
       </div>
-    </div>
+    </Card>
   );
 }
+
+function PaymentStatusBadge({
+  status,
+}: {
+  status: "pending" | "paid" | "overdue";
+}) {
+  return (
+    <span
+      className={
+        status === "paid"
+          ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
+          : status === "overdue"
+            ? "rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
+            : "rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-foreground"
+      }
+    >
+      {status === "paid"
+        ? "Pagado"
+        : status === "overdue"
+          ? "Vencido"
+          : "Pendiente"}
+    </span>
+  );
+}
+
+// ============================================================================
+// Paginación
+// ============================================================================
 
 function Pagination({
   page,
@@ -450,21 +666,15 @@ function pageNumbers(current: number, total: number): (number | "…")[] {
   return pages;
 }
 
+// ============================================================================
+// Date / period helpers
+// ============================================================================
+
 function formatShortDate(iso: string | null) {
   if (!iso) return "—";
   const months = [
-    "Ene",
-    "Feb",
-    "Mar",
-    "Abr",
-    "May",
-    "Jun",
-    "Jul",
-    "Ago",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dic",
+    "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+    "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
   ];
   const d = new Date(iso);
   const day = String(d.getUTCDate()).padStart(2, "0");
@@ -473,53 +683,7 @@ function formatShortDate(iso: string | null) {
   return `${day} ${mon}. ${yr}`;
 }
 
-function periodLabel(periodKey: string): string {
-  const [y, m] = periodKey.split("-").map(Number);
-  if (!y || !m) return periodKey;
-  return `${MONTH_NAMES[m - 1]} ${y}`;
-}
-
 function currentMonthKey(): string {
   const d = new Date();
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-const KPI_TONE_CLS = {
-  muted: "border-border bg-card",
-  success: "border-success/30 bg-success/5",
-  warning: "border-warning/30 bg-warning/5",
-  destructive: "border-destructive/30 bg-destructive/5",
-} as const;
-
-const KPI_LABEL_CLS = {
-  muted: "text-muted-foreground",
-  success: "text-success",
-  warning: "text-warning-foreground",
-  destructive: "text-destructive",
-} as const;
-
-function KpiTile({
-  label,
-  value,
-  hint,
-  tone,
-}: {
-  label: string;
-  value: number;
-  hint: string;
-  tone: keyof typeof KPI_TONE_CLS;
-}) {
-  return (
-    <Card className={`flex flex-col gap-1 p-4 ${KPI_TONE_CLS[tone]}`}>
-      <span
-        className={`text-[10px] font-semibold uppercase tracking-wider ${KPI_LABEL_CLS[tone]}`}
-      >
-        {label}
-      </span>
-      <span className="text-2xl font-bold tracking-tight text-foreground">
-        {formatARS(value)}
-      </span>
-      <span className="text-[11px] text-muted-foreground">{hint}</span>
-    </Card>
-  );
 }
