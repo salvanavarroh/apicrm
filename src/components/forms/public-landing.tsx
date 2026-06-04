@@ -14,9 +14,9 @@ type Props = PublicFormProps & {
 
 /**
  * Landing pública (/f/[slug]):
- * Hero con banner + logo overlay, después grid 2-col con form (ancho) e
- * info card (sucursal: dirección, teléfono, badges de confianza).
- * En mobile colapsa a una columna y la info queda debajo del form.
+ * Fondo blanco. Hero con banner que se funde al blanco vía gradient,
+ * después grid 2-col con form (ancho) e info card (sucursal: dirección,
+ * teléfono, badges). Mobile colapsa a una columna.
  */
 export function PublicLanding({
   logoUrl,
@@ -31,13 +31,7 @@ export function PublicLanding({
   const hasContactInfo = Boolean(address || phone);
 
   return (
-    <div
-      className="min-h-screen text-white"
-      style={{
-        background:
-          "radial-gradient(ellipse at top, #1a1f2b 0%, #0a0c10 60%)",
-      }}
-    >
+    <div className="min-h-screen bg-white text-slate-900">
       {/* HERO */}
       <header className="relative">
         {bannerUrl ? (
@@ -50,19 +44,25 @@ export function PublicLanding({
               sizes="100vw"
               priority
             />
+            {/* Gradient overlay: oscurece levemente arriba para contraste y
+                se funde a blanco abajo para mezclar con el fondo del body. */}
             <div
               aria-hidden
-              className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/40 to-[#0a0c10]"
+              className="absolute inset-0 bg-gradient-to-b from-black/10 via-white/0 to-white"
+            />
+            <div
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-white"
             />
           </div>
         ) : (
-          <div className="h-16 sm:h-20" />
+          <div className="h-12 sm:h-16" />
         )}
 
         {/* Logo + nombre superpuesto al fondo del banner */}
         <div className="relative -mt-12 flex flex-col items-center gap-3 px-6 text-center sm:-mt-14">
           {logoUrl ? (
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-xl shadow-black/40 sm:h-24 sm:w-24">
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-300/40 sm:h-24 sm:w-24">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoUrl}
@@ -73,11 +73,11 @@ export function PublicLanding({
           ) : null}
           {companyName && (
             <div className="flex flex-col items-center gap-0.5">
-              <h1 className="text-xl font-semibold tracking-tight text-white sm:text-2xl">
+              <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
                 {companyName}
               </h1>
               {branchName && (
-                <p className="text-sm text-white/60">{branchName}</p>
+                <p className="text-sm text-slate-500">{branchName}</p>
               )}
             </div>
           )}
@@ -107,7 +107,7 @@ export function PublicLanding({
           ) : null}
         </div>
 
-        <p className="mt-10 text-center text-[11px] leading-relaxed text-white/40">
+        <p className="mt-10 text-center text-[11px] leading-relaxed text-slate-500">
           Tus datos se usan solo para que un representante te contacte. No los
           compartimos con terceros.
         </p>
@@ -131,13 +131,15 @@ function ContactCard({
   const telHref = phone ? `tel:${phone.replace(/[^+\d]/g, "")}` : null;
 
   return (
-    <div className="flex flex-col gap-5 border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm">
+    <div className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-md shadow-slate-200/60">
       <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
           Encontranos
         </span>
         {branchName && (
-          <h2 className="text-base font-semibold text-white">{branchName}</h2>
+          <h2 className="text-base font-semibold text-slate-900">
+            {branchName}
+          </h2>
         )}
       </div>
 
@@ -165,7 +167,7 @@ function ContactCard({
       </div>
 
       {/* Trust signals */}
-      <div className="flex flex-col gap-3 border-t border-white/10 pt-5">
+      <div className="flex flex-col gap-3 border-t border-slate-200 pt-5">
         <TrustBadge
           icon={<Clock className="size-3.5" />}
           text="Respuesta en menos de 24 hs hábiles"
@@ -192,15 +194,15 @@ function InfoRow({
     <div className="flex items-start gap-3">
       <span
         aria-hidden
-        className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/5 text-white/70"
+        className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500"
       >
         {icon}
       </span>
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
           {label}
         </span>
-        <span className="text-sm leading-snug text-white/90">{children}</span>
+        <span className="text-sm leading-snug text-slate-700">{children}</span>
       </div>
     </div>
   );
@@ -214,8 +216,8 @@ function TrustBadge({
   text: string;
 }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-white/60">
-      <span aria-hidden className="text-white/40">
+    <div className="flex items-center gap-2 text-xs text-slate-600">
+      <span aria-hidden className="text-slate-400">
         {icon}
       </span>
       <span>{text}</span>

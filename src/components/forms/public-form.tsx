@@ -126,7 +126,7 @@ export function PublicForm(props: PublicFormProps) {
     return (
       <div
         style={accentStyle}
-        className="flex flex-col items-center gap-4 bg-white p-10 text-center text-slate-900 shadow-xl"
+        className="flex flex-col items-center gap-4 rounded-2xl border border-slate-200 bg-white p-10 text-center text-slate-900 shadow-md shadow-slate-200/60"
       >
         <span
           className="flex size-14 items-center justify-center rounded-full text-white"
@@ -144,7 +144,7 @@ export function PublicForm(props: PublicFormProps) {
     <form
       onSubmit={handleSubmit}
       style={accentStyle}
-      className="flex flex-col gap-6 bg-white p-7 text-slate-900 shadow-xl sm:p-8"
+      className="flex flex-col gap-6 rounded-2xl border border-slate-200 bg-white p-7 text-slate-900 shadow-md shadow-slate-200/60 sm:p-8"
     >
       <div className="flex flex-col gap-1.5">
         <h2 className="text-xl font-semibold tracking-tight text-slate-900">
@@ -202,7 +202,7 @@ export function PublicForm(props: PublicFormProps) {
       </div>
 
       {error && (
-        <p className="border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="rounded-md border-l-4 border-red-500 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -211,7 +211,7 @@ export function PublicForm(props: PublicFormProps) {
         type="submit"
         disabled={submitting}
         style={{ backgroundColor: primaryColor }}
-        className="mt-1 inline-flex h-12 items-center justify-center px-6 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
+        className="mt-1 inline-flex h-12 items-center justify-center rounded-lg px-6 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
       >
         {submitting ? "Enviando…" : submitLabel}
       </button>
@@ -233,7 +233,7 @@ function Field({
   autoComplete?: string;
 }) {
   const sharedInputClass =
-    "w-full border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-(--form-accent) focus:ring-2 focus:ring-(--form-accent)/20";
+    "w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-(--form-accent) focus:ring-2 focus:ring-(--form-accent)/20";
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-700">
