@@ -92,8 +92,10 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
 
 function CurrentMonthView({ rows }: { rows: BillingRow[] }) {
   const [query, setQuery] = useState("");
+  // Default "all" — el tab muestra TODO el mes (pagados + no pagados) para
+  // tener la foto completa de a quién facturás este período.
   const [statusFilter, setStatusFilter] =
-    useState<PaymentStatusFilter>("pending");
+    useState<PaymentStatusFilter>("all");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -131,9 +133,9 @@ function CurrentMonthView({ rows }: { rows: BillingRow[] }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">Todas</SelectItem>
             <SelectItem value="pending">Por cobrar</SelectItem>
             <SelectItem value="paid">Cobradas</SelectItem>
-            <SelectItem value="all">Todas</SelectItem>
           </SelectContent>
         </Select>
       </Card>
@@ -143,7 +145,9 @@ function CurrentMonthView({ rows }: { rows: BillingRow[] }) {
         emptyMessage={
           statusFilter === "pending"
             ? "Todas las concesionarias ya pagaron este mes 🎉"
-            : "No hay registros para este filtro."
+            : statusFilter === "paid"
+              ? "Todavía no hay pagos cobrados este mes."
+              : "No hay registros para este mes."
         }
         hidePeriodColumn
       />
