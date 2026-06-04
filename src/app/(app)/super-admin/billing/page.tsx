@@ -49,6 +49,21 @@ export default async function BillingPage() {
     if (u.email) emailByUserId.set(u.id, u.email);
   }
 
+  const MONTH_NAMES = [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ];
+
   const rows: BillingRow[] = ((payments ?? []) as unknown as PaymentRow[]).map(
     (p) => {
       const admins = p.company.profiles.filter((pr) => pr.role === "admin");
@@ -58,6 +73,8 @@ export default async function BillingPage() {
       ).length;
       const overdue =
         p.status === "pending" && new Date(p.due_date) < new Date();
+      const periodKey = `${p.period_year}-${String(p.period_month).padStart(2, "0")}`;
+      const periodLabel = `${MONTH_NAMES[p.period_month - 1]} ${p.period_year}`;
       return {
         id: p.id,
         companyId: p.company.id,
@@ -72,8 +89,8 @@ export default async function BillingPage() {
         phone: p.company.phone,
         amount: Number(p.amount),
         users: activeUsers,
-        subscriptionStartsAt:
-          p.company.subscription_starts_at ?? p.company.subscription_ends_at,
+        periodKey,
+        periodLabel,
         paymentStatus: overdue ? "overdue" : p.status,
         dueDate: p.due_date,
         paidAt: p.paid_at,

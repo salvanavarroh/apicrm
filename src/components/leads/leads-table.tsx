@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -61,8 +61,16 @@ export function LeadsTable({
   detailHrefPrefix,
   showAssignee = true,
 }: Props) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<LeadStatus | "all">("all");
+
+  function openDetail(rowId: string, e: React.MouseEvent) {
+    // cmd/ctrl/middle-click → no interferir (deja que el browser abra tab nueva
+    // si el target tiene href; igual aprovechamos prefetch del onMouseEnter).
+    if (e.metaKey || e.ctrlKey || e.button === 1) return;
+    router.push(`${detailHrefPrefix}/${rowId}`);
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -141,15 +149,22 @@ export function LeadsTable({
             {filtered.map((row) => (
               <TableRow
                 key={row.id}
-                className="cursor-pointer hover:bg-muted/40"
+                role="link"
+                tabIndex={0}
+                onClick={(e) => openDetail(row.id, e)}
+                onMouseEnter={() =>
+                  router.prefetch(`${detailHrefPrefix}/${row.id}`)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`${detailHrefPrefix}/${row.id}`);
+                  }
+                }}
+                className="cursor-pointer hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none"
               >
                 <TableCell className="font-medium">
-                  <Link
-                    href={`${detailHrefPrefix}/${row.id}`}
-                    className="block"
-                  >
-                    {fullName(row.first_name, row.last_name)}
-                  </Link>
+                  {fullName(row.first_name, row.last_name)}
                 </TableCell>
                 <TableCell className="text-sm">
                   <div className="text-foreground">{row.phone ?? "—"}</div>

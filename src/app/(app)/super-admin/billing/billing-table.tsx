@@ -35,7 +35,9 @@ export type BillingRow = {
   phone: string | null;
   amount: number;
   users: number;
-  subscriptionStartsAt: string | null;
+  /** Mes del que es ESTE pago (no la fecha de habilitación). YYYY-MM. */
+  periodKey: string;
+  periodLabel: string; // "Junio 2026"
   paymentStatus: "pending" | "paid" | "overdue";
   dueDate: string;
   paidAt: string | null;
@@ -43,72 +45,72 @@ export type BillingRow = {
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
-function formatShortDate(iso: string | null) {
-  if (!iso) return "—";
-  const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-  const d = new Date(iso);
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const mon = months[d.getUTCMonth()];
-  const yr = String(d.getUTCFullYear()).slice(2);
-  return `${day} ${mon}. ${yr}`;
-}
-
-const DATE_RANGE_OPTIONS = [
-  { value: "all", label: "Todos los períodos" },
-  { value: "current", label: "Mes actual" },
-  { value: "previous", label: "Mes anterior" },
-  { value: "quarter", label: "Último trimestre" },
-  { value: "year", label: "Este año" },
+const MONTH_NAMES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
 ];
 
 export function BillingTable({ rows }: { rows: BillingRow[] }) {
+  const todayKey = currentMonthKey();
   const [query, setQuery] = useState("");
-  const [dateRange, setDateRange] = useState<string>("all");
+  // Default: si hay datos del mes actual, mostrarlo. Sino, "all".
+  const [periodFilter, setPeriodFilter] = useState<string>(() => {
+    return rows.some((r) => r.periodKey === todayKey) ? todayKey : "all";
+  });
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "paid" | "pending" | "overdue"
+  >("all");
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
 
+  // Genera lista de meses disponibles desde la data (más reciente primero).
+  const availablePeriods = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) set.add(r.periodKey);
+    return Array.from(set).sort().reverse();
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const now = new Date();
-    const yr = now.getUTCFullYear();
-    const mo = now.getUTCMonth() + 1;
     return rows.filter((r) => {
       if (q) {
-        const hay = [
-          r.companyName,
-          r.adminName,
-          r.adminEmail,
-          r.phone,
-        ]
+        const hay = [r.companyName, r.adminName, r.adminEmail, r.phone]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (dateRange === "current") {
-        const d = new Date(r.dueDate);
-        return d.getUTCFullYear() === yr && d.getUTCMonth() + 1 === mo;
-      }
-      if (dateRange === "previous") {
-        const d = new Date(r.dueDate);
-        const target = mo === 1 ? { y: yr - 1, m: 12 } : { y: yr, m: mo - 1 };
-        return (
-          d.getUTCFullYear() === target.y && d.getUTCMonth() + 1 === target.m
-        );
-      }
-      if (dateRange === "quarter") {
-        const d = new Date(r.dueDate);
-        const diffMonths =
-          (yr - d.getUTCFullYear()) * 12 + (mo - (d.getUTCMonth() + 1));
-        return diffMonths >= 0 && diffMonths < 3;
-      }
-      if (dateRange === "year") {
-        const d = new Date(r.dueDate);
-        return d.getUTCFullYear() === yr;
-      }
+      if (periodFilter !== "all" && r.periodKey !== periodFilter) return false;
+      if (statusFilter !== "all" && r.paymentStatus !== statusFilter)
+        return false;
       return true;
     });
-  }, [rows, query, dateRange]);
+  }, [rows, query, periodFilter, statusFilter]);
+
+  // KPIs sobre el set filtrado (no sobre rows, así reflejan el período).
+  const kpis = useMemo(() => {
+    let billed = 0;
+    let collected = 0;
+    let pendingAmt = 0;
+    let overdueAmt = 0;
+    for (const r of filtered) {
+      billed += r.amount;
+      if (r.paymentStatus === "paid") collected += r.amount;
+      else if (r.paymentStatus === "overdue") overdueAmt += r.amount;
+      else pendingAmt += r.amount;
+    }
+    return { billed, collected, pendingAmt, overdueAmt };
+  }, [filtered]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -123,8 +125,38 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* KPIs del período seleccionado */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiTile
+          label="Facturado"
+          value={kpis.billed}
+          hint={`${filtered.length} pago${filtered.length === 1 ? "" : "s"}`}
+          tone="muted"
+        />
+        <KpiTile
+          label="Cobrado"
+          value={kpis.collected}
+          hint={`${Math.round(
+            (kpis.billed === 0 ? 0 : (kpis.collected / kpis.billed) * 100),
+          )}% del total`}
+          tone="success"
+        />
+        <KpiTile
+          label="Pendiente"
+          value={kpis.pendingAmt}
+          hint="Sin vencer"
+          tone="warning"
+        />
+        <KpiTile
+          label="Vencido"
+          value={kpis.overdueAmt}
+          hint="Requiere acción"
+          tone="destructive"
+        />
+      </div>
+
       <Card className="flex flex-wrap items-center gap-3 p-4">
-        <div className="relative min-w-[260px] flex-1">
+        <div className="relative min-w-[240px] flex-1">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar concesionaria, administrador, email…"
@@ -140,24 +172,43 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
         <div className="flex items-center gap-2">
           <Calendar className="size-4 text-muted-foreground" />
           <Select
-            value={dateRange}
+            value={periodFilter}
             onValueChange={(v) => {
-              setDateRange(v);
+              setPeriodFilter(v);
               setPage(1);
             }}
           >
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {DATE_RANGE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
+              <SelectItem value="all">Todos los períodos</SelectItem>
+              {availablePeriods.map((p) => (
+                <SelectItem key={p} value={p}>
+                  {periodLabel(p)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
+
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => {
+            setStatusFilter(v as "all" | "paid" | "pending" | "overdue");
+            setPage(1);
+          }}
+        >
+          <SelectTrigger className="w-[150px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="paid">Pagados</SelectItem>
+            <SelectItem value="pending">Pendientes</SelectItem>
+            <SelectItem value="overdue">Vencidos</SelectItem>
+          </SelectContent>
+        </Select>
       </Card>
 
       <Card className="overflow-hidden p-0">
@@ -166,10 +217,10 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
             <tr>
               <th className="px-4 py-3 font-medium">Concesionaria</th>
               <th className="px-4 py-3 font-medium">Administrador</th>
-              <th className="px-4 py-3 font-medium">Nro de teléfono</th>
-              <th className="px-4 py-3 text-right font-medium">Monto mensual</th>
+              <th className="px-4 py-3 font-medium">Período</th>
+              <th className="px-4 py-3 text-right font-medium">Monto</th>
               <th className="px-4 py-3 text-center font-medium">Usuarios</th>
-              <th className="px-4 py-3 font-medium">Fecha de habilitación</th>
+              <th className="px-4 py-3 font-medium">Vencimiento</th>
               <th className="px-4 py-3 font-medium">Estado del pago</th>
               <th className="px-4 py-3 font-medium">Activar / Desactivar</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
@@ -205,8 +256,8 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
                     {r.adminEmail}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  {r.phone ?? "—"}
+                <td className="px-4 py-3 text-sm text-foreground">
+                  {r.periodLabel}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-foreground">
                   {formatARS(r.amount)}
@@ -215,7 +266,7 @@ export function BillingTable({ rows }: { rows: BillingRow[] }) {
                   {r.users}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
-                  {formatShortDate(r.subscriptionStartsAt)}
+                  {formatShortDate(r.dueDate)}
                 </td>
                 <td className="px-4 py-3">
                   <span
@@ -397,4 +448,78 @@ function pageNumbers(current: number, total: number): (number | "…")[] {
   if (end < total - 1) pages.push("…");
   pages.push(total);
   return pages;
+}
+
+function formatShortDate(iso: string | null) {
+  if (!iso) return "—";
+  const months = [
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+  ];
+  const d = new Date(iso);
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const mon = months[d.getUTCMonth()];
+  const yr = String(d.getUTCFullYear()).slice(2);
+  return `${day} ${mon}. ${yr}`;
+}
+
+function periodLabel(periodKey: string): string {
+  const [y, m] = periodKey.split("-").map(Number);
+  if (!y || !m) return periodKey;
+  return `${MONTH_NAMES[m - 1]} ${y}`;
+}
+
+function currentMonthKey(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+const KPI_TONE_CLS = {
+  muted: "border-border bg-card",
+  success: "border-success/30 bg-success/5",
+  warning: "border-warning/30 bg-warning/5",
+  destructive: "border-destructive/30 bg-destructive/5",
+} as const;
+
+const KPI_LABEL_CLS = {
+  muted: "text-muted-foreground",
+  success: "text-success",
+  warning: "text-warning-foreground",
+  destructive: "text-destructive",
+} as const;
+
+function KpiTile({
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  tone: keyof typeof KPI_TONE_CLS;
+}) {
+  return (
+    <Card className={`flex flex-col gap-1 p-4 ${KPI_TONE_CLS[tone]}`}>
+      <span
+        className={`text-[10px] font-semibold uppercase tracking-wider ${KPI_LABEL_CLS[tone]}`}
+      >
+        {label}
+      </span>
+      <span className="text-2xl font-bold tracking-tight text-foreground">
+        {formatARS(value)}
+      </span>
+      <span className="text-[11px] text-muted-foreground">{hint}</span>
+    </Card>
+  );
 }

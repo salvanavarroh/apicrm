@@ -102,32 +102,30 @@ export function NotesSection({ leadId, notes, readonly }: Props) {
       <CardContent className="flex flex-col gap-3">
         {!readonly && (
           <div className="flex flex-col gap-2">
-            <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
-              <Select value={activity} onValueChange={(v) => setActivity(v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tipo de actividad" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>Solo nota</SelectItem>
-                  {NOTE_ACTIVITIES.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {NOTE_ACTIVITY_LABEL[a]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Textarea
-                rows={2}
-                placeholder={
-                  activity === NONE
-                    ? "Escribí una nota interna…"
-                    : "Contanos qué pasó / qué dijo el cliente…"
-                }
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                disabled={pending}
-              />
-            </div>
+            <Select value={activity} onValueChange={(v) => setActivity(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tipo de actividad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>Solo nota</SelectItem>
+                {NOTE_ACTIVITIES.map((a) => (
+                  <SelectItem key={a} value={a}>
+                    {NOTE_ACTIVITY_LABEL[a]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Textarea
+              rows={3}
+              placeholder={
+                activity === NONE
+                  ? "Escribí una nota interna…"
+                  : "Contanos qué pasó / qué dijo el cliente…"
+              }
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              disabled={pending}
+            />
             <div className="flex justify-end">
               <Button
                 size="sm"
