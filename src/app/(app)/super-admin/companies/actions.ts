@@ -75,7 +75,10 @@ export async function createCompanyWithAdmin(
       subscription_ends_at: emptyToNull(billing.subscription_ends_at) as
         | string
         | null,
-      status: "pending",
+      // SuperAdmin crea la empresa = ya hizo el KYC manualmente. Arrancan
+      // activas directamente para que el dealer pueda operar sin un paso
+      // extra de "activación".
+      status: "active",
     })
     .select("id, name")
     .single();
