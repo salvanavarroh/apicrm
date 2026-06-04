@@ -1,6 +1,7 @@
 "use client";
 
 import { PencilLine, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
@@ -37,8 +38,10 @@ export function BranchCardActions({ branch }: { branch: Branch }) {
 
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" disabled>
-        Ver lista de usuarios
+      <Button variant="outline" size="sm" asChild>
+        <Link href={`/admin/users?branch=${branch.id}`}>
+          Ver lista de usuarios
+        </Link>
       </Button>
       <BranchDialog
         branch={branch}

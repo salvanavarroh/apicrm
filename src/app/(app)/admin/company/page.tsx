@@ -6,6 +6,7 @@ import {
   PencilLine,
   Phone,
   ShieldCheck,
+  ShoppingBag,
   Store,
   TrendingUp,
   UserCog,
@@ -14,6 +15,7 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -42,7 +44,18 @@ export default async function AdminCompanyPage() {
   }
 
   const supabase = await createClient();
-  const [companyRes, branchesRes, profilesRes, requestsRes] = await Promise.all([
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+
+  const [
+    companyRes,
+    branchesRes,
+    profilesRes,
+    requestsRes,
+    leadsRes,
+    salesRes,
+  ] = await Promise.all([
     supabase
       .from("companies")
       .select(
@@ -66,6 +79,15 @@ export default async function AdminCompanyPage() {
       .eq("company_id", profile.company_id)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("leads")
+      .select("id, status, branch_id")
+      .eq("company_id", profile.company_id),
+    supabase
+      .from("sales")
+      .select("id, status, lead_id, started_at")
+      .eq("company_id", profile.company_id)
+      .gte("started_at", monthStart.toISOString()),
   ]);
 
   if (!companyRes.data) {
@@ -83,6 +105,33 @@ export default async function AdminCompanyPage() {
   const branches = branchesRes.data ?? [];
   const profiles = profilesRes.data ?? [];
   const requests = requestsRes.data ?? [];
+  const leads = leadsRes.data ?? [];
+  const salesMonth = salesRes.data ?? [];
+
+  // Por sucursal: leads activos (≠ closed) y ventas aceptadas del mes.
+  const activeLeadsByBranch = new Map<string, number>();
+  for (const l of leads) {
+    if (!l.branch_id || l.status === "closed") continue;
+    activeLeadsByBranch.set(
+      l.branch_id,
+      (activeLeadsByBranch.get(l.branch_id) ?? 0) + 1,
+    );
+  }
+  // sales no tiene branch_id directo — joineamos vía lead_id contra leads.
+  const branchByLead = new Map<string, string>();
+  for (const l of leads) {
+    if (l.branch_id) branchByLead.set(l.id, l.branch_id);
+  }
+  const salesAcceptedByBranch = new Map<string, number>();
+  for (const s of salesMonth) {
+    if (s.status !== "accepted") continue;
+    const branchId = branchByLead.get(s.lead_id);
+    if (!branchId) continue;
+    salesAcceptedByBranch.set(
+      branchId,
+      (salesAcceptedByBranch.get(branchId) ?? 0) + 1,
+    );
+  }
 
   const admins = profiles.filter((p) => p.role === "admin");
   const managers = profiles.filter((p) => p.role === "manager");
@@ -152,8 +201,8 @@ export default async function AdminCompanyPage() {
               </Button>
             }
           />
-          <Button variant="outline" disabled>
-            Ver lista de usuarios
+          <Button variant="outline" asChild>
+            <Link href="/admin/users">Ver lista de usuarios</Link>
           </Button>
           {hasPendingRequest ? (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-3 py-2 text-sm font-medium text-success">
@@ -232,13 +281,23 @@ export default async function AdminCompanyPage() {
           branches.map((b) => {
             const branchSellers = sellers.filter((s) => s.branch_id === b.id);
             const branchManagers = managers; // Gerentes de la empresa (no scoped por sucursal acá)
+            const branchLeadsActive = activeLeadsByBranch.get(b.id) ?? 0;
+            const branchSalesMonth = salesAcceptedByBranch.get(b.id) ?? 0;
             return (
-              <Card key={b.id} className="flex flex-col gap-4 p-5">
+              <Card
+                key={b.id}
+                className="flex flex-col gap-4 p-5 transition-colors hover:bg-muted/30"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex flex-col gap-1.5">
+                  <Link
+                    href={`/admin/branches/${b.id}`}
+                    className="flex flex-col gap-1.5 hover:[&_.branch-name]:underline"
+                  >
                     <div className="flex items-center gap-2">
                       <Building2 className="size-4 text-foreground" />
-                      <span className="text-lg font-semibold">{b.name}</span>
+                      <span className="branch-name text-lg font-semibold">
+                        {b.name}
+                      </span>
                       <span
                         className={
                           b.status === "active"
@@ -264,7 +323,7 @@ export default async function AdminCompanyPage() {
                       <span className="text-muted-foreground">Admin:</span>{" "}
                       <span className="font-medium">{adminFullName}</span>
                     </p>
-                  </div>
+                  </Link>
 
                   <BranchCardActions branch={b} />
                 </div>
@@ -291,14 +350,14 @@ export default async function AdminCompanyPage() {
                   <BranchStat
                     icon={Wallet}
                     label="Leads activos"
-                    value="—"
-                    caption="Disponible en Sprint 4"
+                    value={branchLeadsActive}
+                    caption="Sin cerrar"
                   />
                   <BranchStat
-                    icon={Wallet}
-                    label="Ventas"
-                    value="—"
-                    caption="Disponible en Sprint 7"
+                    icon={ShoppingBag}
+                    label="Ventas del mes"
+                    value={branchSalesMonth}
+                    caption="Aceptadas en el mes"
                   />
                 </div>
               </Card>

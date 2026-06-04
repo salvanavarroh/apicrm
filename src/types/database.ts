@@ -1080,6 +1080,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           branch_id: string | null
           commission_conditions: string | null
           commission_percent: number | null
@@ -1096,6 +1097,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           branch_id?: string | null
           commission_conditions?: string | null
           commission_percent?: number | null
@@ -1112,6 +1114,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           branch_id?: string | null
           commission_conditions?: string | null
           commission_percent?: number | null

@@ -86,7 +86,7 @@ export function EditUserDialog({ user, branches }: Props) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" className="bg-card">
           <PencilLine className="mr-1 size-4" /> Editar
         </Button>
       </DialogTrigger>

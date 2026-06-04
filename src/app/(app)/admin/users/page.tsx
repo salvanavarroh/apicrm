@@ -27,7 +27,7 @@ export default async function AdminUsersPage() {
     supabase
       .from("profiles")
       .select(
-        "id, first_name, last_name, role, status, phone, branch_id, manager_id",
+        "id, first_name, last_name, role, status, phone, branch_id, manager_id, avatar_url",
       )
       .eq("company_id", profile.company_id)
       .neq("status", "deleted")
@@ -156,8 +156,25 @@ export default async function AdminUsersPage() {
     }
   }
 
+  // Resolver sucursales asociadas a cada usuario visible. Gerente: vía
+  // managements (branches que maneja). Proveedor: no tiene scope por
+  // sucursal, no se filtra por branch (se muestra siempre).
+  const branchesByManager = new Map<string, Set<string>>();
+  for (const m of managementsRows ?? []) {
+    if (!branchesByManager.has(m.manager_id))
+      branchesByManager.set(m.manager_id, new Set());
+    branchesByManager.get(m.manager_id)!.add(m.branch_id);
+  }
+
   const rows: UsersTableRow[] = visibleUsers.map((u) => {
     const isManager = u.role === "manager";
+    // Provider: pasa array vacío → solo aparece con filtro "Todas".
+    // Manager: array con sus branches (vía managements).
+    // Si querés que provider siga apareciendo al filtrar por sucursal,
+    // pasale TODAS las branches del company.
+    const branchIds = isManager
+      ? Array.from(branchesByManager.get(u.id) ?? [])
+      : branches.map((b) => b.id);
     return {
       id: u.id,
       firstName: u.first_name,
@@ -166,6 +183,7 @@ export default async function AdminUsersPage() {
       status: u.status as UsersTableRow["status"],
       email: emailMap[u.id] ?? "—",
       phone: u.phone,
+      avatarUrl: u.avatar_url ?? null,
       vendors: isManager ? (vendorsByManager.get(u.id) ?? 0) : null,
       sales: isManager ? (salesAcceptedByManager.get(u.id) ?? 0) : null,
       activeLeads: isManager
@@ -174,6 +192,7 @@ export default async function AdminUsersPage() {
       pendingLeads: isManager
         ? (pendingLeadsByManager.get(u.id) ?? 0)
         : (providerLeadsPending.get(u.id) ?? 0),
+      branchIds,
     };
   });
 
@@ -206,7 +225,7 @@ export default async function AdminUsersPage() {
           </p>
         </Card>
       ) : (
-        <UsersTable rows={rows} />
+        <UsersTable rows={rows} branches={branches} />
       )}
     </div>
   );

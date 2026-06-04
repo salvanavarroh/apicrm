@@ -1,9 +1,47 @@
 import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 
+import { DownloadSampleCsv } from "@/components/download-sample-csv";
 import { CsvImporter } from "@/components/leads/csv-importer";
+import { Card } from "@/components/ui/card";
+import { CSV_HEADERS } from "@/lib/leads";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+
+const LEADS_CSV_EXAMPLES = [
+  {
+    first_name: "María",
+    last_name: "Gómez",
+    email: "maria.gomez@gmail.com",
+    phone: "+541144112233",
+    city: "Buenos Aires",
+    vehicle_model: "Toyota Corolla",
+    vehicle_version: "XEi 2.0",
+    preferred_color: "Blanco",
+    budget_min: "15000000",
+    budget_max: "20000000",
+    has_used_car: "true",
+    used_car_description: "Fiat Cronos 2022 con 40.000km",
+    declared_payment_method: "used_car",
+    initial_notes: "Quiere entrega rápida, viene de Meta Ads.",
+  },
+  {
+    first_name: "Juan",
+    last_name: "Pérez",
+    email: "juan.perez@hotmail.com",
+    phone: "+5491155667788",
+    city: "Rosario",
+    vehicle_model: "Volkswagen Polo",
+    vehicle_version: "Highline",
+    preferred_color: "Gris",
+    budget_min: "",
+    budget_max: "12000000",
+    has_used_car: "false",
+    used_car_description: "",
+    declared_payment_method: "financed",
+    initial_notes: "Quiere financiación a 36 meses.",
+  },
+];
 
 export default async function ImportLeadsAdminPage() {
   const profile = await requireRole(["admin"]);
@@ -38,15 +76,35 @@ export default async function ImportLeadsAdminPage() {
       >
         <ChevronLeft className="size-4" /> Volver a leads
       </Link>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Importar leads desde CSV
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Subí un archivo, revisá cada fila inline y confirmá. Los cambios se
-          mantienen sólo hasta confirmar.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Importar leads desde CSV
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Subí un archivo, revisá cada fila inline y confirmá. Los cambios se
+            mantienen sólo hasta confirmar.
+          </p>
+        </div>
+        <DownloadSampleCsv
+          headers={CSV_HEADERS}
+          examples={LEADS_CSV_EXAMPLES}
+          filename="ejemplo-leads.csv"
+        />
       </header>
+
+      <Card className="flex flex-col gap-1 p-4 text-xs text-muted-foreground">
+        <p className="font-semibold text-foreground">
+          Columnas esperadas (en cualquier orden):
+        </p>
+        <p>{CSV_HEADERS.join(" · ")}</p>
+        <p className="mt-1">
+          <strong>declared_payment_method</strong> debe ser uno de:{" "}
+          <code>cash</code>, <code>financed</code>, <code>savings_plan</code>,{" "}
+          <code>used_car</code>, <code>other</code>. <strong>has_used_car</strong>:{" "}
+          <code>true</code> / <code>false</code>.
+        </p>
+      </Card>
 
       <CsvImporter
         redirectTo="/admin/leads"

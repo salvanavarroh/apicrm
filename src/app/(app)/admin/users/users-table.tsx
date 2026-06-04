@@ -1,11 +1,14 @@
 "use client";
 
-import { ChevronRight, ShieldCheck, Truck } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { UserAvatar } from "@/components/user-avatar";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -22,10 +25,12 @@ export type UsersTableRow = {
   status: "pending" | "active" | "inactive" | "deleted";
   email: string;
   phone: string | null;
+  avatarUrl: string | null;
   vendors: number | null;
   sales: number | null;
   activeLeads: number;
   pendingLeads: number;
+  branchIds: string[]; // sucursales asociadas (managements + branch_id directo)
 };
 
 const STATUS_CFG = {
@@ -41,14 +46,27 @@ const ROLE_FILTERS = [
   { value: "data_provider", label: "Proveedores" },
 ];
 
-export function UsersTable({ rows }: { rows: UsersTableRow[] }) {
+export function UsersTable({
+  rows,
+  branches,
+}: {
+  rows: UsersTableRow[];
+  branches: { id: string; name: string }[];
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
+  const branchFromUrl = searchParams.get("branch") ?? "all";
+  const [branchFilter, setBranchFilter] = useState<string>(branchFromUrl);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((r) => {
       if (roleFilter !== "all" && r.role !== roleFilter) return false;
+      if (branchFilter !== "all" && !r.branchIds.includes(branchFilter)) {
+        return false;
+      }
       if (!q) return true;
       const hay = [r.firstName, r.lastName, r.email, r.phone]
         .filter(Boolean)
@@ -56,30 +74,63 @@ export function UsersTable({ rows }: { rows: UsersTableRow[] }) {
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, query, roleFilter]);
+  }, [rows, query, roleFilter, branchFilter]);
+
+  function changeBranch(v: string) {
+    setBranchFilter(v);
+    // Reflejar el filtro en la URL para que sea linkeable.
+    const sp = new URLSearchParams(searchParams);
+    if (v === "all") sp.delete("branch");
+    else sp.set("branch", v);
+    router.replace(`?${sp.toString()}`, { scroll: false });
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-wrap items-center gap-3 p-4">
-        <Input
-          placeholder="Buscar por nombre o email…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="max-w-sm"
-        />
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ROLE_FILTERS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <span className="ml-auto text-xs text-muted-foreground">
+      {/* Header de filtros: grid en md+ para que NO se apilen verticalmente
+          como pasaba con flex-wrap. Stack natural en mobile. */}
+      <Card className="grid items-end gap-3 p-4 md:grid-cols-[1fr_auto_auto_auto]">
+        <div className="flex flex-col gap-1">
+          <Label className="text-[11px]">Buscar</Label>
+          <Input
+            placeholder="Nombre o email…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-9 w-full"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[11px]">Rol</Label>
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="h-9 w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_FILTERS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Label className="text-[11px]">Sucursal</Label>
+          <Select value={branchFilter} onValueChange={changeBranch}>
+            <SelectTrigger className="h-9 w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las sucursales</SelectItem>
+              {branches.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <span className="self-end pb-1.5 text-xs text-muted-foreground md:justify-self-end">
           {filtered.length} de {rows.length}
         </span>
       </Card>
@@ -128,19 +179,14 @@ export function UsersTable({ rows }: { rows: UsersTableRow[] }) {
                       href={`/admin/users/${u.id}`}
                       className="flex items-center gap-3 hover:underline"
                     >
-                      <span
-                        className={
-                          isManager
-                            ? "flex size-9 items-center justify-center rounded-full bg-accent/10 text-accent"
-                            : "flex size-9 items-center justify-center rounded-full bg-blue-500/10 text-blue-500"
-                        }
-                      >
-                        {isManager ? (
-                          <ShieldCheck className="size-4" />
-                        ) : (
-                          <Truck className="size-4" />
-                        )}
-                      </span>
+                      <UserAvatar
+                        firstName={u.firstName}
+                        lastName={u.lastName}
+                        email={u.email}
+                        avatarUrl={u.avatarUrl}
+                        role={u.role}
+                        size="md"
+                      />
                       <div className="flex flex-col">
                         <span className="font-medium text-foreground">
                           {name}

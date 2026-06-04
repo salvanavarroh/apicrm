@@ -1,4 +1,5 @@
 import { Plus, Upload } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,6 @@ import { formatARS } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
 import { PriceDialog } from "./price-dialog";
-import { PricesImportDialog } from "./prices-import-dialog";
 import { RowActions } from "./row-actions";
 
 export default async function AdminPricesPage() {
@@ -58,14 +58,11 @@ export default async function AdminPricesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <PricesImportDialog
-            productTypes={pts}
-            trigger={
-              <Button variant="outline">
-                <Upload className="mr-2 size-4" /> Importar
-              </Button>
-            }
-          />
+          <Button variant="outline" asChild className="bg-card">
+            <Link href="/admin/prices/import">
+              <Upload className="mr-2 size-4" /> Importar
+            </Link>
+          </Button>
           <PriceDialog
             productTypes={pts}
             trigger={

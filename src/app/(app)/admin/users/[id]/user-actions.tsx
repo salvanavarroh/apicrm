@@ -60,13 +60,18 @@ export function UserActions({
     });
   }
 
+  // bg-card explícito: estos botones viven en el header del detalle del
+  // usuario, sobre bg-background (gris claro 0.97). El outline variant usa
+  // bg-background = mismo color que el fondo → buttons invisibles. Forzando
+  // bg-card (blanco 1.0) quedan con contraste visible.
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2 [&>button]:bg-card">
       {children}
       <Button
         variant="outline"
         onClick={toggle}
         disabled={pending || status === "deleted"}
+        className="bg-card"
       >
         {isActive ? (
           <>
@@ -80,7 +85,7 @@ export function UserActions({
       </Button>
       <Button
         variant="outline"
-        className="text-destructive"
+        className="bg-card text-destructive"
         onClick={remove}
         disabled={pending || status === "deleted"}
       >

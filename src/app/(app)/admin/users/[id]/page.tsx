@@ -10,6 +10,7 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { UserAvatar } from "@/components/user-avatar";
 import { Card } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
 import { requireRole } from "@/lib/auth";
@@ -37,7 +38,7 @@ export default async function AdminUserDetailPage({
     supabase
       .from("profiles")
       .select(
-        "id, first_name, last_name, role, status, phone, branch_id, manager_id, commission_percent, commission_conditions",
+        "id, first_name, last_name, role, status, phone, branch_id, manager_id, commission_percent, commission_conditions, avatar_url",
       )
       .eq("id", id)
       .eq("company_id", profile.company_id)
@@ -132,25 +133,14 @@ export default async function AdminUserDetailPage({
 
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-4">
-          <span
-            className={
-              isManager
-                ? "flex size-14 items-center justify-center rounded-full bg-accent/10 text-accent"
-                : isVendor
-                  ? "flex size-14 items-center justify-center rounded-full bg-green-500/10 text-green-500"
-                  : isProvider
-                    ? "flex size-14 items-center justify-center rounded-full bg-blue-500/10 text-blue-500"
-                    : "flex size-14 items-center justify-center rounded-full bg-muted text-muted-foreground"
-            }
-          >
-            {isManager ? (
-              <ShieldCheck className="size-6" />
-            ) : isProvider ? (
-              <Truck className="size-6" />
-            ) : (
-              <UserCircle className="size-6" />
-            )}
-          </span>
+          <UserAvatar
+            firstName={user.first_name}
+            lastName={user.last_name}
+            email={email}
+            avatarUrl={user.avatar_url}
+            role={user.role}
+            size="xl"
+          />
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               {fullName(user.first_name, user.last_name)}
