@@ -20,12 +20,19 @@ export default async function PublicFormLandingPage({
     .select(
       `id, slug, status, title, subtitle, submit_label, success_message,
        logo_url, banner_url, primary_color, fields,
-       company:companies!company_id (name)`,
+       company:companies!company_id (name, phone, address),
+       branch:branches!branch_id (name, address, phone)`,
     )
     .eq("slug", slug)
     .maybeSingle();
 
   if (!form || form.status !== "active") notFound();
+
+  // Branch tiene prioridad para los datos de contacto (es la sucursal específica
+  // a la que va el lead). Si la sucursal no tiene un campo, falla a company.
+  const branchName = form.branch?.name ?? null;
+  const address = form.branch?.address ?? form.company?.address ?? null;
+  const phone = form.branch?.phone ?? form.company?.phone ?? null;
 
   return (
     <PublicLanding
@@ -39,6 +46,9 @@ export default async function PublicFormLandingPage({
       logoUrl={form.logo_url}
       bannerUrl={form.banner_url}
       companyName={form.company?.name ?? null}
+      branchName={branchName}
+      address={address}
+      phone={phone}
     />
   );
 }

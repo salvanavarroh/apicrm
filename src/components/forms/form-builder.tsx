@@ -326,8 +326,8 @@ export function FormBuilder({
           <CardHeader>
             <CardTitle>Branding (landing /f/[slug])</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4">
-            <Row label="Logo (PNG / JPG / WEBP / SVG, máx 2 MB)">
+          <CardContent className="grid gap-5">
+            <Row label="Logo">
               <FileSlot
                 kind="logo"
                 url={data.logo_url || null}
@@ -335,8 +335,13 @@ export function FormBuilder({
                 onSelect={(file) => handleUpload("logo", file)}
                 onClear={() => update("logo_url", "")}
               />
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Recomendado: <strong>cuadrado, 256×256 px</strong> (mín. 128
+                px). Fondo transparente queda mejor. PNG / JPG / WEBP / SVG,
+                máx. 2 MB.
+              </p>
             </Row>
-            <Row label="Banner (imagen horizontal arriba de todo)">
+            <Row label="Banner (cabecera de la landing)">
               <FileSlot
                 kind="banner"
                 url={data.banner_url || null}
@@ -344,6 +349,12 @@ export function FormBuilder({
                 onSelect={(file) => handleUpload("banner", file)}
                 onClear={() => update("banner_url", "")}
               />
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Recomendado: <strong>1600×400 px (4:1 apaisado)</strong>,
+                mín. 1200 px de ancho. Foto del salón o vehículos funciona
+                bien — el lado inferior se funde con el fondo oscuro. Máx.
+                2 MB.
+              </p>
             </Row>
           </CardContent>
         </Card>
