@@ -101,6 +101,10 @@ export async function POST(
     );
   }
 
+  // Normaliza un tracking field: trim, vacío → null, truncar a 500.
+  const trk = (v: string | undefined) =>
+    v && v.trim() ? v.trim().slice(0, 500) : null;
+
   // Insertar lead.
   const { data: lead, error: leadError } = await admin
     .from("leads")
@@ -117,6 +121,13 @@ export async function POST(
       vehicle_model: data.vehicle_model || null,
       initial_notes: data.initial_notes || null,
       status: "new",
+      utm_source: trk(data.utm_source),
+      utm_medium: trk(data.utm_medium),
+      utm_campaign: trk(data.utm_campaign),
+      utm_term: trk(data.utm_term),
+      utm_content: trk(data.utm_content),
+      landing_url: trk(data.landing_url),
+      referrer: trk(data.referrer),
     })
     .select("id")
     .single();

@@ -13,6 +13,7 @@ import {
   TasksSection,
   type LeadTask,
 } from "@/components/leads/tasks-section";
+import { TrackingCard } from "@/components/leads/tracking-card";
 import {
   VisitsSection,
   type LeadVisit,
@@ -67,6 +68,7 @@ export default async function SalesLeadDetailPage({
             id,
             content,
             created_at,
+            activity_type,
             author:profiles!author_id (first_name, last_name)
           `,
       )
@@ -120,6 +122,7 @@ export default async function SalesLeadDetailPage({
     id: n.id,
     content: n.content,
     created_at: n.created_at,
+    activity_type: n.activity_type ?? null,
     author: n.author ?? null,
   }));
   const taskRows: LeadTask[] = (tasks ?? []).map((t) => ({
@@ -395,6 +398,18 @@ export default async function SalesLeadDetailPage({
               </CardContent>
             </Card>
           )}
+
+          <TrackingCard
+            data={{
+              utm_source: lead.utm_source,
+              utm_medium: lead.utm_medium,
+              utm_campaign: lead.utm_campaign,
+              utm_term: lead.utm_term,
+              utm_content: lead.utm_content,
+              landing_url: lead.landing_url,
+              referrer: lead.referrer,
+            }}
+          />
 
           <TasksSection
             leadId={lead.id}

@@ -384,6 +384,7 @@ export type Database = {
       }
       lead_notes: {
         Row: {
+          activity_type: Database["public"]["Enums"]["note_activity"] | null
           author_id: string | null
           company_id: string
           content: string
@@ -392,6 +393,7 @@ export type Database = {
           lead_id: string
         }
         Insert: {
+          activity_type?: Database["public"]["Enums"]["note_activity"] | null
           author_id?: string | null
           company_id: string
           content: string
@@ -400,6 +402,7 @@ export type Database = {
           lead_id: string
         }
         Update: {
+          activity_type?: Database["public"]["Enums"]["note_activity"] | null
           author_id?: string | null
           company_id?: string
           content?: string
@@ -665,14 +668,21 @@ export type Database = {
           has_used_car: boolean
           id: string
           initial_notes: string | null
+          landing_url: string | null
           last_name: string | null
           phone: string | null
           preferred_color: string | null
           product_type_id: string | null
+          referrer: string | null
           status: Database["public"]["Enums"]["lead_status"]
           status_changed_at: string
           updated_at: string
           used_car_description: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
           vehicle_model: string | null
           vehicle_version: string | null
         }
@@ -695,14 +705,21 @@ export type Database = {
           has_used_car?: boolean
           id?: string
           initial_notes?: string | null
+          landing_url?: string | null
           last_name?: string | null
           phone?: string | null
           preferred_color?: string | null
           product_type_id?: string | null
+          referrer?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           status_changed_at?: string
           updated_at?: string
           used_car_description?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           vehicle_model?: string | null
           vehicle_version?: string | null
         }
@@ -725,14 +742,21 @@ export type Database = {
           has_used_car?: boolean
           id?: string
           initial_notes?: string | null
+          landing_url?: string | null
           last_name?: string | null
           phone?: string | null
           preferred_color?: string | null
           product_type_id?: string | null
+          referrer?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           status_changed_at?: string
           updated_at?: string
           used_car_description?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           vehicle_model?: string | null
           vehicle_version?: string | null
         }
@@ -1376,6 +1400,13 @@ export type Database = {
         | "accepted"
         | "rejected"
         | "closed"
+      note_activity:
+        | "email_sent"
+        | "phone_call"
+        | "whatsapp"
+        | "meeting_held"
+        | "quote_sent"
+        | "other"
       payment_status: "pending" | "paid" | "overdue"
       product_type_status: "active" | "inactive"
       profile_status: "pending" | "active" | "inactive" | "deleted"
@@ -1549,6 +1580,14 @@ export const Constants = {
         "accepted",
         "rejected",
         "closed",
+      ],
+      note_activity: [
+        "email_sent",
+        "phone_call",
+        "whatsapp",
+        "meeting_held",
+        "quote_sent",
+        "other",
       ],
       payment_status: ["pending", "paid", "overdue"],
       product_type_status: ["active", "inactive"],

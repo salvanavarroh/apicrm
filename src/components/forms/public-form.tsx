@@ -1,9 +1,29 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { FIELD_KEYS, type FieldsConfig } from "@/lib/forms";
+
+type Tracking = {
+  utm_source: string;
+  utm_medium: string;
+  utm_campaign: string;
+  utm_term: string;
+  utm_content: string;
+  landing_url: string;
+  referrer: string;
+};
+
+const EMPTY_TRACKING: Tracking = {
+  utm_source: "",
+  utm_medium: "",
+  utm_campaign: "",
+  utm_term: "",
+  utm_content: "",
+  landing_url: "",
+  referrer: "",
+};
 
 export type PublicFormProps = {
   slug: string;
@@ -38,6 +58,28 @@ export function PublicForm(props: PublicFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [doneMessage, setDoneMessage] = useState(successMessage);
+  // Tracking se completa post-mount para evitar mismatch SSR/hidratación.
+  const trackingRef = useRef<Tracking>(EMPTY_TRACKING);
+
+  useEffect(() => {
+    if (previewOnly) return;
+    if (typeof window === "undefined") return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const pick = (k: string) => params.get(k) ?? "";
+      trackingRef.current = {
+        utm_source: pick("utm_source"),
+        utm_medium: pick("utm_medium"),
+        utm_campaign: pick("utm_campaign"),
+        utm_term: pick("utm_term"),
+        utm_content: pick("utm_content"),
+        landing_url: window.location.href,
+        referrer: document.referrer || "",
+      };
+    } catch {
+      // Si algún campo no se puede leer, mandamos lo que tengamos.
+    }
+  }, [previewOnly]);
 
   const accentStyle = {
     "--form-accent": primaryColor,
@@ -53,7 +95,10 @@ export function PublicForm(props: PublicFormProps) {
     setError(null);
     setSubmitting(true);
     const formData = new FormData(e.currentTarget);
-    const payload = Object.fromEntries(formData.entries());
+    const payload = {
+      ...Object.fromEntries(formData.entries()),
+      ...trackingRef.current,
+    };
     try {
       const res = await fetch(`/api/forms/${slug}/submit`, {
         method: "POST",

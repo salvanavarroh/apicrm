@@ -534,9 +534,20 @@ export async function updateLeadStatus(
 // Notas del lead.
 // ----------------------------------------------------------------------------
 
+const NOTE_ACTIVITY_VALUES = [
+  "email_sent",
+  "phone_call",
+  "whatsapp",
+  "meeting_held",
+  "quote_sent",
+  "other",
+] as const;
+type NoteActivity = (typeof NOTE_ACTIVITY_VALUES)[number];
+
 export async function addLeadNote(
   leadId: string,
   content: string,
+  activityType?: NoteActivity | null,
 ): Promise<Result<{ noteId: string }>> {
   const profile = await requireRole([
     "admin",
@@ -554,6 +565,12 @@ export async function addLeadNote(
     return { ok: false, message: "Nota demasiado larga" };
   }
 
+  // Validar el activity_type por las dudas (zod-light).
+  const safeActivity: NoteActivity | null =
+    activityType && NOTE_ACTIVITY_VALUES.includes(activityType)
+      ? activityType
+      : null;
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("lead_notes")
@@ -562,6 +579,7 @@ export async function addLeadNote(
       company_id: profile.company_id,
       author_id: profile.id,
       content: trimmed,
+      activity_type: safeActivity,
     })
     .select("id")
     .single();

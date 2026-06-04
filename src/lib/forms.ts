@@ -153,6 +153,11 @@ export type FormInput = z.input<typeof formInputSchema>;
 // Schema para submission pública
 // ============================================================================
 
+// Capa de tracking: campos opcionales que el browser captura al cargar la
+// landing y se mandan junto con la submission. Todos opcionales — un usuario
+// que llega sin UTMs sigue funcionando.
+const trackingFieldSchema = z.string().max(500).optional().or(z.literal(""));
+
 export const submissionSchema = z.object({
   first_name: z.string().optional().or(z.literal("")),
   last_name: z.string().optional().or(z.literal("")),
@@ -161,6 +166,14 @@ export const submissionSchema = z.object({
   city: z.string().optional().or(z.literal("")),
   vehicle_model: z.string().optional().or(z.literal("")),
   initial_notes: z.string().optional().or(z.literal("")),
+  // Tracking — capturados por el browser.
+  utm_source: trackingFieldSchema,
+  utm_medium: trackingFieldSchema,
+  utm_campaign: trackingFieldSchema,
+  utm_term: trackingFieldSchema,
+  utm_content: trackingFieldSchema,
+  landing_url: trackingFieldSchema,
+  referrer: trackingFieldSchema,
   // Honeypot: si tiene valor, es un bot. Debe estar vacío.
   website: z.string().optional().or(z.literal("")),
 });
