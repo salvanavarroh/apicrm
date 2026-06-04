@@ -2,11 +2,16 @@ import { ChevronRight, Inbox, Users } from "lucide-react";
 import Link from "next/link";
 
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { AgendaCalendar } from "@/components/dashboard/agenda-calendar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
 import { fullName, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
+import {
+  loadAgendaForCompany,
+  todayDateKey,
+} from "@/lib/tasks-visits-loader";
 
 const ACTIVE_STATUSES: LeadStatus[] = [
   "new",
@@ -22,6 +27,13 @@ export default async function ManagerHomePage() {
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
+
+  const agendaItems = profile.company_id
+    ? await loadAgendaForCompany(profile.company_id, {
+        leadBasePath: "/manager/leads",
+      })
+    : [];
+  const today = todayDateKey();
 
   const [
     { data: leads },
@@ -141,6 +153,8 @@ export default async function ManagerHomePage() {
         />
         <Stat label="Vendedores activos" value={(team ?? []).filter((t) => t.status === "active").length} />
       </div>
+
+      <AgendaCalendar items={agendaItems} todayKey={today} />
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card className="p-4">

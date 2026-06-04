@@ -13,6 +13,10 @@ import {
   TasksSection,
   type LeadTask,
 } from "@/components/leads/tasks-section";
+import {
+  VisitsSection,
+  type LeadVisit,
+} from "@/components/leads/visits-section";
 import { TemplatesModal } from "@/components/leads/templates-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +42,7 @@ export default async function SalesLeadDetailPage({
     { data: lead },
     { data: notes },
     { data: tasks },
+    { data: visits },
     { data: company },
     { data: quotes },
     { data: sales },
@@ -69,9 +74,21 @@ export default async function SalesLeadDetailPage({
       .order("created_at", { ascending: false }),
     supabase
       .from("lead_tasks")
-      .select("id, title, description, priority, due_date, completed_at")
+      .select(
+        `id, title, task_type, description, priority, due_date,
+         completed_at, assigned_to,
+         assignee:profiles!assigned_to (first_name, last_name)`,
+      )
       .eq("lead_id", id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("visits")
+      .select(
+        `id, scheduled_at, notes, status, assigned_to,
+         assignee:profiles!assigned_to (first_name, last_name)`,
+      )
+      .eq("lead_id", id)
+      .order("scheduled_at", { ascending: true }),
     profile.company_id
       ? supabase
           .from("companies")
@@ -105,7 +122,29 @@ export default async function SalesLeadDetailPage({
     created_at: n.created_at,
     author: n.author ?? null,
   }));
-  const taskRows: LeadTask[] = (tasks ?? []) as LeadTask[];
+  const taskRows: LeadTask[] = (tasks ?? []).map((t) => ({
+    id: t.id,
+    task_type: t.task_type,
+    title: t.title,
+    description: t.description,
+    priority: t.priority,
+    due_date: t.due_date,
+    completed_at: t.completed_at,
+    assigned_to: t.assigned_to,
+    assignee_name: t.assignee
+      ? fullName(t.assignee.first_name, t.assignee.last_name)
+      : null,
+  }));
+  const visitRows: LeadVisit[] = (visits ?? []).map((v) => ({
+    id: v.id,
+    scheduled_at: v.scheduled_at,
+    notes: v.notes,
+    status: v.status,
+    assigned_to: v.assigned_to,
+    assignee_name: v.assignee
+      ? fullName(v.assignee.first_name, v.assignee.last_name)
+      : null,
+  }));
 
   const saleRows = sales ?? [];
   const activeSale = saleRows.find((s) => s.status === "evaluating") ?? null;
@@ -357,7 +396,22 @@ export default async function SalesLeadDetailPage({
             </Card>
           )}
 
-          <TasksSection leadId={lead.id} tasks={taskRows} />
+          <TasksSection
+            leadId={lead.id}
+            tasks={taskRows}
+            currentUserId={profile.id}
+            currentRole="sales"
+            assigneeOptions={[]}
+          />
+          <VisitsSection
+            leadId={lead.id}
+            visits={visitRows}
+            currentUserId={profile.id}
+            currentRole="sales"
+            assigneeOptions={[]}
+            defaultAssigneeId={profile.id}
+            defaultAssigneeName={fullName(profile.first_name, profile.last_name)}
+          />
         </div>
 
         <div className="flex flex-col gap-4">

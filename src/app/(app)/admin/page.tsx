@@ -12,12 +12,17 @@ import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { AgendaCalendar } from "@/components/dashboard/agenda-calendar";
 import { DonutStat } from "@/components/donut-stat";
 import { KpiCard } from "@/components/kpi-card";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { formatARS } from "@/lib/format";
 import { fullName, type LeadStatus } from "@/lib/leads";
+import {
+  loadAgendaForCompany,
+  todayDateKey,
+} from "@/lib/tasks-visits-loader";
 
 const ACTIVE_LEAD_STATUSES: LeadStatus[] = [
   "new",
@@ -35,6 +40,11 @@ export default async function AdminHomePage() {
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
+
+  const agendaItems = await loadAgendaForCompany(profile.company_id, {
+    leadBasePath: "/admin/leads",
+  });
+  const today = todayDateKey();
 
   const [
     branchesRes,
@@ -205,6 +215,8 @@ export default async function AdminHomePage() {
           caption="Ventas en evaluación"
         />
       </div>
+
+      <AgendaCalendar items={agendaItems} todayKey={today} />
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card className="p-5">

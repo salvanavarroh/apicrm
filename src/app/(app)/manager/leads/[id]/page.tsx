@@ -12,6 +12,10 @@ import {
   TasksSection,
   type LeadTask,
 } from "@/components/leads/tasks-section";
+import {
+  VisitsSection,
+  type LeadVisit,
+} from "@/components/leads/visits-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
@@ -33,7 +37,7 @@ export default async function ManagerLeadDetailPage({
   const profile = await requireRole(["manager"]);
   const supabase = await createClient();
 
-  const [{ data: lead }, { data: notes }, { data: tasks }, team] =
+  const [{ data: lead }, { data: notes }, { data: tasks }, { data: visits }, team] =
     await Promise.all([
       supabase
         .from("leads")
@@ -63,9 +67,21 @@ export default async function ManagerLeadDetailPage({
         .order("created_at", { ascending: false }),
       supabase
         .from("lead_tasks")
-        .select("id, title, description, priority, due_date, completed_at")
+        .select(
+          `id, title, task_type, description, priority, due_date,
+           completed_at, assigned_to,
+           assignee:profiles!assigned_to (first_name, last_name)`,
+        )
         .eq("lead_id", id)
         .order("created_at", { ascending: false }),
+      supabase
+        .from("visits")
+        .select(
+          `id, scheduled_at, notes, status, assigned_to,
+           assignee:profiles!assigned_to (first_name, last_name)`,
+        )
+        .eq("lead_id", id)
+        .order("scheduled_at", { ascending: true }),
       getAssignableSalesUsers({
         companyId: profile.company_id!,
         managerId: profile.id,
@@ -80,7 +96,36 @@ export default async function ManagerLeadDetailPage({
     created_at: n.created_at,
     author: n.author ?? null,
   }));
-  const taskRows: LeadTask[] = (tasks ?? []) as LeadTask[];
+  const taskRows: LeadTask[] = (tasks ?? []).map((t) => ({
+    id: t.id,
+    task_type: t.task_type,
+    title: t.title,
+    description: t.description,
+    priority: t.priority,
+    due_date: t.due_date,
+    completed_at: t.completed_at,
+    assigned_to: t.assigned_to,
+    assignee_name: t.assignee
+      ? fullName(t.assignee.first_name, t.assignee.last_name)
+      : null,
+  }));
+  const visitRows: LeadVisit[] = (visits ?? []).map((v) => ({
+    id: v.id,
+    scheduled_at: v.scheduled_at,
+    notes: v.notes,
+    status: v.status,
+    assigned_to: v.assigned_to,
+    assignee_name: v.assignee
+      ? fullName(v.assignee.first_name, v.assignee.last_name)
+      : null,
+  }));
+  const assigneeOptions = team.map((u) => ({
+    id: u.id,
+    name: fullName(u.first_name, u.last_name),
+  }));
+  const leadAssigneeName = lead.assignee
+    ? fullName(lead.assignee.first_name, lead.assignee.last_name)
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -177,7 +222,22 @@ export default async function ManagerLeadDetailPage({
             </CardContent>
           </Card>
 
-          <TasksSection leadId={lead.id} tasks={taskRows} />
+          <TasksSection
+            leadId={lead.id}
+            tasks={taskRows}
+            currentUserId={profile.id}
+            currentRole="manager"
+            assigneeOptions={assigneeOptions}
+          />
+          <VisitsSection
+            leadId={lead.id}
+            visits={visitRows}
+            currentUserId={profile.id}
+            currentRole="manager"
+            assigneeOptions={assigneeOptions}
+            defaultAssigneeId={lead.assigned_user_id}
+            defaultAssigneeName={leadAssigneeName}
+          />
         </div>
 
         <div className="flex flex-col gap-4">

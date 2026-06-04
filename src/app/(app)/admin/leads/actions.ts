@@ -580,13 +580,73 @@ export async function addLeadNote(
 // ----------------------------------------------------------------------------
 
 const taskInputSchema = z.object({
-  title: z.string().min(1, "Título obligatorio"),
+  task_type: z.enum([
+    "call",
+    "meeting",
+    "quote_send",
+    "follow_up",
+    "document",
+    "other",
+  ]),
   description: z.string().optional().or(z.literal("")),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
-  due_date: z.string().optional().or(z.literal("")),
+  due_date: z.string().optional().or(z.literal("")), // "YYYY-MM-DD"
+  assigned_to: z.string().uuid().optional().or(z.literal("")),
 });
 
 export type TaskInput = z.input<typeof taskInputSchema>;
+
+/**
+ * Resuelve a quién se puede asignar la tarea según el rol del usuario.
+ * - sales: solo a sí mismo (devuelve self.id si raw es vacío o coincide).
+ * - manager: a sí mismo o a un vendor bajo su jerarquía (manager_id = self.id).
+ * - admin: a cualquiera de la misma empresa.
+ * Devuelve { ok: true, id } o { ok: false, message }.
+ */
+async function resolveAssignee(
+  profile: { id: string; role: string; company_id: string },
+  rawAssignedTo: string | undefined,
+): Promise<{ ok: true; id: string | null } | { ok: false; message: string }> {
+  const requested = rawAssignedTo?.trim() || null;
+  if (profile.role === "sales") {
+    if (requested && requested !== profile.id) {
+      return {
+        ok: false,
+        message: "Solo podés asignarte tareas a vos mismo",
+      };
+    }
+    return { ok: true, id: profile.id };
+  }
+  if (!requested) return { ok: true, id: null };
+  const supabase = await createClient();
+  if (profile.role === "manager") {
+    if (requested === profile.id) return { ok: true, id: profile.id };
+    const { data } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", requested)
+      .eq("manager_id", profile.id)
+      .maybeSingle();
+    if (!data) {
+      return {
+        ok: false,
+        message: "Ese usuario no está bajo tu gerencia",
+      };
+    }
+    return { ok: true, id: requested };
+  }
+  // admin
+  const { data } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", requested)
+    .eq("company_id", profile.company_id)
+    .maybeSingle();
+  if (!data) {
+    return { ok: false, message: "Ese usuario no es de tu empresa" };
+  }
+  return { ok: true, id: requested };
+}
 
 export async function addLeadTask(
   leadId: string,
@@ -605,6 +665,12 @@ export async function addLeadTask(
     };
   }
 
+  const assignee = await resolveAssignee(
+    { id: profile.id, role: profile.role, company_id: profile.company_id },
+    parsed.data.assigned_to,
+  );
+  if (!assignee.ok) return assignee;
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("lead_tasks")
@@ -612,10 +678,11 @@ export async function addLeadTask(
       lead_id: leadId,
       company_id: profile.company_id,
       created_by: profile.id,
-      title: parsed.data.title.trim(),
-      description: parsed.data.description || null,
+      task_type: parsed.data.task_type,
+      description: parsed.data.description?.trim() || null,
       priority: parsed.data.priority,
       due_date: parsed.data.due_date || null,
+      assigned_to: assignee.id,
     })
     .select("id")
     .single();
@@ -626,6 +693,9 @@ export async function addLeadTask(
   revalidatePath(`/admin/leads/${leadId}`);
   revalidatePath(`/manager/leads/${leadId}`);
   revalidatePath(`/sales/leads/${leadId}`);
+  revalidatePath("/admin/tasks-visits");
+  revalidatePath("/manager/tasks-visits");
+  revalidatePath("/sales/tasks-visits");
   return { ok: true, taskId: data.id };
 }
 

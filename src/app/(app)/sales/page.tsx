@@ -1,25 +1,34 @@
-import { ChevronRight, ClipboardList, Layers, MessageCircle } from "lucide-react";
+import { ChevronRight, Layers, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { AgendaCalendar } from "@/components/dashboard/agenda-calendar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
 import { formatARS } from "@/lib/format";
 import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
+import {
+  loadAgendaForCompany,
+  todayDateKey,
+} from "@/lib/tasks-visits-loader";
 
 export default async function SalesHomePage() {
   const profile = await requireRole(["sales"]);
   const supabase = await createClient();
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const tomorrowStart = new Date(todayStart);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
+
+  const agendaItems = profile.company_id
+    ? await loadAgendaForCompany(profile.company_id, {
+        leadBasePath: "/sales/leads",
+        onlyAssignedTo: profile.id,
+      })
+    : [];
+  const today = todayDateKey();
 
   const [
     { count: total },
@@ -27,7 +36,6 @@ export default async function SalesHomePage() {
     { count: contacted },
     { count: quoted },
     { data: recent },
-    { data: tasksToday },
     { data: salesMonth },
   ] = await Promise.all([
     supabase
@@ -67,22 +75,6 @@ export default async function SalesHomePage() {
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
-      .from("lead_tasks")
-      .select(
-        `
-          id,
-          title,
-          priority,
-          due_date,
-          completed_at,
-          lead:leads (id, first_name, last_name)
-        `,
-      )
-      .is("completed_at", null)
-      .lt("due_date", tomorrowStart.toISOString())
-      .order("due_date", { ascending: true })
-      .limit(5),
-    supabase
       .from("sales")
       .select("id, status, final_price, commission_percent_snapshot, started_at")
       .eq("vendor_id", profile.id)
@@ -105,6 +97,8 @@ export default async function SalesHomePage() {
           Tu día arranca con {newCount ?? 0} lead(s) nuevo(s) por contactar.
         </p>
       </header>
+
+      <AgendaCalendar items={agendaItems} todayKey={today} />
 
       <div className="grid gap-3 sm:grid-cols-4">
         <Stat label="Mis leads" value={total ?? 0} />
@@ -160,35 +154,6 @@ export default async function SalesHomePage() {
           )}
         </Card>
 
-        <Card className="p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Tareas del día</h2>
-            <ClipboardList className="size-4 text-muted-foreground" />
-          </div>
-          {tasksToday && tasksToday.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {tasksToday.map((t) => (
-                <li
-                  key={t.id}
-                  className="rounded-md border bg-card px-3 py-2 text-sm"
-                >
-                  <p className="font-medium">{t.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {t.lead
-                      ? fullName(t.lead.first_name, t.lead.last_name)
-                      : "—"}
-                    {t.due_date &&
-                      ` · vence ${new Date(t.due_date).toLocaleDateString("es-AR")}`}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="py-4 text-center text-xs text-muted-foreground">
-              Sin tareas vencidas. ¡Bien ahí!
-            </p>
-          )}
-        </Card>
       </div>
 
       <div className="flex gap-2">

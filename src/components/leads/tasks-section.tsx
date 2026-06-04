@@ -17,6 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+
+import {
+  TASK_PRIORITY_LABEL,
+  TASK_TYPES,
+  TASK_TYPE_LABEL,
+  dueBucket,
+  formatDateAR,
+  type TaskPriority,
+  type TaskType,
+} from "@/lib/tasks";
 
 import {
   addLeadTask,
@@ -26,87 +37,120 @@ import {
 
 export type LeadTask = {
   id: string;
-  title: string;
+  task_type: TaskType;
   description: string | null;
-  priority: "low" | "medium" | "high";
-  due_date: string | null;
+  priority: TaskPriority;
+  due_date: string | null; // "YYYY-MM-DD" (date column)
   completed_at: string | null;
+  assigned_to: string | null;
+  assignee_name: string | null;
+  /** Legacy fallback: tareas pre-Sprint9 traían title libre. */
+  title?: string | null;
 };
+
+type AssigneeOption = { id: string; name: string };
 
 type Props = {
   leadId: string;
   tasks: LeadTask[];
+  currentUserId: string;
+  currentRole: "admin" | "manager" | "sales";
+  assigneeOptions: AssigneeOption[];
   readonly?: boolean;
 };
 
-const PRIORITY_LABEL = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-} as const;
-const PRIORITY_CLS = {
+const SELF_SENTINEL = "__self__";
+const PRIORITY_CLS: Record<TaskPriority, string> = {
   low: "bg-muted text-muted-foreground",
   medium: "bg-blue-100 text-blue-700",
   high: "bg-destructive/10 text-destructive",
-} as const;
+};
 
-export function TasksSection({ leadId, tasks, readonly }: Props) {
+export function TasksSection({
+  leadId,
+  tasks,
+  currentUserId,
+  currentRole,
+  assigneeOptions,
+  readonly,
+}: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [items, setItems] = useState<LeadTask[]>(tasks);
   const [lastSyncedTasks, setLastSyncedTasks] = useState(tasks);
-  const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
-  const [dueDate, setDueDate] = useState("");
+  const [taskType, setTaskType] = useState<TaskType>("call");
+  const [description, setDescription] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [dueDate, setDueDate] = useState(""); // "YYYY-MM-DD"
+  const [assignedTo, setAssignedTo] = useState<string>(SELF_SENTINEL);
 
-  // Re-sync cuando el server entrega tasks nuevas (post-refresh / navegación).
+  // Re-sync con el server cuando llegan tareas nuevas.
   if (tasks !== lastSyncedTasks) {
     setLastSyncedTasks(tasks);
     setItems(tasks);
   }
 
+  const canAssignOthers = currentRole !== "sales" && assigneeOptions.length > 0;
+
   function submit() {
-    if (!title.trim()) return;
-    const tempId = `tmp_${Date.now()}`;
+    const resolvedAssignee =
+      assignedTo === SELF_SENTINEL ? currentUserId : assignedTo;
+    const assigneeName =
+      assignedTo === SELF_SENTINEL
+        ? "Vos"
+        : (assigneeOptions.find((o) => o.id === assignedTo)?.name ?? null);
+
+    const tempId = `tmp_${Math.random().toString(36).slice(2)}`;
     const optimistic: LeadTask = {
       id: tempId,
-      title: title.trim(),
-      description: null,
+      task_type: taskType,
+      description: description.trim() || null,
       priority,
       due_date: dueDate || null,
       completed_at: null,
+      assigned_to: resolvedAssignee,
+      assignee_name: assigneeName,
     };
     setItems((prev) => [optimistic, ...prev]);
-    const snapshotTitle = title;
-    const snapshotDate = dueDate;
-    setTitle("");
+
+    const snapshot = {
+      taskType,
+      description,
+      priority,
+      dueDate,
+      assignedTo,
+    };
+    setDescription("");
     setDueDate("");
+    setPriority("medium");
 
     startTransition(async () => {
       const result = await addLeadTask(leadId, {
-        title: snapshotTitle,
-        priority,
-        due_date: snapshotDate,
+        task_type: snapshot.taskType,
+        description: snapshot.description,
+        priority: snapshot.priority,
+        due_date: snapshot.dueDate,
+        assigned_to:
+          snapshot.assignedTo === SELF_SENTINEL ? "" : snapshot.assignedTo,
       });
       if (!result.ok) {
         toast.error(result.message);
         setItems((prev) => prev.filter((t) => t.id !== tempId));
-        setTitle(snapshotTitle);
-        setDueDate(snapshotDate);
+        setDescription(snapshot.description);
+        setDueDate(snapshot.dueDate);
+        setPriority(snapshot.priority);
+        setTaskType(snapshot.taskType);
+        setAssignedTo(snapshot.assignedTo);
         return;
       }
-      // Reemplazar el id temporal por el real (no refrescamos toda la página).
       setItems((prev) =>
-        prev.map((t) =>
-          t.id === tempId ? { ...t, id: result.taskId } : t,
-        ),
+        prev.map((t) => (t.id === tempId ? { ...t, id: result.taskId } : t)),
       );
       router.refresh();
     });
   }
 
   function toggle(taskId: string, done: boolean) {
-    // Optimistic: aplica el cambio en UI al toque.
     setItems((prev) =>
       prev.map((t) =>
         t.id === taskId
@@ -118,7 +162,6 @@ export function TasksSection({ leadId, tasks, readonly }: Props) {
       const result = await toggleLeadTask(taskId, done);
       if (!result.ok) {
         toast.error(result.message);
-        // Revertir
         setItems((prev) =>
           prev.map((t) =>
             t.id === taskId
@@ -149,29 +192,23 @@ export function TasksSection({ leadId, tasks, readonly }: Props) {
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {!readonly && (
-          <div className="grid gap-2">
-            <Input
-              placeholder="Título de la tarea"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={pending}
-            />
-            <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-3 rounded-md border bg-card p-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
-                <Label className="text-[11px]">Prioridad</Label>
+                <Label className="text-[11px]">Tipo de tarea</Label>
                 <Select
-                  value={priority}
-                  onValueChange={(v) =>
-                    setPriority(v as "low" | "medium" | "high")
-                  }
+                  value={taskType}
+                  onValueChange={(v) => setTaskType(v as TaskType)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Baja</SelectItem>
-                    <SelectItem value="medium">Media</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
+                    {TASK_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {TASK_TYPE_LABEL[t]}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -184,12 +221,63 @@ export function TasksSection({ leadId, tasks, readonly }: Props) {
                 />
               </div>
             </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[11px]">Descripción (opcional)</Label>
+              <Textarea
+                rows={2}
+                placeholder="Detalles, contexto, link al lead origen…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <Label className="text-[11px]">Prioridad</Label>
+                <Select
+                  value={priority}
+                  onValueChange={(v) => setPriority(v as TaskPriority)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baja</SelectItem>
+                    <SelectItem value="medium">Media</SelectItem>
+                    <SelectItem value="high">Alta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {canAssignOthers ? (
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[11px]">Asignar a</Label>
+                  <Select
+                    value={assignedTo}
+                    onValueChange={(v) => setAssignedTo(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={SELF_SENTINEL}>Para mí</SelectItem>
+                      {assigneeOptions.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[11px]">Asignada a</Label>
+                  <div className="flex h-9 items-center border border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+                    Para mí
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="flex justify-end">
-              <Button
-                size="sm"
-                onClick={submit}
-                disabled={pending || !title.trim()}
-              >
+              <Button size="sm" onClick={submit} disabled={pending}>
                 Agregar tarea
               </Button>
             </div>
@@ -204,6 +292,9 @@ export function TasksSection({ leadId, tasks, readonly }: Props) {
           )}
           {items.map((task) => {
             const done = !!task.completed_at;
+            const label =
+              TASK_TYPE_LABEL[task.task_type] ?? task.title ?? "Tarea";
+            const bucket = done ? null : dueBucket(task.due_date);
             return (
               <div
                 key={task.id}
@@ -215,29 +306,49 @@ export function TasksSection({ leadId, tasks, readonly }: Props) {
                   className="mt-0.5"
                   disabled={readonly}
                 />
-                <div className="flex-1">
+                <div className="flex flex-1 flex-col gap-1">
                   <div className="flex items-start justify-between gap-2">
                     <p
                       className={
                         done
                           ? "text-sm text-muted-foreground line-through"
-                          : "text-sm text-foreground"
+                          : "text-sm font-medium text-foreground"
                       }
                     >
-                      {task.title}
+                      {label}
                     </p>
                     <span
                       className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${PRIORITY_CLS[task.priority]}`}
                     >
-                      {PRIORITY_LABEL[task.priority]}
+                      {TASK_PRIORITY_LABEL[task.priority]}
                     </span>
                   </div>
-                  {task.due_date && (
-                    <p className="text-[11px] text-muted-foreground">
-                      Vence el{" "}
-                      {new Date(task.due_date).toLocaleDateString("es-AR")}
+                  {task.description && (
+                    <p
+                      className={
+                        done
+                          ? "text-xs text-muted-foreground/70 line-through"
+                          : "text-xs text-muted-foreground"
+                      }
+                    >
+                      {task.description}
                     </p>
                   )}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                    {task.due_date && (
+                      <DueBadge bucket={bucket} date={task.due_date} />
+                    )}
+                    {task.assignee_name && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="text-muted-foreground/60">·</span>
+                        <span>
+                          {task.assigned_to === currentUserId
+                            ? "Para mí"
+                            : task.assignee_name}
+                        </span>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {!readonly && (
                   <button
@@ -255,4 +366,38 @@ export function TasksSection({ leadId, tasks, readonly }: Props) {
       </CardContent>
     </Card>
   );
+}
+
+function DueBadge({
+  bucket,
+  date,
+}: {
+  bucket: ReturnType<typeof dueBucket> | null;
+  date: string;
+}) {
+  if (!bucket || bucket.kind === "none") {
+    return <span>Vence el {formatDateAR(date)}</span>;
+  }
+  if (bucket.kind === "overdue") {
+    return (
+      <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">
+        Vencida ({bucket.days}d)
+      </span>
+    );
+  }
+  if (bucket.kind === "today") {
+    return (
+      <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium text-warning-foreground">
+        Hoy
+      </span>
+    );
+  }
+  if (bucket.kind === "tomorrow") {
+    return (
+      <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
+        Mañana
+      </span>
+    );
+  }
+  return <span>Vence el {formatDateAR(date)}</span>;
 }

@@ -492,6 +492,7 @@ export type Database = {
       }
       lead_tasks: {
         Row: {
+          assigned_to: string | null
           company_id: string
           completed_at: string | null
           created_at: string
@@ -501,10 +502,12 @@ export type Database = {
           id: string
           lead_id: string
           priority: Database["public"]["Enums"]["task_priority"]
-          title: string
+          task_type: Database["public"]["Enums"]["task_type"]
+          title: string | null
           updated_at: string
         }
         Insert: {
+          assigned_to?: string | null
           company_id: string
           completed_at?: string | null
           created_at?: string
@@ -514,10 +517,12 @@ export type Database = {
           id?: string
           lead_id: string
           priority?: Database["public"]["Enums"]["task_priority"]
-          title: string
+          task_type?: Database["public"]["Enums"]["task_type"]
+          title?: string | null
           updated_at?: string
         }
         Update: {
+          assigned_to?: string | null
           company_id?: string
           completed_at?: string | null
           created_at?: string
@@ -527,10 +532,18 @@ export type Database = {
           id?: string
           lead_id?: string
           priority?: Database["public"]["Enums"]["task_priority"]
-          title?: string
+          task_type?: Database["public"]["Enums"]["task_type"]
+          title?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lead_tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lead_tasks_company_id_fkey"
             columns: ["company_id"]
@@ -547,6 +560,84 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visits: {
+        Row: {
+          assigned_to: string | null
+          branch_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          lead_id: string
+          notes: string | null
+          scheduled_at: string
+          status: Database["public"]["Enums"]["visit_status"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          branch_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          scheduled_at: string
+          status?: Database["public"]["Enums"]["visit_status"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          branch_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["visit_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
@@ -1291,7 +1382,15 @@ export type Database = {
       quote_modality: "cash" | "financed" | "savings_plan"
       sale_status: "evaluating" | "accepted" | "rejected"
       task_priority: "low" | "medium" | "high"
+      task_type:
+        | "call"
+        | "meeting"
+        | "quote_send"
+        | "follow_up"
+        | "document"
+        | "other"
       user_role: "super_admin" | "admin" | "manager" | "sales" | "data_provider"
+      visit_status: "scheduled" | "completed" | "no_show" | "canceled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1457,7 +1556,16 @@ export const Constants = {
       quote_modality: ["cash", "financed", "savings_plan"],
       sale_status: ["evaluating", "accepted", "rejected"],
       task_priority: ["low", "medium", "high"],
+      task_type: [
+        "call",
+        "meeting",
+        "quote_send",
+        "follow_up",
+        "document",
+        "other",
+      ],
       user_role: ["super_admin", "admin", "manager", "sales", "data_provider"],
+      visit_status: ["scheduled", "completed", "no_show", "canceled"],
     },
   },
 } as const
