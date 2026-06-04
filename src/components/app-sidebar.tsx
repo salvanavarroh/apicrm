@@ -35,11 +35,12 @@ type Item = { href: string; label: string; icon: LucideIcon; match?: string };
 
 const SUPER_ADMIN_NAV: Item[] = [
   { href: "/super-admin", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/super-admin/leads", label: "Leads", icon: Inbox },
   { href: "/super-admin/companies", label: "Concesionarias", icon: Building2 },
   {
     href: "/super-admin/branch-requests",
     label: "Solicitudes",
-    icon: Inbox,
+    icon: Layers,
   },
   { href: "/super-admin/billing", label: "Facturación", icon: Receipt },
 ];

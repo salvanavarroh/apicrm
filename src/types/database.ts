@@ -229,6 +229,119 @@ export type Database = {
           },
         ]
       }
+      commercial_lead_notes: {
+        Row: {
+          author_id: string | null
+          commercial_lead_id: string
+          content: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          author_id?: string | null
+          commercial_lead_id: string
+          content: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          author_id?: string | null
+          commercial_lead_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_lead_notes_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commercial_lead_notes_commercial_lead_id_fkey"
+            columns: ["commercial_lead_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commercial_leads: {
+        Row: {
+          assigned_to: string | null
+          company_name: string | null
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          landing_url: string | null
+          last_name: string | null
+          message: string | null
+          phone: string | null
+          referrer: string | null
+          status: Database["public"]["Enums"]["commercial_lead_status"]
+          team_size: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          company_name?: string | null
+          created_at?: string
+          email: string
+          first_name: string
+          id?: string
+          landing_url?: string | null
+          last_name?: string | null
+          message?: string | null
+          phone?: string | null
+          referrer?: string | null
+          status?: Database["public"]["Enums"]["commercial_lead_status"]
+          team_size?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          company_name?: string | null
+          created_at?: string
+          email?: string
+          first_name?: string
+          id?: string
+          landing_url?: string | null
+          last_name?: string | null
+          message?: string | null
+          phone?: string | null
+          referrer?: string | null
+          status?: Database["public"]["Enums"]["commercial_lead_status"]
+          team_size?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_leads_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           address: string | null
@@ -1383,6 +1496,13 @@ export type Database = {
         | "email"
         | "other"
       campaign_status: "active" | "inactive"
+      commercial_lead_status:
+        | "new"
+        | "contacted"
+        | "demo_scheduled"
+        | "demo_done"
+        | "won"
+        | "lost"
       company_status: "pending" | "active" | "suspended"
       lead_payment_method:
         | "cash"
@@ -1562,6 +1682,14 @@ export const Constants = {
         "other",
       ],
       campaign_status: ["active", "inactive"],
+      commercial_lead_status: [
+        "new",
+        "contacted",
+        "demo_scheduled",
+        "demo_done",
+        "won",
+        "lost",
+      ],
       company_status: ["pending", "active", "suspended"],
       lead_payment_method: [
         "cash",

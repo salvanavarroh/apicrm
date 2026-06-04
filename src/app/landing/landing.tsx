@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { ContactForm } from "@/components/landing/contact-form";
 import { Logo } from "@/components/logo";
 
 /**
@@ -491,48 +492,7 @@ function Contacto() {
           </ul>
         </div>
 
-        <div className="border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
-          <form className="flex flex-col gap-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <FormField label="Nombre y apellido" required>
-                <FormInput placeholder="Juan Pérez" />
-              </FormField>
-              <FormField label="Email corporativo" required>
-                <FormInput
-                  type="email"
-                  placeholder="juan@concesionaria.com"
-                />
-              </FormField>
-              <FormField label="Empresa" required>
-                <FormInput placeholder="Concesionaria Central" />
-              </FormField>
-              <FormField label="Teléfono">
-                <FormInput placeholder="+54 11 1234 5678" />
-              </FormField>
-            </div>
-
-            <FormField label="Tamaño del equipo de ventas">
-              <select className="h-11 w-full appearance-none border border-[#262b35] bg-[#13161c] bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22><path d=%22M5.5 7.5L10 12l4.5-4.5%22 stroke=%22white%22 stroke-width=%221.5%22 fill=%22none%22 stroke-linecap=%22round%22/></svg>')] bg-[right_0.75rem_center] bg-[length:18px_18px] bg-no-repeat px-3 pr-10 text-sm text-white outline-none transition focus:border-[#FF5906]/60">
-                <option>1-5 vendedores</option>
-                <option>6-15 vendedores</option>
-                <option>16-30 vendedores</option>
-                <option>+30 vendedores</option>
-              </select>
-            </FormField>
-
-            <button
-              type="button"
-              className="mt-1 inline-flex h-12 w-full items-center justify-center bg-[#FF5906] text-sm font-semibold text-white transition hover:bg-[#FF5906]/90"
-            >
-              Solicitar demo
-            </button>
-
-            <p className="text-center text-[11px] text-white/40">
-              Respuesta garantizada en menos de 24 horas hábiles. Tus datos no
-              se comparten con terceros.
-            </p>
-          </form>
-        </div>
+        <ContactForm />
       </div>
     </section>
   );
@@ -544,35 +504,6 @@ function BulletItem({ children }: { children: React.ReactNode }) {
       <span className="mt-2 h-px w-4 shrink-0 bg-white/35" />
       <span>{children}</span>
     </li>
-  );
-}
-
-function FormField({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
-        {label}
-        {required && <span className="text-[#FF5906]"> *</span>}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-function FormInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className="h-11 w-full border border-[#262b35] bg-[#13161c] px-3 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-[#FF5906]/60"
-    />
   );
 }
 
