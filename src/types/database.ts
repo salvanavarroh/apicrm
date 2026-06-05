@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      car_catalog: {
+        Row: {
+          brand: string
+          created_at: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          model: string
+          origin: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          brand: string
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          model: string
+          origin?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          brand?: string
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          model?: string
+          origin?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       branch_product_types: {
         Row: {
           branch_id: string

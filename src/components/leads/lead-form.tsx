@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { CarModelCombobox } from "@/components/leads/car-model-combobox";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -155,9 +156,9 @@ export function LeadForm({
       <Section title="Vehículo de interés">
         <Grid2>
           <Field label="Modelo">
-            <Input
+            <CarModelCombobox
               value={data.vehicle_model ?? ""}
-              onChange={(e) => update("vehicle_model", e.target.value)}
+              onChange={(v) => update("vehicle_model", v)}
             />
           </Field>
           <Field label="Versión">
