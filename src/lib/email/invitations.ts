@@ -14,24 +14,31 @@ import {
 } from "./templates/password-reset";
 
 // ============================================================================
-// Invitación de usuarios
+// Invitación de usuarios — flujo SSR/PKCE friendly
 // ============================================================================
 //
-// El flujo nuevo NO usa `auth.admin.inviteUserByEmail()` (que dispara el email
-// por el SMTP de Supabase, limitado a 4/h en plan free). En cambio:
+// NO usamos `auth.admin.inviteUserByEmail()` (SMTP de Supabase limitado a 4/h
+// en plan free + emails de noreply@mail.app.supabase.io). En cambio:
 //
-//   1) generateLink({type:'invite'}) → crea el user en auth.users, dispara el
-//      trigger handle_new_auth_user que arma el profile, y devuelve el
-//      action_link SIN enviar email.
-//   2) Resend envía nuestro template branded con ese action_link.
+//   1) generateLink({type:'invite'}) → crea user en auth.users + dispara
+//      handle_new_auth_user, y nos devuelve `properties.hashed_token`.
+//   2) Armamos un link directo a NUESTRO endpoint /auth/confirm con
+//      ?token_hash=&type=&next=. Esto NO pasa por el redirect de Supabase
+//      (que usa hash fragments # que no llegan al server).
+//   3) /auth/confirm hace verifyOtp server-side → crea sesión SSR vía cookies.
+//   4) Resend envía nuestro template branded con ese link directo.
 //
-// Eso nos da: full control del template, sin límites de Supabase SMTP, y los
-// emails llegan desde nuestro dominio (RESEND_FROM_EMAIL).
+// Ventajas: full control del template + sin límites SMTP de Supabase + el
+// flujo es PKCE-friendly y no depende del allowlist de redirect URLs de
+// Supabase Auth.
 
 export type GenerateInvitationArgs = {
   email: string;
   metadata: Record<string, unknown>;
-  redirectTo: string;
+  appUrl: string;
+  // Path donde mandar al user después de verificar el token.
+  // Default: /auth/accept-invitation (setear password + T&C).
+  next?: string;
 };
 
 export type GenerateInvitationResult =
@@ -39,8 +46,6 @@ export type GenerateInvitationResult =
   | { ok: false; message: string };
 
 export async function generateInvitationLink(
-  // Uso SupabaseClient sin tipar Database porque admin.generateLink es de
-  // GoTrueAdminApi, mismo shape en cualquier instancia.
   supabase: SupabaseClient,
   args: GenerateInvitationArgs,
 ): Promise<GenerateInvitationResult> {
@@ -49,22 +54,27 @@ export async function generateInvitationLink(
     email: args.email.toLowerCase().trim(),
     options: {
       data: args.metadata,
-      redirectTo: args.redirectTo,
+      // Fallback de Supabase — no lo usamos porque armamos URL custom abajo,
+      // pero lo dejamos consistente por si algún día removemos el bypass.
+      redirectTo: `${args.appUrl}/auth/confirm`,
     },
   });
 
-  if (error || !data?.user || !data.properties?.action_link) {
+  if (error || !data?.user || !data.properties?.hashed_token) {
     return {
       ok: false,
       message: error?.message ?? "No se pudo generar el enlace de invitación",
     };
   }
 
-  return {
-    ok: true,
-    userId: data.user.id,
-    actionLink: data.properties.action_link,
-  };
+  const actionLink = buildConfirmUrl({
+    appUrl: args.appUrl,
+    tokenHash: data.properties.hashed_token,
+    type: "invite",
+    next: args.next ?? "/auth/accept-invitation",
+  });
+
+  return { ok: true, userId: data.user.id, actionLink };
 }
 
 export type SendInvitationArgs = {
@@ -92,7 +102,7 @@ export function sendInvitationEmail(
 
 // Conveniencia: crea el user + manda el email en un solo paso. Si el email
 // falla, hace rollback borrando el user creado para que la operación sea
-// atómica (el caller no se queda con un user en pending sin enlace activo).
+// atómica.
 export async function inviteUserAtomic(
   supabase: SupabaseClient,
   args: GenerateInvitationArgs & {
@@ -137,7 +147,7 @@ export async function inviteUserAtomic(
 
 export async function generatePasswordResetLink(
   supabase: SupabaseClient,
-  args: { email: string; redirectTo: string },
+  args: { email: string; appUrl: string; next?: string },
 ): Promise<
   | { ok: true; actionLink: string }
   | { ok: false; message: string }
@@ -145,16 +155,23 @@ export async function generatePasswordResetLink(
   const { data, error } = await supabase.auth.admin.generateLink({
     type: "recovery",
     email: args.email.toLowerCase().trim(),
-    options: { redirectTo: args.redirectTo },
+    options: { redirectTo: `${args.appUrl}/auth/confirm` },
   });
 
-  if (error || !data?.properties?.action_link) {
+  if (error || !data?.properties?.hashed_token) {
     return {
       ok: false,
       message: error?.message ?? "No se pudo generar el enlace",
     };
   }
-  return { ok: true, actionLink: data.properties.action_link };
+
+  const actionLink = buildConfirmUrl({
+    appUrl: args.appUrl,
+    tokenHash: data.properties.hashed_token,
+    type: "recovery",
+    next: args.next ?? "/auth/reset-password",
+  });
+  return { ok: true, actionLink };
 }
 
 export function sendPasswordResetEmail(args: {
@@ -170,4 +187,22 @@ export function sendPasswordResetEmail(args: {
       firstName: args.firstName,
     }),
   });
+}
+
+// ============================================================================
+// Helpers internos
+// ============================================================================
+
+function buildConfirmUrl(args: {
+  appUrl: string;
+  tokenHash: string;
+  type: "invite" | "recovery";
+  next: string;
+}): string {
+  const params = new URLSearchParams({
+    token_hash: args.tokenHash,
+    type: args.type,
+    next: args.next,
+  });
+  return `${args.appUrl}/auth/confirm?${params.toString()}`;
 }

@@ -102,7 +102,7 @@ export async function createCompanyWithAdmin(
       last_name: admin.last_name.trim(),
       phone: emptyToNull(admin.phone),
     },
-    redirectTo: `${appUrl}/auth/callback`,
+    appUrl,
     firstName: admin.first_name.trim(),
     companyName: created.name,
     role: "admin",

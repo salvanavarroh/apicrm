@@ -34,7 +34,8 @@ export async function requestPasswordReset(
   // el envío falla, igual devolvemos sentTo (logueamos del lado server).
   const link = await generatePasswordResetLink(supabase, {
     email,
-    redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password`,
+    appUrl,
+    next: "/auth/reset-password",
   });
 
   if (!link.ok) {

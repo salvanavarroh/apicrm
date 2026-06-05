@@ -88,7 +88,7 @@ export async function inviteSeller(
       last_name: parsed.data.last_name.trim(),
       phone: parsed.data.phone || null,
     },
-    redirectTo: `${appUrl}/auth/callback`,
+    appUrl,
   });
 
   if (!link.ok) {
