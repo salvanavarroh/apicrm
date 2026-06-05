@@ -31,7 +31,7 @@ export async function initiateSale(
 
   const { data: quote } = await supabase
     .from("quotes")
-    .select("id, total, lead_id, vendor_id")
+    .select("id, total, total_to_pay, lead_id, vendor_id")
     .eq("id", parsed.data.quote_id)
     .maybeSingle();
   if (!quote || quote.lead_id !== parsed.data.lead_id) {
@@ -62,7 +62,10 @@ export async function initiateSale(
       lead_id: parsed.data.lead_id,
       quote_id: parsed.data.quote_id,
       vendor_id: profile.id,
-      final_price: quote.total,
+      // final_price = lo que efectivamente paga el cliente (incluye intereses
+      // si la modalidad era financed). Fallback al subtotal para cotizaciones
+      // pre-Sprint12b sin total_to_pay calculado.
+      final_price: quote.total_to_pay ?? quote.total,
     })
     .select("id")
     .single();

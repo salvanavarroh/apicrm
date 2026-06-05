@@ -47,8 +47,87 @@ type Result<T = unknown> =
   | ({ ok: true } & T)
   | { ok: false; message: string };
 
-function computeTotal(input: { base_price: number; discount: number; used_car_value: number }) {
-  return Math.max(0, input.base_price - input.discount - input.used_car_value);
+/**
+ * Calcula los 3 montos clave de una cotización:
+ *
+ *   subtotal       = valor del vehículo (base − descuento − usado)
+ *   totalToPay     = lo que efectivamente paga el cliente
+ *   totalInterest  = solo intereses (financed) o cuotas administrativas
+ *                    (savings_plan) — la "diferencia" sobre el subtotal
+ *
+ * Cash:
+ *   totalToPay = subtotal
+ *   totalInterest = 0
+ *
+ * Financed (amortización francesa):
+ *   monthly = financedAmount * r * (1+r)^n / ((1+r)^n − 1)
+ *   totalToPay = monthly * installments + downPayment
+ *   totalInterest = monthly * installments − financedAmount
+ *
+ * Savings plan:
+ *   totalToPay = cuotaActual * cuotasTotales + cuotaInicial + adminFees
+ *   totalInterest = totalToPay − subtotal
+ */
+function computeTotals(input: {
+  modality: "cash" | "financed" | "savings_plan";
+  base_price: number;
+  discount: number;
+  used_car_value: number;
+  modality_data: Record<string, string | number>;
+}): { subtotal: number; totalToPay: number; totalInterest: number } {
+  const subtotal = Math.max(
+    0,
+    input.base_price - input.discount - input.used_car_value,
+  );
+
+  const md = input.modality_data;
+  const num = (k: string) => {
+    const v = md[k];
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      // Acepta "75" y "75,5" y "75.5"
+      const n = Number(v.replace(",", "."));
+      return Number.isFinite(n) ? n : 0;
+    }
+    return 0;
+  };
+
+  if (input.modality === "cash") {
+    return { subtotal, totalToPay: subtotal, totalInterest: 0 };
+  }
+
+  if (input.modality === "financed") {
+    const downPayment = num("down_payment");
+    const financedAmount =
+      num("financed_amount") || Math.max(0, subtotal - downPayment);
+    const installments = num("installments");
+    const tnaPct = num("tna");
+    let monthly = num("installment_value");
+
+    if (installments > 0 && financedAmount > 0) {
+      if (tnaPct > 0) {
+        const r = tnaPct / 100 / 12;
+        const f = Math.pow(1 + r, installments);
+        monthly = (financedAmount * r * f) / (f - 1);
+      } else if (!monthly) {
+        monthly = financedAmount / installments;
+      }
+    }
+
+    const totalToPay = monthly * installments + downPayment;
+    const totalInterest = Math.max(0, monthly * installments - financedAmount);
+    return { subtotal, totalToPay, totalInterest };
+  }
+
+  // savings_plan
+  const totalInstallments = num("total_installments");
+  const initialInstallment = num("initial_installment");
+  const currentInstallment = num("current_installment_value");
+  const adminFees = num("administrative_fees");
+  const totalToPay =
+    currentInstallment * totalInstallments + initialInstallment + adminFees;
+  const totalInterest = Math.max(0, totalToPay - subtotal);
+  return { subtotal, totalToPay, totalInterest };
 }
 
 async function buildPdfBuffer(opts: {
@@ -100,7 +179,7 @@ export async function previewQuote(
       message: parsed.error.issues[0]?.message ?? "Datos inválidos",
     };
   }
-  const total = computeTotal(parsed.data);
+  const { subtotal, totalToPay, totalInterest } = computeTotals(parsed.data);
   const data: QuoteData = {
     modality: parsed.data.modality,
     client: {
@@ -120,7 +199,9 @@ export async function previewQuote(
     base_price: parsed.data.base_price,
     discount: parsed.data.discount,
     used_car_value: parsed.data.used_car_value,
-    total,
+    total: subtotal,
+    total_to_pay: totalToPay,
+    total_interest: totalInterest,
     modality_data: parsed.data.modality_data,
     valid_until: parsed.data.valid_until || null,
     notes: parsed.data.notes || null,
@@ -152,7 +233,7 @@ export async function createQuote(
       message: parsed.error.issues[0]?.message ?? "Datos inválidos",
     };
   }
-  const total = computeTotal(parsed.data);
+  const { subtotal, totalToPay, totalInterest } = computeTotals(parsed.data);
 
   const admin = createAdminClient();
 
@@ -176,7 +257,9 @@ export async function createQuote(
       base_price: parsed.data.base_price,
       discount: parsed.data.discount,
       used_car_value: parsed.data.used_car_value,
-      total,
+      total: subtotal,
+      total_to_pay: totalToPay,
+      total_interest: totalInterest,
       modality_data: parsed.data.modality_data,
       valid_until: parsed.data.valid_until || null,
       notes: parsed.data.notes || null,
@@ -207,7 +290,9 @@ export async function createQuote(
     base_price: parsed.data.base_price,
     discount: parsed.data.discount,
     used_car_value: parsed.data.used_car_value,
-    total,
+    total: subtotal,
+    total_to_pay: totalToPay,
+    total_interest: totalInterest,
     modality_data: parsed.data.modality_data,
     valid_until: parsed.data.valid_until || null,
     notes: parsed.data.notes || null,

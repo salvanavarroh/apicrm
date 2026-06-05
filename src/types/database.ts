@@ -1210,6 +1210,8 @@ export type Database = {
           pdf_url: string | null
           sent_at: string | null
           total: number
+          total_interest: number | null
+          total_to_pay: number | null
           updated_at: string
           used_car_value: number
           valid_until: string | null
@@ -1239,6 +1241,8 @@ export type Database = {
           pdf_url?: string | null
           sent_at?: string | null
           total: number
+          total_interest?: number | null
+          total_to_pay?: number | null
           updated_at?: string
           used_car_value?: number
           valid_until?: string | null
@@ -1268,6 +1272,8 @@ export type Database = {
           pdf_url?: string | null
           sent_at?: string | null
           total?: number
+          total_interest?: number | null
+          total_to_pay?: number | null
           updated_at?: string
           used_car_value?: number
           valid_until?: string | null

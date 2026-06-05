@@ -101,7 +101,7 @@ export default async function SalesLeadDetailPage({
     supabase
       .from("quotes")
       .select(
-        "id, modality, total, created_at, sent_at, valid_until, pdf_path",
+        "id, modality, total, total_to_pay, created_at, sent_at, valid_until, pdf_path",
       )
       .eq("lead_id", id)
       .eq("vendor_id", profile.id)
@@ -182,7 +182,9 @@ export default async function SalesLeadDetailPage({
               leadId={lead.id}
               quotes={quotes.map((q) => ({
                 id: q.id,
-                total: Number(q.total),
+                // Para el botón "Iniciar venta" mostramos LO QUE PAGA EL
+                // CLIENTE (con intereses si es financed).
+                total: Number(q.total_to_pay ?? q.total),
                 modality: q.modality,
                 created_at: q.created_at,
               }))}
@@ -301,7 +303,9 @@ export default async function SalesLeadDetailPage({
                         </span>
                       </Link>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="font-mono">{formatARS(q.total)}</span>
+                        <span className="font-mono">
+                          {formatARS(q.total_to_pay ?? q.total)}
+                        </span>
                         {q.sent_at && (
                           <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] text-success">
                             Enviado

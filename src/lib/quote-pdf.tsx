@@ -39,7 +39,16 @@ export type QuoteData = {
   base_price: number;
   discount: number;
   used_car_value: number;
+  // total = subtotal del vehículo (base − descuento − usado). Es lo que vale
+  // el auto, sin contar intereses ni financiación.
   total: number;
+  // total_to_pay = lo que efectivamente paga el cliente:
+  //   - cash → igual a total
+  //   - financed → cuota × n + anticipo (incluye intereses)
+  //   - savings_plan → cuota × n + cuota inicial + alicuotas administrativas
+  // total_interest = diferencia entre total_to_pay y total (intereses + admin).
+  total_to_pay?: number | null;
+  total_interest?: number | null;
 
   modality_data: Record<string, string | number | null>;
 
@@ -288,9 +297,27 @@ export function QuotePdf({
               <Text style={styles.totalLabel}>− Auto en parte de pago</Text>
               <Text style={styles.totalValue}>{fmt(data.used_car_value)}</Text>
             </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal vehículo</Text>
+              <Text style={styles.totalValue}>{fmt(data.total)}</Text>
+            </View>
+            {data.total_interest != null && data.total_interest > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  + {data.modality === "savings_plan"
+                    ? "Cuotas administrativas y alícuotas"
+                    : "Intereses estimados"}
+                </Text>
+                <Text style={styles.totalValue}>
+                  {fmt(data.total_interest)}
+                </Text>
+              </View>
+            )}
             <View style={styles.totalFinal}>
               <Text style={styles.totalFinalLabel}>Total a pagar</Text>
-              <Text style={styles.totalFinalValue}>{fmt(data.total)}</Text>
+              <Text style={styles.totalFinalValue}>
+                {fmt(data.total_to_pay ?? data.total)}
+              </Text>
             </View>
           </View>
         </View>

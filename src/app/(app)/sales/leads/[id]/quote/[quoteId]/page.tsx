@@ -123,11 +123,46 @@ export default async function QuoteViewPage({
         <CardHeader>
           <CardTitle>Resumen aritmético</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-          <Stat label="Precio base" value={quote.base_price} />
-          <Stat label="Descuento" value={quote.discount} />
-          <Stat label="Auto usado" value={quote.used_car_value} />
-          <Stat label="Total" value={quote.total} highlight />
+        <CardContent className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+            <Stat label="Precio base" value={quote.base_price} />
+            <Stat label="Descuento" value={quote.discount} />
+            <Stat label="Auto usado" value={quote.used_car_value} />
+            <Stat label="Subtotal vehículo" value={quote.total} />
+          </div>
+          {/* Si hubo intereses (financed) o cuotas administrativas (savings),
+              mostramos el monto efectivo que paga el cliente. */}
+          {quote.total_to_pay != null &&
+            Number(quote.total_to_pay) !== Number(quote.total) && (
+              <div className="grid grid-cols-2 gap-3 border-t pt-3 text-sm md:grid-cols-4">
+                {quote.total_interest != null &&
+                  Number(quote.total_interest) > 0 && (
+                    <Stat
+                      label={
+                        quote.modality === "savings_plan"
+                          ? "Alícuotas + adm."
+                          : "Intereses estimados"
+                      }
+                      value={Number(quote.total_interest)}
+                    />
+                  )}
+                <div className="md:col-start-4">
+                  <Stat
+                    label="Total a pagar"
+                    value={Number(quote.total_to_pay)}
+                    highlight
+                  />
+                </div>
+              </div>
+            )}
+          {(quote.total_to_pay == null ||
+            Number(quote.total_to_pay) === Number(quote.total)) && (
+            <div className="grid grid-cols-2 gap-3 border-t pt-3 text-sm md:grid-cols-4">
+              <div className="md:col-start-4">
+                <Stat label="Total a pagar" value={quote.total} highlight />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

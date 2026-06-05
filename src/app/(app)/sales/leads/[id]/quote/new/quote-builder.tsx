@@ -669,9 +669,57 @@ export function QuoteBuilder({
             <Row label="Precio base" value={totals.base} />
             <Row label="− Descuento" value={totals.disc} />
             <Row label="− Auto usado" value={totals.used} />
-            <div className="mt-1 border-t pt-2 text-base font-semibold">
-              <Row label="Total" value={totals.total} bold />
+            <div className="mt-1 border-t pt-2 text-sm">
+              <Row label="Subtotal vehículo" value={totals.total} />
             </div>
+
+            {/* Cuando hay financiación o plan de ahorro, mostramos también lo
+                que efectivamente paga el cliente con intereses / alícuotas.
+                Subtotal es "valor del auto", Total a pagar es "lo que paga". */}
+            {data.modality === "financed" && finance.totalToPay > 0 && (
+              <>
+                {finance.totalInterest > 0 && (
+                  <Row
+                    label="+ Intereses estimados"
+                    value={finance.totalInterest}
+                  />
+                )}
+                <div className="mt-1 border-t pt-2 text-base font-semibold">
+                  <Row
+                    label="Total a pagar"
+                    value={finance.totalToPay}
+                    bold
+                  />
+                </div>
+                <p className="text-[10px] leading-snug text-muted-foreground">
+                  El total a pagar es lo que paga el cliente en cuotas +
+                  anticipo. El subtotal es solo el valor del vehículo.
+                </p>
+              </>
+            )}
+            {data.modality === "savings_plan" && savingsPlan.planTotal > 0 && (
+              <>
+                {savingsPlan.planTotal > totals.total && (
+                  <Row
+                    label="+ Cuotas adm. y alícuotas"
+                    value={savingsPlan.planTotal - totals.total}
+                  />
+                )}
+                <div className="mt-1 border-t pt-2 text-base font-semibold">
+                  <Row
+                    label="Total a pagar"
+                    value={savingsPlan.planTotal}
+                    bold
+                  />
+                </div>
+              </>
+            )}
+            {data.modality === "cash" && (
+              <div className="mt-1 border-t pt-2 text-base font-semibold">
+                <Row label="Total a pagar" value={totals.total} bold />
+              </div>
+            )}
+
             <div className="mt-4 flex flex-col gap-2">
               <Button variant="outline" onClick={preview} disabled={pending}>
                 <Eye className="mr-2 size-4" /> Vista previa
