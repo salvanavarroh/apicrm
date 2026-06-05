@@ -2,11 +2,15 @@
  * Seed/refresh del catálogo de autos (tabla car_catalog).
  *
  * Fuentes:
- *   - DNRPA (Argentina, oficial): última CSV mensual de inscripciones iniciales.
- *     Resuelve la URL via CKAN API. ~12MB por mes, ~50k rows, ~1500 (marca,
- *     modelo) únicos después de normalizar.
+ *   - DNRPA (Argentina, oficial): inscripciones iniciales de autos.
+ *     - Monthly CSV (último mes) → modelos vigentes.
+ *     - Annual ZIPs (2018-actual) → cubre TODOS los modelos patentados en
+ *       los últimos años, incluso discontinuados como Toyota Etios (último
+ *       año en AR: 2021), Ford Ka, VW Suran, Fiat Palio, etc.
+ *     Resuelve URLs via CKAN API.
  *   - global-car-models (MIT, fallback internacional): JSON con 94 marcas /
- *     ~1830 modelos. Cubre marcas que casi no aparecen en DNRPA.
+ *     ~1830 modelos. Cubre marcas premium/europeas/asiáticas que casi no
+ *     aparecen en DNRPA (Aston Martin, Bugatti).
  *
  * Estrategia de normalización:
  *   - Marca: title case ("VOLKSWAGEN" → "Volkswagen"). Algunas marcas se
@@ -14,16 +18,17 @@
  *   - Modelo: primer "palabra" del DNRPA porque viene con todos los trims
  *     ("AMAROK COMFORTLINE TDI AT 4X2 G2" → "Amarok"). Hay un mapa de
  *     compuestos para preservar "Corolla Cross", "C3 Aircross", etc.
- *   - Filtra entradas vacías y prefijos "Nuevo X" (son duplicados del modelo
- *     base).
  *
  * Cómo correrlo:
- *   pnpm tsx scripts/seed-car-catalog.ts
- *   (necesita NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY en env)
- *
- * Para correr mensualmente, agregarlo a vercel.json cron o GitHub Action.
+ *   - Default (solo último mes + global): para refresh mensual
+ *       pnpm tsx scripts/seed-car-catalog.ts
+ *   - Histórico completo (2018-actual, cubre discontinuados):
+ *       pnpm tsx scripts/seed-car-catalog.ts --full
+ *   - Años custom:
+ *       pnpm tsx scripts/seed-car-catalog.ts --years 2021,2022,2026
  */
 
+import JSZip from "jszip";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -38,10 +43,11 @@ const CKAN_API =
 const GLOBAL_CARS_URL =
   "https://raw.githubusercontent.com/serhatkildaci/global-car-models/main/data/models.json";
 
-// Marcas remap (caso especial / acentos / capitalización).
+// Marcas remap (caso especial / acentos / capitalización / typos DNRPA).
 const BRAND_MAP: Record<string, string> = {
   "MERCEDES BENZ": "Mercedes-Benz",
   "MERCEDES-BENZ": "Mercedes-Benz",
+  "MERCEDES BENZ.": "Mercedes-Benz",
   "ALFA ROMEO": "Alfa Romeo",
   "LAND ROVER": "Land Rover",
   "ASTON MARTIN": "Aston Martin",
@@ -51,6 +57,7 @@ const BRAND_MAP: Record<string, string> = {
   CITROEN: "Citroën",
   PEUGEOT: "Peugeot",
   VOLKSWAGEN: "Volkswagen",
+  VOLSKWAGEN: "Volkswagen", // typo en DNRPA
   RENAULT: "Renault",
   CHEVROLET: "Chevrolet",
   FORD: "Ford",
@@ -72,6 +79,20 @@ const BRAND_MAP: Record<string, string> = {
   RAM: "RAM",
   HINO: "Hino",
 };
+
+// Marcas "basura" del DNRPA: registros con datos incompletos. Filtramos.
+const SKIP_BRANDS = new Set<string>([
+  "SIN MARCA",
+  "SIN ESPECIFICACION",
+  "SIN ESPECIFICACIÓN",
+  "NO CONSTA",
+  "OTROS",
+  "OTRO",
+  "VARIOS",
+  "ARMADO EN PAIS",
+  "ARMADO EN ARGENTINA",
+  "ARMADO NACIONAL",
+]);
 
 // Modelos multi-palabra que NO deben colapsarse al primer token.
 const MULTI_WORD_MODELS = new Set([
@@ -104,9 +125,11 @@ const MULTI_WORD_MODELS = new Set([
   "MASTER PASSENGER",
   "S 10",
   "S10 HIGH",
+  "GRAND SIENA",
+  "FIAT 500",
+  "ALFA ROMEO",
 ]);
 
-// Prefijos a eliminar (son duplicados del modelo base).
 const STRIP_PREFIXES = ["NUEVO ", "NUEVA ", "NEW "];
 
 function titleCase(s: string): string {
@@ -119,8 +142,9 @@ function titleCase(s: string): string {
 function normalizeBrand(raw: string): string | null {
   const up = raw.trim().toUpperCase();
   if (!up) return null;
+  if (SKIP_BRANDS.has(up)) return null;
   if (BRAND_MAP[up]) return BRAND_MAP[up];
-  // Skip marcas de camiones agrícolas / acoplados / fabricantes locales raros.
+  // Skip marcas de camiones / acoplados / fabricantes locales raros.
   if (
     /^(ACOPLADOS|AA |BERTOTTO|BELGRANO|APEZ|COMAR|CARBALLIDO|CORADIR|COBRA|CAMC|CAN-AM|BEIBEN|ASTIVIA|AST-|AIMIX|BONANO|AGRALE)/.test(
       up,
@@ -134,7 +158,6 @@ function normalizeBrand(raw: string): string | null {
 function normalizeModel(raw: string): string | null {
   let s = raw.trim().toUpperCase();
   if (!s) return null;
-  // Strip "NUEVO ", "NUEVA ", "NEW " prefixes.
   for (const p of STRIP_PREFIXES) {
     if (s.startsWith(p)) {
       s = s.slice(p.length).trim();
@@ -142,18 +165,17 @@ function normalizeModel(raw: string): string | null {
     }
   }
   if (!s) return null;
-  // Multi-word matches keep the full canonical name.
   for (const mw of MULTI_WORD_MODELS) {
     if (s === mw || s.startsWith(mw + " ")) {
       return titleCase(mw);
     }
   }
-  // Default: take first word as model (drops trims/versions).
   const first = s.split(/\s+/)[0];
   if (!first) return null;
-  // Preserve all-digit / mixed alphanumeric models AS-IS (208, S10, F-150).
+  // Skip códigos puramente numéricos largos (códigos internos DNRPA tipo
+  // "17.280" / "8.250" — son camiones/acoplados, no modelos de auto).
+  if (/^\d+\.\d+$/.test(first)) return null;
   if (/^[0-9]/.test(first) || /^[A-Z]+-[0-9]/.test(first)) return first;
-  // Title case for word models (Amarok, Cronos).
   return titleCase(first);
 }
 
@@ -164,59 +186,75 @@ type CatalogEntry = {
   origin?: string | null;
 };
 
-async function fetchLatestDnrpaUrl(): Promise<string | null> {
-  console.log("→ Consultando CKAN para CSV DNRPA más reciente…");
+type CkanResource = { name: string; format: string; url: string };
+
+async function fetchCkanResources(): Promise<CkanResource[]> {
   const res = await fetch(CKAN_API);
   const json = (await res.json()) as {
-    result: { resources: Array<{ name: string; format: string; url: string }> };
+    result: { resources: CkanResource[] };
   };
-  const csvResources = json.result.resources.filter(
-    (r) => r.format.toUpperCase() === "CSV",
-  );
-  if (csvResources.length === 0) {
-    console.error("No hay CSVs en CKAN");
-    return null;
-  }
-  // El primero suele ser el más reciente (CKAN ordena por created_at desc).
-  console.log(`  → ${csvResources[0].name}`);
-  return csvResources[0].url;
+  return json.result.resources;
 }
 
-async function fetchDnrpa(): Promise<CatalogEntry[]> {
-  const url = await fetchLatestDnrpaUrl();
-  if (!url) return [];
-  console.log("→ Descargando CSV…");
-  const res = await fetch(url);
-  const text = await res.text();
-  console.log(`  → ${text.length} chars`);
+/**
+ * Parser CSV mínimo que respeta comillas dobles (los CSVs DNRPA 2018-2023
+ * vienen con TODOS los campos quoted: "tramite_tipo","tramite_fecha",...).
+ * Los CSVs 2024+ vienen sin quotes pero soportamos ambos formatos.
+ */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += c;
+      }
+    } else {
+      if (c === ",") {
+        out.push(cur);
+        cur = "";
+      } else if (c === '"') {
+        inQuotes = true;
+      } else {
+        cur += c;
+      }
+    }
+  }
+  out.push(cur);
+  return out;
+}
 
-  // CSV con BOM. Parser muy básico: split por '\n', luego por ',' respetando
-  // comillas. Para evitar dependencias, asumimos que los campos relevantes
-  // (marca, modelo, origen) no tienen comas dentro.
+function parseCsvForCatalog(text: string): CatalogEntry[] {
   const lines = text.replace(/^﻿/, "").split(/\r?\n/);
-  const header = lines[0].split(",");
+  if (lines.length === 0) return [];
+  const header = splitCsvLine(lines[0]).map((h) => h.trim());
   const idxMarca = header.indexOf("automotor_marca_descripcion");
   const idxModelo = header.indexOf("automotor_modelo_descripcion");
   const idxOrigen = header.indexOf("automotor_origen");
-  if (idxMarca === -1 || idxModelo === -1) {
-    console.error("Headers DNRPA no encontrados");
-    return [];
-  }
+  if (idxMarca === -1 || idxModelo === -1) return [];
 
   const seen = new Set<string>();
   const out: CatalogEntry[] = [];
-  let processed = 0;
   for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(",");
-    if (cols.length < header.length - 2) continue;
-    processed++;
+    if (!lines[i]) continue;
+    const cols = splitCsvLine(lines[i]);
+    if (cols.length < idxModelo + 1) continue;
     const brand = normalizeBrand(cols[idxMarca] ?? "");
     const model = normalizeModel(cols[idxModelo] ?? "");
     if (!brand || !model) continue;
-    const origen = (cols[idxOrigen] ?? "").trim();
     const key = `${brand}|${model}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    const origen = (cols[idxOrigen] ?? "").trim();
     out.push({
       brand,
       model,
@@ -224,8 +262,89 @@ async function fetchDnrpa(): Promise<CatalogEntry[]> {
       origin: /import/i.test(origen) ? "IMPORTADO" : "NACIONAL",
     });
   }
-  console.log(`  → ${processed} filas → ${out.length} (marca,modelo) únicos`);
   return out;
+}
+
+async function fetchDnrpaMonth(url: string, label: string): Promise<CatalogEntry[]> {
+  console.log(`  → Descargando ${label}…`);
+  const res = await fetch(url);
+  const text = await res.text();
+  const entries = parseCsvForCatalog(text);
+  console.log(`    ${entries.length} (marca,modelo) únicos`);
+  return entries;
+}
+
+async function fetchDnrpaYearZip(
+  url: string,
+  year: string,
+): Promise<CatalogEntry[]> {
+  console.log(`  → Descargando ZIP ${year}…`);
+  const res = await fetch(url);
+  const buf = Buffer.from(await res.arrayBuffer());
+  console.log(`    ${(buf.length / 1024 / 1024).toFixed(1)} MB, extrayendo…`);
+  const zip = await JSZip.loadAsync(buf);
+  const csvNames = Object.keys(zip.files).filter((n) =>
+    n.toLowerCase().endsWith(".csv"),
+  );
+  const all: CatalogEntry[] = [];
+  for (const name of csvNames) {
+    const file = zip.file(name);
+    if (!file) continue;
+    const text = await file.async("text");
+    const entries = parseCsvForCatalog(text);
+    all.push(...entries);
+  }
+  // Dedup intra-year (mismos modelos aparecen en cada mes).
+  const seen = new Set<string>();
+  const out: CatalogEntry[] = [];
+  for (const e of all) {
+    const key = `${e.brand}|${e.model}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(e);
+  }
+  console.log(`    ${csvNames.length} CSVs → ${out.length} (marca,modelo) únicos`);
+  return out;
+}
+
+async function fetchAllDnrpa(years: string[] | "latest"): Promise<CatalogEntry[]> {
+  console.log("→ Resolviendo recursos DNRPA…");
+  const resources = await fetchCkanResources();
+
+  if (years === "latest") {
+    const csv = resources.find((r) => r.format.toUpperCase() === "CSV");
+    if (!csv) return [];
+    console.log(`→ Modo último-mes: ${csv.name}`);
+    return fetchDnrpaMonth(csv.url, csv.name);
+  }
+
+  console.log(`→ Modo histórico: años ${years.join(", ")}`);
+  const out: Map<string, CatalogEntry> = new Map();
+  for (const year of years) {
+    const yearZip = resources.find((r) =>
+      r.name.includes(`- ${year}`) && r.format.toUpperCase() === "ZIP",
+    );
+    const lastMonth = resources.find(
+      (r) =>
+        r.format.toUpperCase() === "CSV" && r.name.includes(year.toString()),
+    );
+    let yearEntries: CatalogEntry[] = [];
+    if (yearZip) {
+      yearEntries = await fetchDnrpaYearZip(yearZip.url, year);
+    } else if (lastMonth) {
+      yearEntries = await fetchDnrpaMonth(lastMonth.url, lastMonth.name);
+    } else {
+      console.log(`  ! ${year}: sin recursos en CKAN`);
+      continue;
+    }
+    // Merge en map (la primera aparición se queda con el origen).
+    for (const e of yearEntries) {
+      const key = `${e.brand}|${e.model}`;
+      if (!out.has(key)) out.set(key, e);
+    }
+  }
+  console.log(`→ Total DNRPA tras dedup cross-año: ${out.size}`);
+  return Array.from(out.values());
 }
 
 async function fetchGlobal(): Promise<CatalogEntry[]> {
@@ -246,24 +365,49 @@ async function fetchGlobal(): Promise<CatalogEntry[]> {
   return out;
 }
 
+function parseArgs(): { years: string[] | "latest"; full: boolean } {
+  const argv = process.argv.slice(2);
+  if (argv.includes("--full")) {
+    // Histórico completo: 2018-año actual.
+    const now = new Date().getUTCFullYear();
+    const years: string[] = [];
+    for (let y = 2018; y <= now; y++) years.push(String(y));
+    return { years, full: true };
+  }
+  const yearsArgIdx = argv.indexOf("--years");
+  if (yearsArgIdx >= 0 && argv[yearsArgIdx + 1]) {
+    const years = argv[yearsArgIdx + 1]
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return { years, full: false };
+  }
+  return { years: "latest", full: false };
+}
+
 async function main() {
+  const { years } = parseArgs();
   const supabase = createClient(SUPABASE_URL!, SERVICE_KEY!);
 
-  const [dnrpa, global] = await Promise.all([fetchDnrpa(), fetchGlobal()]);
+  const [dnrpa, global] = await Promise.all([
+    fetchAllDnrpa(years),
+    fetchGlobal(),
+  ]);
 
-  // Merge: DNRPA primero (es el catálogo real local). Luego global solo
-  // agrega marcas/modelos que DNRPA no tenga (sin pisar la fuente).
   const dnrpaKeys = new Set(dnrpa.map((e) => `${e.brand}|${e.model}`));
   const merged: CatalogEntry[] = [...dnrpa];
+  let globalAdded = 0;
   for (const g of global) {
     const key = `${g.brand}|${g.model}`;
-    if (!dnrpaKeys.has(key)) merged.push(g);
+    if (!dnrpaKeys.has(key)) {
+      merged.push(g);
+      globalAdded++;
+    }
   }
   console.log(
-    `→ Merge: ${dnrpa.length} (DNRPA) + ${global.length - (global.length - (merged.length - dnrpa.length))} (Global nuevos) = ${merged.length}`,
+    `→ Merge: ${dnrpa.length} DNRPA + ${globalAdded} global nuevos = ${merged.length}`,
   );
 
-  // Upsert en chunks de 500 para no romper límites del Postgres.
   console.log("→ Upserting en car_catalog…");
   const CHUNK = 500;
   let inserted = 0;
@@ -291,7 +435,6 @@ async function main() {
   }
   console.log(`\n✓ Upsert terminado. ${inserted} rows afectadas.`);
 
-  // Verificación final.
   const { count: total } = await supabase
     .from("car_catalog")
     .select("*", { count: "exact", head: true });
