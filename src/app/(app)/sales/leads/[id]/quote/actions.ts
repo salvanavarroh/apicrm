@@ -2,10 +2,10 @@
 
 import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
-import { Resend } from "resend";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { sendEmail } from "@/lib/email/client";
 import {
   QUOTE_MODALITY_LABEL,
   QuotePdf,
@@ -390,15 +390,6 @@ export async function sendQuoteByEmail(
     };
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    return {
-      ok: false,
-      message:
-        "Resend no configurado. Pediles a los admins activar RESEND_API_KEY.",
-    };
-  }
-
   const admin = createAdminClient();
   const { data: quote } = await admin
     .from("quotes")
@@ -415,9 +406,7 @@ export async function sendQuoteByEmail(
     .createSignedUrl(quote.pdf_path ?? "", 60 * 60 * 24 * 7);
   const pdfUrl = signed?.signedUrl;
 
-  const resend = new Resend(apiKey);
-  const { data, error } = await resend.emails.send({
-    from: `${quote.company?.name ?? "Presupuesto"} <onboarding@resend.dev>`,
+  const result = await sendEmail({
     to: parsed.data.to,
     subject: parsed.data.subject,
     html: `
@@ -429,7 +418,7 @@ export async function sendQuoteByEmail(
       </div>
     `,
   });
-  if (error) return { ok: false, message: error.message };
+  if (!result.ok) return { ok: false, message: result.message };
 
   await admin
     .from("quotes")
@@ -437,5 +426,5 @@ export async function sendQuoteByEmail(
     .eq("id", quoteId);
 
   revalidatePath(`/sales/leads/${quote.lead_id}`);
-  return { ok: true, messageId: data?.id ?? "" };
+  return { ok: true, messageId: result.id };
 }

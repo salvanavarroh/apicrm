@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { inviteUserAtomic } from "@/lib/email/invitations";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const inputSchema = z.object({
@@ -92,25 +93,26 @@ export async function createCompanyWithAdmin(
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-  const { error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(
-    admin.email.toLowerCase().trim(),
-    {
-      data: {
-        role: "admin",
-        company_id: created.id,
-        first_name: admin.first_name.trim(),
-        last_name: admin.last_name.trim(),
-        phone: emptyToNull(admin.phone),
-      },
-      redirectTo: `${appUrl}/auth/callback`,
+  const invite = await inviteUserAtomic(supabase, {
+    email: admin.email,
+    metadata: {
+      role: "admin",
+      company_id: created.id,
+      first_name: admin.first_name.trim(),
+      last_name: admin.last_name.trim(),
+      phone: emptyToNull(admin.phone),
     },
-  );
+    redirectTo: `${appUrl}/auth/callback`,
+    firstName: admin.first_name.trim(),
+    companyName: created.name,
+    role: "admin",
+  });
 
-  if (inviteErr) {
+  if (!invite.ok) {
     await supabase.from("companies").delete().eq("id", created.id);
     return {
       ok: false,
-      message: `${inviteErr.message}. Probá con otro email del Admin.`,
+      message: `${invite.message}. Probá con otro email del Admin.`,
     };
   }
 

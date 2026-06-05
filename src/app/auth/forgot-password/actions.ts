@@ -2,7 +2,11 @@
 
 import { z } from "zod";
 
-import { createClient } from "@/lib/supabase/server";
+import {
+  generatePasswordResetLink,
+  sendPasswordResetEmail,
+} from "@/lib/email/invitations";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -22,18 +26,30 @@ export async function requestPasswordReset(
     return { error: parsed.error.issues[0]?.message ?? "Email inválido" };
   }
 
-  const supabase = await createClient();
+  const email = parsed.data.email.toLowerCase().trim();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const supabase = createAdminClient();
 
-  // Por privacidad: el endpoint no revela si el email existe. Si falla,
-  // devolvemos "sentTo" igual y logueamos del lado server.
-  const { error } = await supabase.auth.resetPasswordForEmail(
-    parsed.data.email,
-    { redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password` },
-  );
-  if (error) {
-    console.warn("resetPasswordForEmail error:", error.message);
+  // Privacidad: nunca revelamos si el email existe. Si el user no existe o
+  // el envío falla, igual devolvemos sentTo (logueamos del lado server).
+  const link = await generatePasswordResetLink(supabase, {
+    email,
+    redirectTo: `${appUrl}/auth/callback?next=/auth/reset-password`,
+  });
+
+  if (!link.ok) {
+    console.warn("generatePasswordResetLink error:", link.message);
+    return { sentTo: email };
   }
 
-  return { sentTo: parsed.data.email };
+  const result = await sendPasswordResetEmail({
+    to: email,
+    actionLink: link.actionLink,
+  });
+
+  if (!result.ok) {
+    console.warn("sendPasswordResetEmail error:", result.message);
+  }
+
+  return { sentTo: email };
 }

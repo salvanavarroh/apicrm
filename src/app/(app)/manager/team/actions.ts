@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import {
+  generateInvitationLink,
+  sendInvitationEmail,
+} from "@/lib/email/invitations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -74,31 +78,26 @@ export async function inviteSeller(
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-  const { data: invited, error: inviteErr } =
-    await supabase.auth.admin.inviteUserByEmail(
-      parsed.data.email.toLowerCase().trim(),
-      {
-        data: {
-          role: "sales",
-          company_id: profile.company_id,
-          first_name: parsed.data.first_name.trim(),
-          last_name: parsed.data.last_name.trim(),
-          phone: parsed.data.phone || null,
-        },
-        redirectTo: `${appUrl}/auth/callback`,
-      },
-    );
+  // 1) Crear el user vía generateLink (sin enviar email todavía).
+  const link = await generateInvitationLink(supabase, {
+    email: parsed.data.email,
+    metadata: {
+      role: "sales",
+      company_id: profile.company_id,
+      first_name: parsed.data.first_name.trim(),
+      last_name: parsed.data.last_name.trim(),
+      phone: parsed.data.phone || null,
+    },
+    redirectTo: `${appUrl}/auth/callback`,
+  });
 
-  if (inviteErr || !invited?.user) {
-    return {
-      ok: false,
-      message: inviteErr?.message ?? "No se pudo invitar al vendedor",
-    };
+  if (!link.ok) {
+    return { ok: false, message: link.message };
   }
 
-  const newUserId = invited.user.id;
+  const newUserId = link.userId;
 
-  // Setear branch_id + manager_id + comisión en el profile.
+  // 2) Setear branch_id + manager_id + comisión en el profile.
   const { error: pErr } = await supabase
     .from("profiles")
     .update({
@@ -113,7 +112,7 @@ export async function inviteSeller(
     return { ok: false, message: pErr.message };
   }
 
-  // Asignar tipos de producto al vendedor.
+  // 3) Asignar tipos de producto al vendedor.
   const uptRows = parsed.data.product_type_ids.map((pt) => ({
     user_id: newUserId,
     product_type_id: pt,
@@ -124,6 +123,34 @@ export async function inviteSeller(
   if (uptErr) {
     await supabase.auth.admin.deleteUser(newUserId);
     return { ok: false, message: uptErr.message };
+  }
+
+  // 4) Enviar email vía Resend al final. Si falla, rollback completo.
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name")
+    .eq("id", profile.company_id)
+    .maybeSingle();
+  const companyName = company?.name ?? "tu empresa";
+
+  const emailResult = await sendInvitationEmail({
+    to: parsed.data.email,
+    firstName: parsed.data.first_name.trim(),
+    companyName,
+    role: "sales",
+    actionLink: link.actionLink,
+  });
+
+  if (!emailResult.ok) {
+    await supabase
+      .from("user_product_types")
+      .delete()
+      .eq("user_id", newUserId);
+    await supabase.auth.admin.deleteUser(newUserId);
+    return {
+      ok: false,
+      message: `No se pudo enviar el email: ${emailResult.message}`,
+    };
   }
 
   revalidatePath("/manager/team");

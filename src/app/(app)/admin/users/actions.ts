@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import {
+  generateInvitationLink,
+  sendInvitationEmail,
+} from "@/lib/email/invitations";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const baseSchema = z.object({
@@ -66,31 +70,26 @@ export async function inviteUser(
     }
   }
 
-  // 2) Invitar al user. El trigger handle_new_auth_user lee raw_user_meta_data
+  // 2) Crear el user vía generateLink (NO envía email — eso lo hacemos al
+  // final con Resend). El trigger handle_new_auth_user lee raw_user_meta_data
   // y crea el profile (status=pending) con role/company_id/first_name/last_name/phone.
-  const { data: invited, error: inviteErr } =
-    await supabase.auth.admin.inviteUserByEmail(
-      parsed.data.email.toLowerCase().trim(),
-      {
-        data: {
-          role: parsed.data.role,
-          company_id: profile.company_id,
-          first_name: parsed.data.first_name.trim(),
-          last_name: parsed.data.last_name.trim(),
-          phone: parsed.data.phone || null,
-        },
-        redirectTo: `${appUrl}/auth/callback`,
-      },
-    );
+  const link = await generateInvitationLink(supabase, {
+    email: parsed.data.email,
+    metadata: {
+      role: parsed.data.role,
+      company_id: profile.company_id,
+      first_name: parsed.data.first_name.trim(),
+      last_name: parsed.data.last_name.trim(),
+      phone: parsed.data.phone || null,
+    },
+    redirectTo: `${appUrl}/auth/callback`,
+  });
 
-  if (inviteErr || !invited?.user) {
-    return {
-      ok: false,
-      message: inviteErr?.message ?? "No se pudo invitar al usuario",
-    };
+  if (!link.ok) {
+    return { ok: false, message: link.message };
   }
 
-  const newUserId = invited.user.id;
+  const newUserId = link.userId;
 
   // 3) Si es Manager: crear user_product_types + managements.
   if (parsed.data.role === "manager") {
@@ -130,6 +129,42 @@ export async function inviteUser(
       await supabase.auth.admin.deleteUser(newUserId);
       return { ok: false, message: `Error al crear gerencias: ${mErr.message}` };
     }
+  }
+
+  // 4) Email vía Resend, solo después de que toda la data downstream esté lista.
+  // Si falla el email, hacemos rollback completo: la operación es atómica.
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name")
+    .eq("id", profile.company_id)
+    .maybeSingle();
+  const companyName = company?.name ?? "tu empresa";
+
+  const emailResult = await sendInvitationEmail({
+    to: parsed.data.email,
+    firstName: parsed.data.first_name.trim(),
+    companyName,
+    role: parsed.data.role,
+    actionLink: link.actionLink,
+  });
+
+  if (!emailResult.ok) {
+    // Rollback completo: el user no recibió email, mejor cancelar todo.
+    if (parsed.data.role === "manager") {
+      await supabase
+        .from("managements")
+        .delete()
+        .eq("manager_id", newUserId);
+      await supabase
+        .from("user_product_types")
+        .delete()
+        .eq("user_id", newUserId);
+    }
+    await supabase.auth.admin.deleteUser(newUserId);
+    return {
+      ok: false,
+      message: `No se pudo enviar el email: ${emailResult.message}`,
+    };
   }
 
   revalidatePath("/admin/users");
