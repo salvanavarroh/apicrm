@@ -8,6 +8,10 @@ import {
   type LeadNote,
 } from "@/components/leads/notes-section";
 import { StatusChanger } from "@/components/leads/status-changer";
+import {
+  TemperatureBadge,
+  TemperatureChanger,
+} from "@/components/leads/temperature-control";
 import { StartSaleButton } from "./start-sale-button";
 import {
   TasksSection,
@@ -169,6 +173,9 @@ export default async function SalesLeadDetailPage({
           </h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
             <LeadStatusBadge status={lead.status} />
+            {lead.temperature && (
+              <TemperatureBadge temperature={lead.temperature} />
+            )}
             <span>·</span>
             <span>
               {lead.vehicle_model || "—"}
@@ -191,6 +198,7 @@ export default async function SalesLeadDetailPage({
             />
           )}
           <StatusChanger leadId={lead.id} current={lead.status} />
+          <TemperatureChanger leadId={lead.id} current={lead.temperature} />
           <TemplatesModal
             trigger={
               <Button variant="outline">

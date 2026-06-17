@@ -20,6 +20,10 @@ export default async function DataProviderLeadsPage() {
         phone,
         email,
         status,
+        temperature,
+        city,
+        vehicle_model,
+        vehicle_version,
         created_at,
         branches:branch_id (name),
         product_types:product_type_id (name),
@@ -36,6 +40,10 @@ export default async function DataProviderLeadsPage() {
     phone: l.phone,
     email: l.email,
     status: l.status,
+    temperature: l.temperature,
+    city: l.city,
+    vehicle_model: l.vehicle_model,
+    vehicle_version: l.vehicle_version,
     branch_name: l.branches?.name ?? null,
     product_type_name: l.product_types?.name ?? null,
     campaign_name: l.campaigns?.name ?? null,
@@ -71,6 +79,7 @@ export default async function DataProviderLeadsPage() {
         rows={rows}
         detailHrefPrefix="/data-provider/leads"
         showAssignee={false}
+        editableTemperature={false}
       />
     </div>
   );

@@ -7,6 +7,10 @@ import {
   NotesSection,
   type LeadNote,
 } from "@/components/leads/notes-section";
+import {
+  LeadVehiclesSection,
+  type LeadVehicleItem,
+} from "@/components/leads/lead-vehicles-section";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
 import {
   TasksSection,
@@ -38,8 +42,14 @@ export default async function AdminLeadDetailPage({
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
 
-  const [{ data: lead }, { data: notes }, { data: tasks }, { data: visits }, team] =
-    await Promise.all([
+  const [
+    { data: lead },
+    { data: notes },
+    { data: tasks },
+    { data: visits },
+    { data: leadVehicles },
+    team,
+  ] = await Promise.all([
       supabase
         .from("leads")
         .select(
@@ -85,6 +95,13 @@ export default async function AdminLeadDetailPage({
         )
         .eq("lead_id", id)
         .order("scheduled_at", { ascending: true }),
+      supabase
+        .from("lead_vehicles")
+        .select(
+          "id, vehicle_model, vehicle_version, preferred_color, notes, created_at",
+        )
+        .eq("lead_id", id)
+        .order("created_at", { ascending: true }),
       getAssignableSalesUsers({ companyId: profile.company_id! }),
     ]);
 
@@ -129,6 +146,14 @@ export default async function AdminLeadDetailPage({
   const leadAssigneeName = lead.assignee
     ? fullName(lead.assignee.first_name, lead.assignee.last_name)
     : null;
+  const vehicleRows: LeadVehicleItem[] = (leadVehicles ?? []).map((v) => ({
+    id: v.id,
+    vehicle_model: v.vehicle_model,
+    vehicle_version: v.vehicle_version,
+    preferred_color: v.preferred_color,
+    notes: v.notes,
+    created_at: v.created_at,
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -224,6 +249,8 @@ export default async function AdminLeadDetailPage({
               )}
             </CardContent>
           </Card>
+
+          <LeadVehiclesSection leadId={lead.id} vehicles={vehicleRows} />
 
           <Card>
             <CardHeader>

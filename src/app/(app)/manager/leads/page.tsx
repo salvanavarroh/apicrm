@@ -16,7 +16,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
-import { fullName } from "@/lib/leads";
+import { fullName, normalizePhone } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
 
@@ -35,11 +35,14 @@ export default async function ManagerLeadsPage() {
           last_name,
           phone,
           email,
+          city,
           vehicle_model,
           vehicle_version,
           status,
+          temperature,
           status_changed_at,
           created_at,
+          last_contacted_at,
           branch_id,
           product_type_id,
           assigned_user_id,
@@ -67,6 +70,7 @@ export default async function ManagerLeadsPage() {
     vehicle_model: l.vehicle_model,
     vehicle_version: l.vehicle_version,
     status: l.status,
+    temperature: l.temperature,
     status_changed_at: l.status_changed_at,
     branch_name: l.branches?.name ?? null,
     product_type_name: l.product_types?.name ?? null,
@@ -75,21 +79,36 @@ export default async function ManagerLeadsPage() {
       : null,
   }));
 
-  const tableRows: LeadsTableRow[] = leads.map((l) => ({
-    id: l.id,
-    first_name: l.first_name,
-    last_name: l.last_name,
-    phone: l.phone,
-    email: l.email,
-    status: l.status,
-    branch_name: l.branches?.name ?? null,
-    product_type_name: l.product_types?.name ?? null,
-    campaign_name: l.campaigns?.name ?? null,
-    assignee_name: l.assignee
-      ? fullName(l.assignee.first_name, l.assignee.last_name)
-      : null,
-    created_at: l.created_at,
-  }));
+  const phoneCounts = new Map<string, number>();
+  for (const l of leads) {
+    const p = normalizePhone(l.phone);
+    if (p) phoneCounts.set(p, (phoneCounts.get(p) ?? 0) + 1);
+  }
+
+  const tableRows: LeadsTableRow[] = leads.map((l) => {
+    const p = normalizePhone(l.phone);
+    return {
+      id: l.id,
+      first_name: l.first_name,
+      last_name: l.last_name,
+      phone: l.phone,
+      email: l.email,
+      status: l.status,
+      temperature: l.temperature,
+      city: l.city,
+      vehicle_model: l.vehicle_model,
+      vehicle_version: l.vehicle_version,
+      branch_name: l.branches?.name ?? null,
+      product_type_name: l.product_types?.name ?? null,
+      campaign_name: l.campaigns?.name ?? null,
+      assignee_name: l.assignee
+        ? fullName(l.assignee.first_name, l.assignee.last_name)
+        : null,
+      created_at: l.created_at,
+      last_contacted_at: l.last_contacted_at,
+      is_duplicate: p ? (phoneCounts.get(p) ?? 0) > 1 : false,
+    };
+  });
 
   const unassigned = leads.filter(
     (l) =>
@@ -141,7 +160,11 @@ export default async function ManagerLeadsPage() {
         </TabsContent>
 
         <TabsContent value="table" className="mt-4">
-          <LeadsTable rows={tableRows} detailHrefPrefix="/manager/leads" />
+          <LeadsTable
+            rows={tableRows}
+            detailHrefPrefix="/manager/leads"
+            assignableUsers={team}
+          />
         </TabsContent>
 
         <TabsContent value="unassigned" className="mt-4">

@@ -5,6 +5,7 @@ import type { Database } from "@/types/database";
 
 export type LeadStatus = Database["public"]["Enums"]["lead_status"];
 export type LeadPaymentMethod = Database["public"]["Enums"]["lead_payment_method"];
+export type LeadTemperature = Database["public"]["Enums"]["lead_temperature"];
 export type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 
 export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
@@ -33,6 +34,40 @@ export const LEAD_STATUS_TONE: Record<
   closed: "muted",
   not_interested: "muted",
 };
+
+// Scoring manual: temperatura asignada por el vendedor. Distinto del semáforo
+// de gestión (ese es automático por días sin movimiento).
+export const LEAD_TEMPERATURE_LABELS: Record<LeadTemperature, string> = {
+  hot: "Caliente",
+  warm: "Tibio",
+  cold: "Frío",
+};
+
+// Emoji + clases de color para el badge de temperatura.
+export const LEAD_TEMPERATURE_META: Record<
+  LeadTemperature,
+  { emoji: string; badge: string; dot: string }
+> = {
+  hot: {
+    emoji: "🔥",
+    badge: "bg-red-100 text-red-700",
+    dot: "bg-red-500",
+  },
+  warm: {
+    emoji: "🟡",
+    badge: "bg-amber-100 text-amber-700",
+    dot: "bg-amber-500",
+  },
+  cold: {
+    emoji: "🔵",
+    badge: "bg-blue-100 text-blue-700",
+    dot: "bg-blue-500",
+  },
+};
+
+export const LEAD_TEMPERATURE_OPTIONS = (
+  Object.keys(LEAD_TEMPERATURE_LABELS) as LeadTemperature[]
+).map((value) => ({ value, label: LEAD_TEMPERATURE_LABELS[value] }));
 
 export const LEAD_PAYMENT_LABELS: Record<LeadPaymentMethod, string> = {
   cash: "Contado",

@@ -27,6 +27,14 @@ const inviteSchema = z.discriminatedUnion("role", [
       .array(z.string().uuid())
       .min(1, "Al menos un tipo de producto"),
   }),
+  baseSchema.extend({
+    role: z.literal("sales"),
+    manager_id: z.string().uuid("Elegí un gerente"),
+    branch_id: z.string().uuid("Elegí una sucursal"),
+    product_type_ids: z
+      .array(z.string().uuid())
+      .min(1, "Al menos un tipo de producto"),
+  }),
 ]);
 
 export type InviteUserInput = z.input<typeof inviteSchema>;
@@ -53,20 +61,19 @@ export async function inviteUser(
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-  // 1) Validar que no haya conflictos previos (en caso de Manager: que cada
-  // combinación branch+product_type no tenga otro manager ya asignado).
-  if (parsed.data.role === "manager") {
-    const { data: clashes } = await supabase
-      .from("managements")
-      .select("branch_id, product_type_id")
-      .in("branch_id", parsed.data.branch_ids)
-      .in("product_type_id", parsed.data.product_type_ids);
-    if (clashes && clashes.length > 0) {
-      return {
-        ok: false,
-        message:
-          "Alguna combinación de sucursal y tipo de producto ya tiene gerente asignado",
-      };
+  // 1) Si es Vendedor: validar que el gerente elegido sea de la empresa.
+  // (Multi-gerente: ya NO validamos que la combinación sucursal+producto esté
+  // libre — varias gerencias pueden compartirla.)
+  if (parsed.data.role === "sales") {
+    const { data: mgr } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", parsed.data.manager_id)
+      .eq("company_id", profile.company_id)
+      .eq("role", "manager")
+      .maybeSingle();
+    if (!mgr) {
+      return { ok: false, message: "El gerente seleccionado no es válido" };
     }
   }
 
@@ -128,6 +135,38 @@ export async function inviteUser(
         .eq("user_id", newUserId);
       await supabase.auth.admin.deleteUser(newUserId);
       return { ok: false, message: `Error al crear gerencias: ${mErr.message}` };
+    }
+  }
+
+  // 3b) Si es Vendedor: setear gerente + sucursal + teléfono en el profile
+  // (el trigger solo escribe role/empresa/nombre) y asignar tipos de producto.
+  if (parsed.data.role === "sales") {
+    const { error: profErr } = await supabase
+      .from("profiles")
+      .update({
+        branch_id: parsed.data.branch_id,
+        manager_id: parsed.data.manager_id,
+        phone: parsed.data.phone || null,
+      })
+      .eq("id", newUserId);
+    if (profErr) {
+      await supabase.auth.admin.deleteUser(newUserId);
+      return {
+        ok: false,
+        message: `Error al asignar gerente: ${profErr.message}`,
+      };
+    }
+
+    const userProductRows = parsed.data.product_type_ids.map((pt) => ({
+      user_id: newUserId,
+      product_type_id: pt,
+    }));
+    const { error: uptErr } = await supabase
+      .from("user_product_types")
+      .insert(userProductRows);
+    if (uptErr) {
+      await supabase.auth.admin.deleteUser(newUserId);
+      return { ok: false, message: `Error al asignar tipos: ${uptErr.message}` };
     }
   }
 

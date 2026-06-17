@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
 import { fullName, type LeadStatus } from "@/lib/leads";
+import { loadForecast } from "@/lib/forecast";
+import { ForecastCard } from "@/components/dashboard/forecast-card";
 import { createClient } from "@/lib/supabase/server";
 import {
   loadAgendaForCompany,
@@ -34,6 +36,10 @@ export default async function ManagerHomePage() {
       })
     : [];
   const today = todayDateKey();
+
+  const forecast = profile.company_id
+    ? await loadForecast(supabase, { companyId: profile.company_id })
+    : null;
 
   const [
     { data: leads },
@@ -155,6 +161,8 @@ export default async function ManagerHomePage() {
       </div>
 
       <AgendaCalendar items={agendaItems} todayKey={today} />
+
+      {forecast && <ForecastCard forecast={forecast} />}
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <Card className="p-4">

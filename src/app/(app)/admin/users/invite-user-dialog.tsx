@@ -25,11 +25,19 @@ import { cn } from "@/lib/utils";
 
 import { inviteUser, type InviteUserInput } from "./actions";
 
-type Role = "admin" | "manager" | "data_provider";
+type Role = "admin" | "manager" | "sales" | "data_provider";
+
+type Manager = {
+  id: string;
+  name: string;
+  branchIds: string[];
+  productTypeIds: string[];
+};
 
 const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   manager: "Gerente de ventas",
+  sales: "Vendedor",
   data_provider: "Proveedor de datos",
 };
 
@@ -39,10 +47,12 @@ export function InviteUserDialog({
   trigger,
   branches,
   productTypes,
+  managers = [],
 }: {
   trigger: ReactNode;
   branches: { id: string; name: string }[];
   productTypes: { id: string; name: string }[];
+  managers?: Manager[];
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -53,12 +63,25 @@ export function InviteUserDialog({
   const [phone, setPhone] = useState("");
   const [branchIds, setBranchIds] = useState<string[]>([]);
   const [productTypeIds, setProductTypeIds] = useState<string[]>([]);
+  const [managerId, setManagerId] = useState("");
+  const [branchId, setBranchId] = useState(""); // vendedor: sucursal única
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Tipos sin "Todos": el "Todos" es un toggle UI, no un tipo en sí.
   const realProductTypes = productTypes.filter((pt) => pt.name !== ALL_TOKEN);
   const todosOption = productTypes.find((pt) => pt.name === ALL_TOKEN);
+
+  // Vendedor: opciones constreñidas al gerente elegido.
+  const selectedManager = managers.find((m) => m.id === managerId) ?? null;
+  const salesBranches = selectedManager
+    ? branches.filter((b) => selectedManager.branchIds.includes(b.id))
+    : [];
+  const salesTypes = selectedManager
+    ? realProductTypes.filter((pt) =>
+        selectedManager.productTypeIds.includes(pt.id),
+      )
+    : [];
 
   // "Todos" está activo cuando hay tantos seleccionados como reales O cuando
   // se eligió explícitamente el "Todos" del seed.
@@ -77,9 +100,18 @@ export function InviteUserDialog({
       setPhone("");
       setBranchIds([]);
       setProductTypeIds([]);
+      setManagerId("");
+      setBranchId("");
       setError(null);
     }
     setOpen(next);
+  }
+
+  function selectManager(id: string) {
+    setManagerId(id);
+    // Resetear selección dependiente al cambiar de gerente.
+    setBranchId("");
+    setProductTypeIds([]);
   }
 
   function toggleSet(list: string[], value: string) {
@@ -109,15 +141,25 @@ export function InviteUserDialog({
         ? [todosOption.id, ...realProductTypes.map((p) => p.id)]
         : productTypeIds;
 
-      const payload: InviteUserInput =
-        role === "manager"
-          ? {
-              role: "manager",
-              ...base,
-              branch_ids: branchIds,
-              product_type_ids: finalTypeIds,
-            }
-          : { role, ...base };
+      let payload: InviteUserInput;
+      if (role === "manager") {
+        payload = {
+          role: "manager",
+          ...base,
+          branch_ids: branchIds,
+          product_type_ids: finalTypeIds,
+        };
+      } else if (role === "sales") {
+        payload = {
+          role: "sales",
+          ...base,
+          manager_id: managerId,
+          branch_id: branchId,
+          product_type_ids: productTypeIds,
+        };
+      } else {
+        payload = { role, ...base };
+      }
 
       const result = await inviteUser(payload);
       if (!result.ok) {
@@ -150,6 +192,7 @@ export function InviteUserDialog({
               <SelectContent>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="manager">Gerente de ventas</SelectItem>
+                <SelectItem value="sales">Vendedor</SelectItem>
                 <SelectItem value="data_provider">
                   Proveedor de datos
                 </SelectItem>
@@ -224,6 +267,50 @@ export function InviteUserDialog({
             </div>
           )}
 
+          {role === "sales" && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label>Gerente a cargo</Label>
+                {managers.length === 0 ? (
+                  <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                    Primero creá un gerente de ventas.
+                  </p>
+                ) : (
+                  <Select value={managerId} onValueChange={selectManager}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Elegí un gerente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {managers.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {selectedManager && (
+                <div className="flex flex-col gap-1.5">
+                  <Label>Sucursal</Label>
+                  <Select value={branchId} onValueChange={setBranchId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Elegí una sucursal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {salesBranches.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="iu-first">Nombre</Label>
@@ -264,6 +351,44 @@ export function InviteUserDialog({
               onChange={(e) => setPhone(e.target.value)}
             />
           </div>
+
+          {role === "sales" && selectedManager && salesTypes.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <Label>Tipo de negocio</Label>
+              <div className="flex flex-wrap gap-2">
+                {salesTypes.map((pt) => {
+                  const checked = productTypeIds.includes(pt.id);
+                  return (
+                    <button
+                      type="button"
+                      key={pt.id}
+                      onClick={() =>
+                        setProductTypeIds(toggleSet(productTypeIds, pt.id))
+                      }
+                      className={cn(
+                        "inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+                        checked
+                          ? "border-success bg-success/10 text-success"
+                          : "border-border bg-card text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-4 items-center justify-center rounded-sm border",
+                          checked
+                            ? "border-success bg-success text-white"
+                            : "border-input",
+                        )}
+                      >
+                        {checked && "✓"}
+                      </span>
+                      {pt.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {role === "manager" && realProductTypes.length > 0 && (
             <div className="flex flex-col gap-2">

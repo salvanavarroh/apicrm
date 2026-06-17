@@ -14,42 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      car_catalog: {
-        Row: {
-          brand: string
-          created_at: string
-          first_seen_at: string
-          id: string
-          last_seen_at: string
-          model: string
-          origin: string | null
-          source: string
-          updated_at: string
-        }
-        Insert: {
-          brand: string
-          created_at?: string
-          first_seen_at?: string
-          id?: string
-          last_seen_at?: string
-          model: string
-          origin?: string | null
-          source?: string
-          updated_at?: string
-        }
-        Update: {
-          brand?: string
-          created_at?: string
-          first_seen_at?: string
-          id?: string
-          last_seen_at?: string
-          model?: string
-          origin?: string | null
-          source?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       branch_product_types: {
         Row: {
           branch_id: string
@@ -265,6 +229,42 @@ export type Database = {
           },
         ]
       }
+      car_catalog: {
+        Row: {
+          brand: string
+          created_at: string
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          model: string
+          origin: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          brand: string
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          model: string
+          origin?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          brand?: string
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          model?: string
+          origin?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       commercial_lead_notes: {
         Row: {
           author_id: string | null
@@ -425,6 +425,45 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      impersonation_log: {
+        Row: {
+          ended_at: string | null
+          id: string
+          started_at: string
+          super_admin_id: string
+          target_user_id: string
+        }
+        Insert: {
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          super_admin_id: string
+          target_user_id: string
+        }
+        Update: {
+          ended_at?: string | null
+          id?: string
+          started_at?: string
+          super_admin_id?: string
+          target_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_log_super_admin_id_fkey"
+            columns: ["super_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impersonation_log_target_user_id_fkey"
+            columns: ["target_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lead_capture_forms: {
         Row: {
@@ -719,77 +758,47 @@ export type Database = {
           },
         ]
       }
-      visits: {
+      lead_vehicles: {
         Row: {
-          assigned_to: string | null
-          branch_id: string
           company_id: string
           created_at: string
-          created_by: string | null
           id: string
           lead_id: string
           notes: string | null
-          scheduled_at: string
-          status: Database["public"]["Enums"]["visit_status"]
-          updated_at: string
+          preferred_color: string | null
+          vehicle_model: string | null
+          vehicle_version: string | null
         }
         Insert: {
-          assigned_to?: string | null
-          branch_id: string
           company_id: string
           created_at?: string
-          created_by?: string | null
           id?: string
           lead_id: string
           notes?: string | null
-          scheduled_at: string
-          status?: Database["public"]["Enums"]["visit_status"]
-          updated_at?: string
+          preferred_color?: string | null
+          vehicle_model?: string | null
+          vehicle_version?: string | null
         }
         Update: {
-          assigned_to?: string | null
-          branch_id?: string
           company_id?: string
           created_at?: string
-          created_by?: string | null
           id?: string
           lead_id?: string
           notes?: string | null
-          scheduled_at?: string
-          status?: Database["public"]["Enums"]["visit_status"]
-          updated_at?: string
+          preferred_color?: string | null
+          vehicle_model?: string | null
+          vehicle_version?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "visits_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "visits_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "visits_company_id_fkey"
+            foreignKeyName: "lead_vehicles_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "visits_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "visits_lead_id_fkey"
+            foreignKeyName: "lead_vehicles_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
@@ -818,6 +827,7 @@ export type Database = {
           id: string
           initial_notes: string | null
           landing_url: string | null
+          last_contacted_at: string | null
           last_name: string | null
           phone: string | null
           preferred_color: string | null
@@ -825,6 +835,8 @@ export type Database = {
           referrer: string | null
           status: Database["public"]["Enums"]["lead_status"]
           status_changed_at: string
+          temperature: Database["public"]["Enums"]["lead_temperature"] | null
+          temperature_set_at: string | null
           updated_at: string
           used_car_description: string | null
           utm_campaign: string | null
@@ -855,6 +867,7 @@ export type Database = {
           id?: string
           initial_notes?: string | null
           landing_url?: string | null
+          last_contacted_at?: string | null
           last_name?: string | null
           phone?: string | null
           preferred_color?: string | null
@@ -862,6 +875,8 @@ export type Database = {
           referrer?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           status_changed_at?: string
+          temperature?: Database["public"]["Enums"]["lead_temperature"] | null
+          temperature_set_at?: string | null
           updated_at?: string
           used_car_description?: string | null
           utm_campaign?: string | null
@@ -892,6 +907,7 @@ export type Database = {
           id?: string
           initial_notes?: string | null
           landing_url?: string | null
+          last_contacted_at?: string | null
           last_name?: string | null
           phone?: string | null
           preferred_color?: string | null
@@ -899,6 +915,8 @@ export type Database = {
           referrer?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           status_changed_at?: string
+          temperature?: Database["public"]["Enums"]["lead_temperature"] | null
+          temperature_set_at?: string | null
           updated_at?: string
           used_car_description?: string | null
           utm_campaign?: string | null
@@ -1506,6 +1524,84 @@ export type Database = {
           },
         ]
       }
+      visits: {
+        Row: {
+          assigned_to: string | null
+          branch_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          lead_id: string
+          notes: string | null
+          scheduled_at: string
+          status: Database["public"]["Enums"]["visit_status"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          branch_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          scheduled_at: string
+          status?: Database["public"]["Enums"]["visit_status"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          branch_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["visit_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1527,6 +1623,8 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: never; Returns: boolean }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       branch_request_status: "pending" | "approved" | "rejected" | "canceled"
@@ -1565,6 +1663,7 @@ export type Database = {
         | "accepted"
         | "rejected"
         | "closed"
+      lead_temperature: "hot" | "warm" | "cold"
       note_activity:
         | "email_sent"
         | "phone_call"
@@ -1754,6 +1853,7 @@ export const Constants = {
         "rejected",
         "closed",
       ],
+      lead_temperature: ["hot", "warm", "cold"],
       note_activity: [
         "email_sent",
         "phone_call",

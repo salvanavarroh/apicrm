@@ -3,6 +3,7 @@
 import { Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { ImpersonateButton } from "@/components/impersonate-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -102,6 +103,7 @@ export function UsersDialog({ trigger, companyName, users }: Props) {
                         <th className="px-3 py-2 font-medium">Email</th>
                         <th className="px-3 py-2 font-medium">Sucursal</th>
                         <th className="px-3 py-2 font-medium">Estado</th>
+                        <th className="px-3 py-2 font-medium" />
                       </tr>
                     </thead>
                     <tbody>
@@ -123,6 +125,12 @@ export function UsersDialog({ trigger, companyName, users }: Props) {
                             <Badge variant={STATUS_VARIANT[u.status]}>
                               {STATUS_LABEL[u.status]}
                             </Badge>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            {(u.role === "admin" || u.role === "manager") &&
+                              u.status === "active" && (
+                                <ImpersonateButton userId={u.id} />
+                              )}
                           </td>
                         </tr>
                       ))}

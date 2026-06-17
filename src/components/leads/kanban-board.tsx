@@ -20,11 +20,13 @@ import {
   LEAD_STATUS_LABELS,
   fullName,
   type LeadStatus,
+  type LeadTemperature,
 } from "@/lib/leads";
 
 import { updateLeadStatus } from "@/app/(app)/admin/leads/actions";
 
 import { LeadStatusBadge } from "./lead-status-badge";
+import { TemperatureBadge } from "./temperature-control";
 
 export type KanbanLead = {
   id: string;
@@ -34,6 +36,7 @@ export type KanbanLead = {
   vehicle_model: string | null;
   vehicle_version: string | null;
   status: LeadStatus;
+  temperature: LeadTemperature | null;
   branch_name: string | null;
   product_type_name: string | null;
   assignee_name: string | null;
@@ -245,9 +248,15 @@ function Card({
         <LeadStatusBadge status={lead.status} className="shrink-0 text-[10px]" />
       </div>
 
-      <p className="mt-1 text-xs text-muted-foreground">
-        {vehicle || "—"}
-      </p>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">{vehicle || "—"}</p>
+        {lead.temperature && (
+          <TemperatureBadge
+            temperature={lead.temperature}
+            className="shrink-0 text-[10px]"
+          />
+        )}
+      </div>
 
       <div className="mt-3 border-t pt-2">
         {detailHrefPrefix && !lead.assignee_name && lead.status === "new" ? (

@@ -19,6 +19,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { formatARS } from "@/lib/format";
 import { fullName, type LeadStatus } from "@/lib/leads";
+import { loadForecast } from "@/lib/forecast";
+import { ForecastCard } from "@/components/dashboard/forecast-card";
 import {
   loadAgendaForCompany,
   todayDateKey,
@@ -45,6 +47,10 @@ export default async function AdminHomePage() {
     leadBasePath: "/admin/leads",
   });
   const today = todayDateKey();
+
+  const forecast = await loadForecast(supabase, {
+    companyId: profile.company_id,
+  });
 
   const [
     branchesRes,
@@ -267,6 +273,8 @@ export default async function AdminHomePage() {
           </div>
         </Card>
       </div>
+
+      <ForecastCard forecast={forecast} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard

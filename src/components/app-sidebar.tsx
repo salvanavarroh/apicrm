@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Briefcase,
   Building2,
   CalendarCheck,
@@ -35,6 +36,7 @@ type Item = { href: string; label: string; icon: LucideIcon; match?: string };
 
 const SUPER_ADMIN_NAV: Item[] = [
   { href: "/super-admin", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/super-admin/reports", label: "Reportes", icon: BarChart3 },
   { href: "/super-admin/leads", label: "Leads", icon: Inbox },
   { href: "/super-admin/companies", label: "Concesionarias", icon: Building2 },
   {
@@ -121,7 +123,14 @@ function activeHref(pathname: string, items: Item[]): string | null {
   return bestMatch?.href ?? null;
 }
 
-export function AppSidebar({ profile }: { profile: Profile }) {
+export function AppSidebar({
+  profile,
+  badges = {},
+}: {
+  profile: Profile;
+  // Contadores por href (ej. leads nuevos, solicitudes pendientes).
+  badges?: Record<string, number>;
+}) {
   const pathname = usePathname();
   const items = navForRole(profile.role);
   const activeItemHref = activeHref(pathname, items);
@@ -140,6 +149,7 @@ export function AppSidebar({ profile }: { profile: Profile }) {
         {items.map((item) => {
           const active = item.href === activeItemHref;
           const Icon = item.icon;
+          const count = badges[item.href] ?? 0;
           return (
             <Link
               key={item.href}
@@ -153,6 +163,11 @@ export function AppSidebar({ profile }: { profile: Profile }) {
             >
               <Icon className="size-5 shrink-0" />
               <span>{item.label}</span>
+              {count > 0 && (
+                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-accent-foreground">
+                  {count > 99 ? "99+" : count}
+                </span>
+              )}
               {active && (
                 <span
                   aria-hidden

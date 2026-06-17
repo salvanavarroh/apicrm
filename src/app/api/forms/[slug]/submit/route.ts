@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { parseFields, submissionSchema } from "@/lib/forms";
+import { appendLeadVehicle, findReentryLead } from "@/lib/lead-reentry";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Rate limit muy básico en memoria por instancia. 1 submission por IP cada 60s.
@@ -105,6 +106,43 @@ export async function POST(
   const trk = (v: string | undefined) =>
     v && v.trim() ? v.trim().slice(0, 500) : null;
 
+  const cleanPhone = data.phone ? data.phone.replace(/[^\d+]/g, "") : null;
+  const cleanEmail = data.email ? data.email.trim().toLowerCase() : null;
+
+  // Reingreso (#5/#6): si el mismo cliente ya entró dentro de la ventana, es el
+  // MISMO lead. Le agregamos la consulta (auto) y conserva su vendedor — no
+  // creamos un lead nuevo ni re-asignamos.
+  const reentry = await findReentryLead(
+    admin,
+    form.company_id,
+    cleanPhone,
+    cleanEmail,
+  );
+  if (reentry) {
+    await appendLeadVehicle(admin, reentry.id, form.company_id, {
+      vehicle_model: data.vehicle_model || null,
+      notes: data.initial_notes || null,
+    });
+    await admin.from("lead_submissions").insert({
+      lead_id: reentry.id,
+      company_id: form.company_id,
+      campaign_id: form.campaign_id,
+      data_snapshot: {
+        ...data,
+        _source: "public_form",
+        _form_id: form.id,
+        _ip: ip,
+        _reentry: true,
+      } as Record<string, unknown> as never,
+    });
+    await admin.rpc("increment_form_submissions", { p_form_id: form.id });
+    submitWindow.set(key, now);
+    return NextResponse.json({
+      ok: true,
+      message: form.success_message ?? "Recibimos tus datos.",
+    });
+  }
+
   // Insertar lead.
   const { data: lead, error: leadError } = await admin
     .from("leads")
@@ -115,8 +153,8 @@ export async function POST(
       campaign_id: form.campaign_id,
       first_name: data.first_name || null,
       last_name: data.last_name || null,
-      phone: data.phone ? data.phone.replace(/[^\d+]/g, "") : null,
-      email: data.email ? data.email.trim().toLowerCase() : null,
+      phone: cleanPhone,
+      email: cleanEmail,
       city: data.city || null,
       vehicle_model: data.vehicle_model || null,
       initial_notes: data.initial_notes || null,
@@ -138,6 +176,11 @@ export async function POST(
       { status: 500 },
     );
   }
+
+  // Primera consulta (auto) del lead.
+  await appendLeadVehicle(admin, lead.id, form.company_id, {
+    vehicle_model: data.vehicle_model || null,
+  });
 
   // Submission record + auto-assign si la gerencia lo tiene activo.
   await admin.from("lead_submissions").insert({

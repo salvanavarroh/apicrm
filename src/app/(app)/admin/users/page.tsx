@@ -166,6 +166,24 @@ export default async function AdminUsersPage() {
     branchesByManager.get(m.manager_id)!.add(m.branch_id);
   }
 
+  // Tipos de producto por gerente (para constreñir el form del vendedor).
+  const productTypesByManager = new Map<string, Set<string>>();
+  for (const m of managementsRows ?? []) {
+    if (!productTypesByManager.has(m.manager_id))
+      productTypesByManager.set(m.manager_id, new Set());
+    productTypesByManager.get(m.manager_id)!.add(m.product_type_id);
+  }
+
+  // Gerentes activos disponibles para asignar vendedores.
+  const managersForInvite = allUsers
+    .filter((u) => u.role === "manager" && u.status === "active")
+    .map((u) => ({
+      id: u.id,
+      name: [u.first_name, u.last_name].filter(Boolean).join(" ") || "Gerente",
+      branchIds: Array.from(branchesByManager.get(u.id) ?? []),
+      productTypeIds: Array.from(productTypesByManager.get(u.id) ?? []),
+    }));
+
   const rows: UsersTableRow[] = visibleUsers.map((u) => {
     const isManager = u.role === "manager";
     // Provider: pasa array vacío → solo aparece con filtro "Todas".
@@ -209,6 +227,7 @@ export default async function AdminUsersPage() {
         <InviteUserDialog
           branches={branches}
           productTypes={productTypes}
+          managers={managersForInvite}
           trigger={
             <Button>
               <Plus className="mr-1 size-4" /> Crear usuario

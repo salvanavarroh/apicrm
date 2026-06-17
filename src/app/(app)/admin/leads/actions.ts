@@ -13,6 +13,7 @@ import {
   type LeadInput,
   type LeadRow,
 } from "@/lib/leads";
+import { appendLeadVehicle } from "@/lib/lead-reentry";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
@@ -139,6 +140,13 @@ export async function createLead(
     if (error || !submission) {
       return { ok: false, message: error?.message ?? "Error inesperado" };
     }
+    // Reingreso: la nueva consulta (auto) se agrega al lead existente, que
+    // conserva su vendedor.
+    await appendLeadVehicle(supabase, duplicate.id, profile.company_id, {
+      vehicle_model: parsed.data.vehicle_model || null,
+      vehicle_version: parsed.data.vehicle_version || null,
+      preferred_color: parsed.data.preferred_color || null,
+    });
     revalidateLeadsPaths();
     return { ok: true, submissionId: submission.id };
   }
@@ -193,6 +201,13 @@ export async function createLead(
     submitted_by: profile.id,
     campaign_id: parsed.data.campaign_id || null,
     data_snapshot: sanitizedSnapshot(parsed.data),
+  });
+
+  // Primera consulta (auto) del lead.
+  await appendLeadVehicle(supabase, lead.id, profile.company_id, {
+    vehicle_model: parsed.data.vehicle_model || null,
+    vehicle_version: parsed.data.vehicle_version || null,
+    preferred_color: parsed.data.preferred_color || null,
   });
 
   // Intento de auto-asignación (no falla si no hay candidatos).
@@ -421,6 +436,24 @@ export async function bulkInsertLeads(
       data_snapshot: rows[idx] as Database["public"]["Tables"]["lead_submissions"]["Insert"]["data_snapshot"],
     }));
     await supabase.from("lead_submissions").insert(submissions);
+
+    // Primera consulta (auto) por cada lead que traiga datos de vehículo.
+    const vehicles = data
+      .map((lead, idx) => ({ lead, row: rows[idx] }))
+      .filter(
+        ({ row }) =>
+          row.vehicle_model || row.vehicle_version || row.preferred_color,
+      )
+      .map(({ lead, row }) => ({
+        lead_id: lead.id,
+        company_id: profile.company_id!,
+        vehicle_model: row.vehicle_model || null,
+        vehicle_version: row.vehicle_version || null,
+        preferred_color: row.preferred_color || null,
+      }));
+    if (vehicles.length > 0) {
+      await supabase.from("lead_vehicles").insert(vehicles);
+    }
   }
 
   revalidateLeadsPaths();
@@ -458,6 +491,86 @@ export async function deleteLead(id: string): Promise<Result<{ id: string }>> {
 }
 
 // ----------------------------------------------------------------------------
+// Consultas (autos) del lead. Un lead puede tener varias consultas por
+// distintos autos. Los presupuestos/ventas siguen a nivel lead.
+// ----------------------------------------------------------------------------
+
+const vehicleInputSchema = z.object({
+  vehicle_model: z.string().optional().or(z.literal("")),
+  vehicle_version: z.string().optional().or(z.literal("")),
+  preferred_color: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
+});
+
+export type LeadVehicleInput = z.input<typeof vehicleInputSchema>;
+
+function revalidateLeadDetail(leadId: string) {
+  revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath(`/manager/leads/${leadId}`);
+  revalidatePath(`/sales/leads/${leadId}`);
+  revalidatePath(`/data-provider/leads/${leadId}`);
+}
+
+export async function addLeadVehicleAction(
+  leadId: string,
+  input: LeadVehicleInput,
+): Promise<Result<{ id: string }>> {
+  const profile = await requireRole([
+    "admin",
+    "manager",
+    "sales",
+    "data_provider",
+  ]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+
+  const parsed = vehicleInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: "Datos inválidos" };
+  }
+  const v = parsed.data;
+  if (!v.vehicle_model && !v.vehicle_version && !v.preferred_color && !v.notes) {
+    return { ok: false, message: "Cargá al menos un dato de la consulta" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("lead_vehicles")
+    .insert({
+      lead_id: leadId,
+      company_id: profile.company_id,
+      vehicle_model: v.vehicle_model || null,
+      vehicle_version: v.vehicle_version || null,
+      preferred_color: v.preferred_color || null,
+      notes: v.notes || null,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    return { ok: false, message: error?.message ?? "Error inesperado" };
+  }
+
+  revalidateLeadDetail(leadId);
+  return { ok: true, id: data.id };
+}
+
+export async function deleteLeadVehicleAction(
+  vehicleId: string,
+  leadId: string,
+): Promise<Result<{ id: string }>> {
+  await requireRole(["admin", "manager", "sales", "data_provider"]);
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("lead_vehicles")
+    .delete()
+    .eq("id", vehicleId);
+  if (error) return { ok: false, message: error.message };
+  revalidateLeadDetail(leadId);
+  return { ok: true, id: vehicleId };
+}
+
+// ----------------------------------------------------------------------------
 // Reasignar lead (Admin o Manager dentro de su gerencia).
 // El nuevo vendedor debe pertenecer a la misma empresa.
 // ----------------------------------------------------------------------------
@@ -486,6 +599,36 @@ export async function reassignLead(
   revalidatePath(`/admin/leads/${leadId}`);
   revalidatePath(`/manager/leads/${leadId}`);
   return { ok: true, leadId };
+}
+
+// Reasignación masiva: varios leads a la vez (Admin o Manager). La RLS filtra
+// qué leads puede tocar cada rol.
+export async function reassignLeadsBulk(
+  leadIds: string[],
+  newAssigneeId: string | null,
+): Promise<Result<{ updated: number }>> {
+  const profile = await requireRole(["admin", "manager"]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+  if (!Array.isArray(leadIds) || leadIds.length === 0) {
+    return { ok: false, message: "No seleccionaste leads" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .update({
+      assigned_user_id: newAssigneeId,
+      assigned_at: newAssigneeId ? new Date().toISOString() : null,
+    })
+    .in("id", leadIds)
+    .select("id");
+
+  if (error) return { ok: false, message: error.message };
+
+  revalidateLeadsPaths();
+  return { ok: true, updated: data?.length ?? 0 };
 }
 
 // ----------------------------------------------------------------------------
@@ -520,6 +663,41 @@ export async function updateLeadStatus(
   const { error } = await supabase
     .from("leads")
     .update({ status: newStatus })
+    .eq("id", leadId);
+  if (error) return { ok: false, message: error.message };
+
+  revalidateLeadsPaths();
+  revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath(`/manager/leads/${leadId}`);
+  revalidatePath(`/sales/leads/${leadId}`);
+  return { ok: true, leadId };
+}
+
+// ----------------------------------------------------------------------------
+// Temperatura del lead (scoring manual).
+// ----------------------------------------------------------------------------
+
+const TEMPERATURE_VALUES = ["hot", "warm", "cold"] as const;
+
+export async function updateLeadTemperature(
+  leadId: string,
+  temperature: (typeof TEMPERATURE_VALUES)[number] | null,
+): Promise<Result<{ leadId: string }>> {
+  const profile = await requireRole(["sales", "admin", "manager"]);
+  if (temperature !== null && !TEMPERATURE_VALUES.includes(temperature)) {
+    return { ok: false, message: "Temperatura inválida" };
+  }
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("leads")
+    .update({
+      temperature,
+      temperature_set_at: temperature ? new Date().toISOString() : null,
+    })
     .eq("id", leadId);
   if (error) return { ok: false, message: error.message };
 
