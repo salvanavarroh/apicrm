@@ -14,6 +14,7 @@ import {
   type LeadRow,
 } from "@/lib/leads";
 import { appendLeadVehicle } from "@/lib/lead-reentry";
+import { maybeAdvanceStatus, type PresaleStatus } from "@/lib/lead-status";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
@@ -740,6 +741,15 @@ const NOTE_ACTIVITY_VALUES = [
 ] as const;
 type NoteActivity = (typeof NOTE_ACTIVITY_VALUES)[number];
 
+// Qué estado dispara cada tipo de actividad registrada (#7).
+const ACTIVITY_ADVANCE: Partial<Record<NoteActivity, PresaleStatus>> = {
+  phone_call: "contacted",
+  whatsapp: "contacted",
+  email_sent: "contacted",
+  meeting_held: "contacted",
+  quote_sent: "quoted",
+};
+
 export async function addLeadNote(
   leadId: string,
   content: string,
@@ -781,6 +791,12 @@ export async function addLeadNote(
     .single();
   if (error || !data) {
     return { ok: false, message: error?.message ?? "Error inesperado" };
+  }
+
+  // Transición automática de estado según la actividad registrada (#7).
+  const advance = safeActivity ? ACTIVITY_ADVANCE[safeActivity] : undefined;
+  if (advance) {
+    await maybeAdvanceStatus(supabase, leadId, advance);
   }
 
   revalidatePath(`/admin/leads/${leadId}`);

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { maybeAdvanceStatus } from "@/lib/lead-status";
 import { createClient } from "@/lib/supabase/server";
 
 type Result<T = unknown> =
@@ -86,6 +87,9 @@ export async function scheduleVisit(
   if (error || !data) {
     return { ok: false, message: error?.message ?? "Error inesperado" };
   }
+
+  // Agendar una visita / test drive denota interés (#7).
+  await maybeAdvanceStatus(supabase, leadId, "interested");
 
   revalidateVisitPaths(leadId);
   return { ok: true, visitId: data.id };

@@ -1,11 +1,11 @@
 "use client";
 
 import { Copy } from "lucide-react";
-
-import { WhatsappIcon } from "@/components/icons/whatsapp";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { WhatsappIcon } from "@/components/icons/whatsapp";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,8 +21,11 @@ import {
   whatsappLink,
 } from "@/lib/lead-templates";
 
+import { addLeadNote } from "@/app/(app)/admin/leads/actions";
+
 type Props = {
   trigger: React.ReactNode;
+  leadId: string;
   context: {
     nombre: string;
     nombre_completo: string;
@@ -34,9 +37,11 @@ type Props = {
   leadPhone: string | null;
 };
 
-export function TemplatesModal({ trigger, context, leadPhone }: Props) {
+export function TemplatesModal({ trigger, leadId, context, leadPhone }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(LEAD_TEMPLATES[0].id);
+  const [, startTransition] = useTransition();
   const selected =
     LEAD_TEMPLATES.find((t) => t.id === selectedId) ?? LEAD_TEMPLATES[0];
   const body = applyTemplate(selected.body, context);
@@ -46,12 +51,26 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
     toast.success("Texto copiado");
   }
 
+  // Registra el envío como actividad (#10) → dispara transición a 'contacted'.
+  function logActivity() {
+    startTransition(async () => {
+      await addLeadNote(
+        leadId,
+        `Mensaje enviado por WhatsApp — "${selected.label}":\n${body}`,
+        "whatsapp",
+      );
+      router.refresh();
+    });
+  }
+
   function openWhatsApp() {
     if (!leadPhone) {
       toast.error("El lead no tiene teléfono cargado");
       return;
     }
     window.open(whatsappLink(leadPhone, body), "_blank");
+    logActivity();
+    setOpen(false);
   }
 
   return (

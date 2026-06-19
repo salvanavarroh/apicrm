@@ -82,7 +82,7 @@ export default async function AdminLeadDetailPage({
         .from("lead_tasks")
         .select(
           `id, title, task_type, description, priority, due_date,
-           completed_at, assigned_to,
+           completed_at, created_at, assigned_to,
            assignee:profiles!assigned_to (first_name, last_name)`,
         )
         .eq("lead_id", id)
@@ -122,6 +122,7 @@ export default async function AdminLeadDetailPage({
     priority: t.priority,
     due_date: t.due_date,
     completed_at: t.completed_at,
+    created_at: t.created_at,
     assigned_to: t.assigned_to,
     assignee_name: t.assignee
       ? fullName(t.assignee.first_name, t.assignee.last_name)

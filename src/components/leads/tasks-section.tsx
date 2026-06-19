@@ -42,11 +42,17 @@ export type LeadTask = {
   priority: TaskPriority;
   due_date: string | null; // "YYYY-MM-DD" (date column)
   completed_at: string | null;
+  created_at?: string | null;
   assigned_to: string | null;
   assignee_name: string | null;
   /** Legacy fallback: tareas pre-Sprint9 traían title libre. */
   title?: string | null;
 };
+
+function fmtTs(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("es-AR");
+}
 
 type AssigneeOption = { id: string; name: string };
 
@@ -108,6 +114,7 @@ export function TasksSection({
       priority,
       due_date: dueDate || null,
       completed_at: null,
+      created_at: new Date().toISOString(),
       assigned_to: resolvedAssignee,
       assignee_name: assigneeName,
     };
@@ -346,6 +353,16 @@ export function TasksSection({
                             ? "Para mí"
                             : task.assignee_name}
                         </span>
+                      </span>
+                    )}
+                    {task.created_at && (
+                      <span className="text-muted-foreground/70">
+                        · Creada {fmtTs(task.created_at)}
+                      </span>
+                    )}
+                    {done && task.completed_at && (
+                      <span className="text-success">
+                        · Finalizada {fmtTs(task.completed_at)}
                       </span>
                     )}
                   </div>
