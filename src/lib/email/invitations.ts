@@ -77,6 +77,35 @@ export async function generateInvitationLink(
   return { ok: true, userId: data.user.id, actionLink };
 }
 
+// Re-invitación: para un usuario que YA existe (ej. quedó pending porque
+// rebotó el mail). `generateLink({type:'invite'})` falla si el user existe, así
+// que usamos 'recovery' y lo mandamos igual al flujo de aceptar invitación.
+export async function generateReinviteLink(
+  supabase: SupabaseClient,
+  args: { email: string; appUrl: string },
+): Promise<GenerateInvitationResult> {
+  const { data, error } = await supabase.auth.admin.generateLink({
+    type: "recovery",
+    email: args.email.toLowerCase().trim(),
+    options: { redirectTo: `${args.appUrl}/auth/confirm` },
+  });
+
+  if (error || !data?.user || !data.properties?.hashed_token) {
+    return {
+      ok: false,
+      message: error?.message ?? "No se pudo generar el enlace",
+    };
+  }
+
+  const actionLink = buildConfirmUrl({
+    appUrl: args.appUrl,
+    tokenHash: data.properties.hashed_token,
+    type: "recovery",
+    next: "/auth/accept-invitation",
+  });
+  return { ok: true, userId: data.user.id, actionLink };
+}
+
 export type SendInvitationArgs = {
   to: string;
   firstName: string;

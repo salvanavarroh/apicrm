@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth";
 import {
   generateInvitationLink,
+  generateReinviteLink,
   sendInvitationEmail,
 } from "@/lib/email/invitations";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -39,7 +40,7 @@ const inviteSchema = z.discriminatedUnion("role", [
 
 export type InviteUserInput = z.input<typeof inviteSchema>;
 export type InviteUserResult =
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; emailWarning?: string }
   | { ok: false; message: string };
 
 export async function inviteUser(
@@ -187,19 +188,94 @@ export async function inviteUser(
     actionLink: link.actionLink,
   });
 
+  revalidatePath("/admin/users");
+
+  // El usuario se crea SIEMPRE (queda pending). Si el email rebota/falla, NO
+  // hacemos rollback: avisamos para que se reenvíe la invitación a mano.
   if (!emailResult.ok) {
-    // Rollback completo: el user no recibió email, mejor cancelar todo.
-    if (parsed.data.role === "manager") {
-      await supabase
-        .from("managements")
-        .delete()
-        .eq("manager_id", newUserId);
-      await supabase
-        .from("user_product_types")
-        .delete()
-        .eq("user_id", newUserId);
+    return {
+      ok: true,
+      userId: newUserId,
+      emailWarning: `Usuario creado, pero no se pudo enviar el email (${emailResult.message}). Reenviá la invitación.`,
+    };
+  }
+
+  return { ok: true, userId: newUserId };
+}
+
+// ----------------------------------------------------------------------------
+// Reenviar invitación a un usuario pendiente. Permite cambiar el email (valida
+// que el nuevo no esté tomado). Útil cuando rebotó el mail original.
+// ----------------------------------------------------------------------------
+
+export async function resendInvitation(
+  userId: string,
+  newEmail?: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+
+  const supabase = createAdminClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  // El usuario debe ser de la empresa y estar pendiente.
+  const { data: target } = await supabase
+    .from("profiles")
+    .select("id, role, first_name, status, company_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!target || target.company_id !== profile.company_id) {
+    return { ok: false, message: "Usuario no encontrado" };
+  }
+  if (target.status !== "pending") {
+    return { ok: false, message: "El usuario ya aceptó la invitación" };
+  }
+
+  // Email actual del usuario.
+  const { data: userRes } = await supabase.auth.admin.getUserById(userId);
+  let email = userRes.user?.email ?? "";
+
+  // Cambio de email: validar que no esté tomado por otro usuario.
+  const wanted = newEmail?.trim().toLowerCase();
+  if (wanted && wanted !== email) {
+    const emailSchema = z.string().email();
+    if (!emailSchema.safeParse(wanted).success) {
+      return { ok: false, message: "Email inválido" };
     }
-    await supabase.auth.admin.deleteUser(newUserId);
+    const { error: updErr } = await supabase.auth.admin.updateUserById(userId, {
+      email: wanted,
+    });
+    if (updErr) {
+      // Supabase devuelve error si el email ya está registrado.
+      return {
+        ok: false,
+        message: `No se pudo cambiar el email: ${updErr.message}`,
+      };
+    }
+    email = wanted;
+  }
+
+  const link = await generateReinviteLink(supabase, { email, appUrl });
+  if (!link.ok) {
+    return { ok: false, message: link.message };
+  }
+
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name")
+    .eq("id", profile.company_id)
+    .maybeSingle();
+
+  const emailResult = await sendInvitationEmail({
+    to: email,
+    firstName: target.first_name ?? "",
+    companyName: company?.name ?? "tu empresa",
+    role: target.role,
+    actionLink: link.actionLink,
+  });
+  if (!emailResult.ok) {
     return {
       ok: false,
       message: `No se pudo enviar el email: ${emailResult.message}`,
@@ -207,7 +283,7 @@ export async function inviteUser(
   }
 
   revalidatePath("/admin/users");
-  return { ok: true, userId: newUserId };
+  return { ok: true };
 }
 
 export async function toggleUserStatus(

@@ -1,6 +1,8 @@
 "use client";
 
-import { Copy, MessageCircle } from "lucide-react";
+import { Copy } from "lucide-react";
+
+import { WhatsappIcon } from "@/components/icons/whatsapp";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -96,8 +98,9 @@ export function TemplatesModal({ trigger, context, leadPhone }: Props) {
                 onClick={openWhatsApp}
                 disabled={!leadPhone}
                 size="sm"
+                className="bg-[#25D366] text-white hover:bg-[#1ebe5d]"
               >
-                <MessageCircle className="mr-2 size-4" /> Enviar por WhatsApp
+                <WhatsappIcon className="mr-2 size-4" /> Enviar por WhatsApp
               </Button>
               <Button variant="outline" onClick={copy} size="sm">
                 <Copy className="mr-2 size-4" /> Copiar

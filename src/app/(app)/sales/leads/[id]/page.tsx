@@ -1,4 +1,6 @@
-import { ChevronLeft, FileText, MessageCircle, Plus } from "lucide-react";
+import { ChevronLeft, FileText, Plus } from "lucide-react";
+
+import { WhatsappIcon } from "@/components/icons/whatsapp";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -201,8 +203,8 @@ export default async function SalesLeadDetailPage({
           <TemperatureChanger leadId={lead.id} current={lead.temperature} />
           <TemplatesModal
             trigger={
-              <Button variant="outline">
-                <MessageCircle className="mr-2 size-4" /> Plantillas
+              <Button className="bg-[#25D366] text-white hover:bg-[#1ebe5d]">
+                <WhatsappIcon className="mr-2 size-4" /> Enviar mensaje
               </Button>
             }
             leadPhone={lead.phone}

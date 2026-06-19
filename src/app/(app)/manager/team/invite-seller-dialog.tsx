@@ -87,7 +87,11 @@ export function InviteSellerDialog({
         setError(result.message);
         return;
       }
-      toast.success(`Invitación enviada a ${email}`);
+      if (result.emailWarning) {
+        toast.warning(result.emailWarning);
+      } else {
+        toast.success(`Invitación enviada a ${email}`);
+      }
       setOpen(false);
       router.refresh();
     });

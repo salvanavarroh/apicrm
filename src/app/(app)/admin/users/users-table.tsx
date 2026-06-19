@@ -5,8 +5,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
+import { ResendInviteDialog } from "@/components/users/resend-invite-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { Card } from "@/components/ui/card";
+
+import { resendInvitation } from "./actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -219,13 +222,21 @@ export function UsersTable({
                       {status.label}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/admin/users/${u.id}`}
-                      className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-card px-3 text-xs font-medium hover:bg-muted"
-                    >
-                      Ver detalle <ChevronRight className="ml-1 size-3.5" />
-                    </Link>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {u.status === "pending" && (
+                        <ResendInviteDialog
+                          currentEmail={u.email}
+                          action={(email) => resendInvitation(u.id, email)}
+                        />
+                      )}
+                      <Link
+                        href={`/admin/users/${u.id}`}
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-card px-3 text-xs font-medium hover:bg-muted"
+                      >
+                        Ver detalle <ChevronRight className="ml-1 size-3.5" />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               );

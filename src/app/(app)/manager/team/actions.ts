@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth";
 import {
   generateInvitationLink,
+  generateReinviteLink,
   sendInvitationEmail,
 } from "@/lib/email/invitations";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -29,7 +30,7 @@ const inviteSchema = z.object({
 
 export type InviteSellerInput = z.input<typeof inviteSchema>;
 export type InviteSellerResult =
-  | { ok: true; userId: string }
+  | { ok: true; userId: string; emailWarning?: string }
   | { ok: false; message: string };
 
 export async function inviteSeller(
@@ -141,12 +142,82 @@ export async function inviteSeller(
     actionLink: link.actionLink,
   });
 
+  revalidatePath("/manager/team");
+
+  // El vendedor se crea SIEMPRE (queda pending). Si el email falla, NO borramos:
+  // queda pendiente y se puede reenviar la invitación.
   if (!emailResult.ok) {
-    await supabase
-      .from("user_product_types")
-      .delete()
-      .eq("user_id", newUserId);
-    await supabase.auth.admin.deleteUser(newUserId);
+    return {
+      ok: true,
+      userId: newUserId,
+      emailWarning: `Vendedor creado, pero no se pudo enviar el email (${emailResult.message}). Reenviá la invitación.`,
+    };
+  }
+
+  return { ok: true, userId: newUserId };
+}
+
+// Reenviar invitación a un vendedor pendiente del propio gerente. Permite
+// corregir el email (valida que no esté tomado).
+export async function resendSellerInvitation(
+  userId: string,
+  newEmail?: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const profile = await requireRole(["manager"]);
+  const supabase = createAdminClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  const { data: seller } = await supabase
+    .from("profiles")
+    .select("id, manager_id, status, first_name, company_id")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!seller || seller.manager_id !== profile.id) {
+    return { ok: false, message: "No podés reenviar a este vendedor" };
+  }
+  if (seller.status !== "pending") {
+    return { ok: false, message: "El vendedor ya aceptó la invitación" };
+  }
+
+  const { data: userRes } = await supabase.auth.admin.getUserById(userId);
+  let email = userRes.user?.email ?? "";
+
+  const wanted = newEmail?.trim().toLowerCase();
+  if (wanted && wanted !== email) {
+    if (!z.string().email().safeParse(wanted).success) {
+      return { ok: false, message: "Email inválido" };
+    }
+    const { error: updErr } = await supabase.auth.admin.updateUserById(userId, {
+      email: wanted,
+    });
+    if (updErr) {
+      return {
+        ok: false,
+        message: `No se pudo cambiar el email: ${updErr.message}`,
+      };
+    }
+    email = wanted;
+  }
+
+  const link = await generateReinviteLink(supabase, { email, appUrl });
+  if (!link.ok) return { ok: false, message: link.message };
+
+  const { data: company } = seller.company_id
+    ? await supabase
+        .from("companies")
+        .select("name")
+        .eq("id", seller.company_id)
+        .maybeSingle()
+    : { data: null };
+
+  const emailResult = await sendInvitationEmail({
+    to: email,
+    firstName: seller.first_name ?? "",
+    companyName: company?.name ?? "tu empresa",
+    role: "sales",
+    actionLink: link.actionLink,
+  });
+  if (!emailResult.ok) {
     return {
       ok: false,
       message: `No se pudo enviar el email: ${emailResult.message}`,
@@ -154,7 +225,7 @@ export async function inviteSeller(
   }
 
   revalidatePath("/manager/team");
-  return { ok: true, userId: newUserId };
+  return { ok: true };
 }
 
 const updateSchema = z.object({

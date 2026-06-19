@@ -25,6 +25,8 @@ export type AssignableUser = {
   last_name: string | null;
   branchName: string | null;
   productTypeIds: string[];
+  // Cobertura "Todos": el vendedor cubre cualquier tipo de producto.
+  coversAll?: boolean;
   activeLeads: number;
   maxCapacity: number;
 };
@@ -83,7 +85,9 @@ export function ReassignDialog({
   const [pending, startTransition] = useTransition();
 
   const eligible = leadProductTypeId
-    ? users.filter((u) => u.productTypeIds.includes(leadProductTypeId))
+    ? users.filter(
+        (u) => u.coversAll || u.productTypeIds.includes(leadProductTypeId),
+      )
     : users;
 
   function submit() {

@@ -145,7 +145,11 @@ export default async function ManagerTeamPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <SellerRowActions userId={s.id} status={s.status} />
+                      <SellerRowActions
+                        userId={s.id}
+                        status={s.status}
+                        email={emailMap.get(s.id) ?? ""}
+                      />
                     </td>
                   </tr>
                 );

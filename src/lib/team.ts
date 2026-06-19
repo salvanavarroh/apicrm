@@ -15,6 +15,15 @@ export async function getAssignableSalesUsers(opts: {
 }): Promise<AssignableUser[]> {
   const supabase = await createClient();
 
+  // El tipo "Todos" es comodín: un vendedor que lo tiene cubre cualquier tipo.
+  const { data: todos } = await supabase
+    .from("product_types")
+    .select("id")
+    .eq("company_id", opts.companyId)
+    .eq("name", "Todos")
+    .maybeSingle();
+  const todosId = todos?.id ?? null;
+
   let q = supabase
     .from("profiles")
     .select(
@@ -53,15 +62,20 @@ export async function getAssignableSalesUsers(opts: {
     );
   }
 
-  return list.map((u) => ({
-    id: u.id,
-    first_name: u.first_name,
-    last_name: u.last_name,
-    branchName: u.branch?.name ?? null,
-    productTypeIds: (u.user_product_types ?? []).map(
+  return list.map((u) => {
+    const productTypeIds = (u.user_product_types ?? []).map(
       (upt) => upt.product_type_id,
-    ),
-    activeLeads: loadByUser.get(u.id) ?? 0,
-    maxCapacity: VENDOR_MAX_CAPACITY,
-  }));
+    );
+    return {
+      id: u.id,
+      first_name: u.first_name,
+      last_name: u.last_name,
+      branchName: u.branch?.name ?? null,
+      productTypeIds,
+      // Cobertura "Todos": comodín para cualquier tipo de producto.
+      coversAll: todosId ? productTypeIds.includes(todosId) : false,
+      activeLeads: loadByUser.get(u.id) ?? 0,
+      maxCapacity: VENDOR_MAX_CAPACITY,
+    };
+  });
 }
