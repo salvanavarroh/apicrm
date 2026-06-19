@@ -1,8 +1,9 @@
 # Sistema y reglas — API CRM Concesionarios
 
 Documento funcional del CRM: roles, entidades, asignación de leads, reglas de
-reingreso, duplicados, multi-gerente, multi-consulta, impersonación y
-visibilidad por rol. Refleja el estado del sistema al **17/06/2026** (sprint 13).
+reingreso, duplicados, multi-gerente, multi-consulta, impersonación,
+transiciones de estado, plantillas y visibilidad por rol. Refleja el estado del
+sistema al **19/06/2026** (sprints 13–14).
 
 > Para detalle de implementación, las referencias de código están al pie de cada
 > sección. La fuente de verdad de la lógica de asignación es la función SQL
@@ -82,6 +83,23 @@ Código: `supabase/migrations/20260617120000_sprint13_*.sql`.
   `new`, `contacted`, `interested`, `quoted`.
 - **Lead "cerrado"** a efectos de capacidad/listados: `closed`.
 
+**Transiciones automáticas de estado (#7).** El estado avanza solo según la
+acción que se hace en el lead, dentro del pipeline pre-venta. **Nunca retrocede
+ni pisa** estados de venta (`evaluating/accepted/rejected/closed`) ni
+`not_interested`. Reglas:
+
+| Acción | Estado al que avanza |
+|--------|----------------------|
+| Registrar actividad: llamada / WhatsApp / email / reunión | `contacted` |
+| Enviar plantilla por WhatsApp (registra actividad) | `contacted` |
+| Agendar visita / test drive | `interested` |
+| Crear / enviar presupuesto | `quoted` |
+
+Solo avanza si el estado actual está más atrás en el orden
+`new(0) < contacted(1) < interested(2) < quoted(3)`. El cambio manual (dropdown /
+kanban) sigue disponible. Helper: `maybeAdvanceStatus` en
+`src/lib/lead-status.ts`.
+
 **Temperatura** (`lead_temperature`, opcional): `hot` 🔥 / `warm` 🟡 / `cold` 🔵.
 Es un **scoring manual** que pone el vendedor; es independiente del estado del
 pipeline. NULL = sin clasificar.
@@ -118,7 +136,8 @@ asigna. **Condicionales, en orden:**
    - `branch_id` = la sucursal del lead,
    - su `manager_id` es **alguno de los gerentes** de esa combinación
      `(sucursal, tipo)`,
-   - tienen el **tipo de producto** del lead en su `user_product_types`.
+   - tienen el **tipo de producto** del lead en su `user_product_types`, **o**
+     tienen el tipo **"Todos"** (comodín: cubre cualquier tipo de producto).
 
 4. **Criterio de selección (round-robin balanceado).** Entre los candidatos se
    elige el que tiene **menos leads activos** asignados (estados
@@ -188,10 +207,11 @@ Código: `src/app/(app)/admin/leads/page.tsx`, `src/app/(app)/manager/leads/page
 
 ---
 
-## 8. Multi-consulta (varios autos por lead)
+## 8. Multi-consulta y vehículo (marca / modelo / versión)
 
 Un lead puede tener **varias consultas por distintos autos**, en la tabla
-`lead_vehicles` (`vehicle_model`, `vehicle_version`, `preferred_color`, `notes`).
+`lead_vehicles` (`vehicle_brand`, `vehicle_model`, `vehicle_version`,
+`preferred_color`, `notes`).
 
 - Las columnas `vehicle_*` del propio `leads` se mantienen como **"auto
   principal"** (denormalizado) para listados, export y CSV.
@@ -201,10 +221,19 @@ Un lead puede tener **varias consultas por distintos autos**, en la tabla
   por reingreso (cada vuelta agrega un auto), y a mano desde el detalle del lead
   (sección "Consultas": agregar / eliminar).
 
-Código: tabla en `supabase/migrations/20260617120000_*.sql`; acciones
-`addLeadVehicleAction` / `deleteLeadVehicleAction` en
-`src/app/(app)/admin/leads/actions.ts`; UI en
-`src/components/leads/lead-vehicles-section.tsx`.
+**Marca / modelo / versión en cascada (#5):** en el form de lead la **Marca** y
+el **Modelo** se eligen con autocompletado contra el catálogo `car_catalog`
+(endpoint `/api/cars/catalog`), y el modelo se **filtra por la marca elegida**
+(al cambiar la marca se resetea el modelo). La **Versión** es **texto libre**:
+el catálogo no tiene versiones (el seed DNRPA recorta el trim del modelo), así
+que no hay fuente para poblarla en cascada. Igual se acepta cualquier texto en
+marca/modelo (no fuerza elegir del catálogo).
+
+Código: tablas en `supabase/migrations/20260617120000_*.sql` y
+`20260619150000_vehicle_brand.sql`; acciones `addLeadVehicleAction` /
+`deleteLeadVehicleAction` en `src/app/(app)/admin/leads/actions.ts`; UI en
+`src/components/leads/lead-vehicles-section.tsx`,
+`src/components/leads/catalog-combobox.tsx` y `src/components/leads/lead-form.tsx`.
 
 ---
 
@@ -224,6 +253,12 @@ Quién puede reasignar:
 - **manager**: solo vendedores bajo su `manager_id`.
 - **sales / data_provider**: no reasignan (no se les pasan los vendedores).
 
+**Descarga de base / Exportar (#14):** el botón **Exportar** del listado se
+muestra solo si el usuario tiene permiso. Default: **solo admin y superadmin**
+descargan. El admin puede habilitar a un **gerente** puntual con el flag
+`profiles.can_export_leads` (checkbox al crear/editar el gerente; default off).
+Vendedor y proveedor no exportan.
+
 Código: `src/components/leads/leads-table.tsx`, `reassignLead` /
 `reassignLeadsBulk` en `src/app/(app)/admin/leads/actions.ts`,
 `getAssignableSalesUsers` en `src/lib/team.ts`.
@@ -233,25 +268,34 @@ Código: `src/components/leads/leads-table.tsx`, `reassignLead` /
 ## 10. Creación de usuarios
 
 El **admin** crea usuarios desde *Usuarios → Crear usuario*
-(`InviteUserDialog`). El flujo usa `generateLink` (no envía mail de Supabase) +
-**Resend** con template propio, con **rollback atómico** si falla el email.
+(`InviteUserDialog`). El **gerente** crea vendedores desde *Equipo*
+(`InviteSellerDialog`). El flujo usa `generateLink` (no envía mail de Supabase)
++ **Resend** con template propio.
 
-| Rol a crear | Campos extra | Qué setea |
-|-------------|--------------|-----------|
-| admin | — | profile básico |
-| data_provider | — | profile básico |
-| manager | sucursales + tipos de producto | crea filas en `managements` (branch × tipo) y `user_product_types` |
-| **sales** (nuevo) | **gerente** + sucursal + tipos | setea `manager_id`, `branch_id` y `user_product_types` |
+| Rol a crear | Quién | Campos extra | Qué setea |
+|-------------|-------|--------------|-----------|
+| admin | admin | — | profile básico |
+| data_provider | admin | — | profile básico |
+| manager | admin | sucursales + tipos + **puede descargar base** | `managements`, `user_product_types`, `can_export_leads` |
+| **sales** | admin **o** gerente | gerente + sucursal + tipos (+ comisión si lo crea el gerente) | `manager_id`, `branch_id`, `user_product_types` |
 
 Reglas:
-- Para **vendedor**: el gerente elegido debe ser de la empresa y rol `manager`.
-  La sucursal y los tipos se **constriñen** a los del gerente seleccionado.
+- Para **vendedor** (desde admin): el gerente elegido debe ser de la empresa y
+  rol `manager`. La sucursal y los tipos se **constriñen** a los del gerente.
 - Para **gerente**: con multi-gerente ya **no** se valida que la combinación
   esté libre (puede compartirse).
 
-Código: `src/app/(app)/admin/users/actions.ts` (`inviteUser`),
-`src/app/(app)/admin/users/invite-user-dialog.tsx`,
-`src/app/(app)/admin/users/page.tsx`.
+**El usuario se crea SIEMPRE, aunque rebote el mail (#6):** ya **no** hay
+rollback si Resend falla. El usuario queda `status = 'pending'` (aparece en la
+lista de Usuarios / Equipo) y se avisa. Desde la fila pendiente hay un botón
+**"Reenviar invitación"** que permite **corregir el email** (valida que el nuevo
+no esté tomado) y reenvía el link. Para usuarios ya existentes el link se genera
+con tipo `recovery` apuntando a aceptar invitación.
+
+Código: `src/app/(app)/admin/users/actions.ts` (`inviteUser`,
+`resendInvitation`), `src/app/(app)/manager/team/actions.ts` (`inviteSeller`,
+`resendSellerInvitation`), `src/lib/email/invitations.ts`
+(`generateReinviteLink`), `src/components/users/resend-invite-dialog.tsx`.
 
 ---
 
@@ -265,7 +309,7 @@ filtro del front**:
 | super_admin | todos | — | — | — |
 | admin | todos los de su empresa | todos los de su empresa | sí | sí |
 | manager | leads de sus gerencias (match `branch_id`+`product_type_id` vía `managements`) | ídem | sí | — |
-| sales | los que tiene asignados (`assigned_user_id = uid`) | ídem | — | — |
+| sales | los que tiene asignados (`assigned_user_id = uid`) | ídem | **sí** (autoasignado a sí mismo) | — |
 | data_provider | los que creó (`created_by = uid`) | los que creó **y** en estado `new` | sí | — |
 
 Notas:
@@ -327,10 +371,13 @@ Código: `src/app/(app)/layout.tsx`, `src/components/app-sidebar.tsx`.
    - hereda `branch_id` / `product_type_id` / `campaign_id` del formulario,
    - aplica **reingreso** (§6) y, si es nuevo, **auto-asignación** (§5),
    - guarda tracking (UTM, landing, referrer).
-2. **Alta manual** (admin/gerente/proveedor): formulario interno, con chequeo de
-   duplicado y auto-asignación si queda clasificado.
-3. **Importación CSV / bulk** (admin/proveedor): carga masiva con defaults de
-   sucursal/tipo/campaña.
+2. **Alta manual** (admin / gerente / **vendedor** / proveedor): formulario
+   interno, con chequeo de duplicado y auto-asignación si queda clasificado. Si
+   lo carga un **vendedor**, el lead queda **autoasignado a él** (no entra al
+   round-robin). Ruta del vendedor: `/sales/leads/new`.
+3. **Importación CSV / bulk** (admin / **gerente** / proveedor): carga masiva con
+   defaults de sucursal/tipo/campaña. El gerente importa desde
+   `/manager/leads/import`, scopeado a sus gerencias.
 
 Un lead **sin** sucursal o **sin** tipo de producto queda en el **pool** ("sin
 clasificar"); al clasificarlo (asignarle ambos) se dispara la auto-asignación.
@@ -360,3 +407,71 @@ Implementado en esta tanda:
 Migración: `supabase/migrations/20260617120000_sprint13_multi_manager_vehicles_contact_impersonation.sql`
 (aplicada al piloto). Se aplicó también la migración pendiente
 `20260612120000_lead_temperature` para sincronizar la base con el repo.
+
+---
+
+## 16. Plantillas de mensaje (#12)
+
+Plantillas de WhatsApp con variables, en la tabla `message_templates`. Dos
+alcances (`scope`):
+
+- **`global`**: las crea/edita/borra el **super_admin** desde
+  `/super-admin/templates`. Llegan a **todos** los vendedores/gerentes de la
+  plataforma. Nadie más las modifica.
+- **`user`**: cada **vendedor/gerente** crea/edita/borra **las suyas** desde el
+  modal "Enviar mensaje" del detalle del lead. No puede tocar las globales.
+
+Variables soportadas (se reemplazan al enviar): `{nombre}`, `{nombre_completo}`,
+`{vendedor}`, `{vehiculo}`, `{concesionaria}`, `{telefono_concesionaria}`. Las 6
+plantillas que antes estaban hardcodeadas se migraron como globales.
+
+**RLS:** SELECT = globales (todos) + propias (dueño); escritura global solo
+super_admin; escritura propia solo el dueño (`owner_id = auth.uid()`).
+
+Al enviar una plantilla por WhatsApp se registra una **actividad** en el lead
+(`activity_type = 'whatsapp'`), lo que dispara la transición a `contacted` (§4).
+
+Código: `supabase/migrations/20260619140000_message_templates.sql`,
+`src/lib/templates-actions.ts` (propias),
+`src/app/(app)/super-admin/templates/` (globales),
+`src/components/leads/templates-modal.tsx`.
+
+---
+
+## 17. Foto de perfil (#1)
+
+Cualquier usuario puede subir su foto desde `/profile`. Se guarda en el bucket
+de Storage **`avatars`** (lectura pública; escritura del propio usuario, RLS por
+`auth.uid()` en el path). El `profiles.avatar_url` guarda la URL pública y el
+avatar se muestra en el sidebar y en los listados de usuarios (con fallback a
+iniciales coloreadas por rol).
+
+Código: `supabase/migrations/20260619130000_sales_lead_export_perm_avatars.sql`
+(bucket + RLS), `src/app/(app)/profile/profile-form.tsx`,
+`src/components/user-avatar.tsx`, `src/components/app-sidebar.tsx`.
+
+---
+
+## 18. Resumen de avances (sprint 14 — 19/06/2026)
+
+Bugs:
+1. **"Todos" comodín** en la asignación (un vendedor con cobertura "Todos" ahora
+   recibe leads de cualquier tipo). §5.
+2. **Usuario no se borra si rebota el mail**: queda `pending` + "Reenviar
+   invitación" con cambio de email validado. §10.
+3. **Botón "Enviar mensaje"** verde con WhatsApp.
+
+Mejoras / features:
+4. **Vendedor carga lead manual** (autoasignado). §14.
+5. **Gerente importa base** por CSV. §14.
+6. **Permiso de descarga** (`can_export_leads`, default off, habilitable por
+   gerente). §9.
+7. **Foto de perfil** para todos. §17.
+8. **Transiciones de estado automáticas** según la acción. §4.
+9. **Tareas con fechas** de creación y finalización.
+10. **Sistema de plantillas** global (superadmin) + propias (vendedor). §16.
+11. **Marca / modelo / versión** separados, con cascada desde el catálogo. §8.
+
+Migraciones aplicadas al piloto: `20260619120000_todos_wildcard_assignment`,
+`20260619130000_sales_lead_export_perm_avatars`, `20260619140000_message_templates`,
+`20260619150000_vehicle_brand`.
