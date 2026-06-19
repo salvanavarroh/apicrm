@@ -39,6 +39,7 @@ type Props = {
     branch_id: string | null;
     commission_percent: number | null;
     commission_conditions: string;
+    can_export_leads?: boolean;
   };
   branches: { id: string; name: string }[];
 };
@@ -55,9 +56,11 @@ export function EditUserDialog({ user, branches }: Props) {
     commission_percent:
       user.commission_percent !== null ? String(user.commission_percent) : "",
     commission_conditions: user.commission_conditions,
+    can_export_leads: user.can_export_leads ?? false,
   });
 
   const isVendor = user.role === "sales";
+  const isManager = user.role === "manager";
 
   function submit() {
     startTransition(async () => {
@@ -72,6 +75,7 @@ export function EditUserDialog({ user, branches }: Props) {
             : Number(data.commission_percent)
           : null,
         commission_conditions: isVendor ? data.commission_conditions : "",
+        can_export_leads: isManager ? data.can_export_leads : undefined,
       });
       if (!r.ok) {
         toast.error(r.message);
@@ -153,6 +157,24 @@ export function EditUserDialog({ user, branches }: Props) {
                 </SelectContent>
               </Select>
             </div>
+          )}
+          {isManager && (
+            <label className="flex items-center gap-2 rounded-md border p-2.5 text-sm">
+              <input
+                type="checkbox"
+                checked={data.can_export_leads}
+                onChange={(e) =>
+                  setData((d) => ({ ...d, can_export_leads: e.target.checked }))
+                }
+                className="size-4 rounded border-input"
+              />
+              <span>
+                Puede descargar base de leads
+                <span className="block text-xs text-muted-foreground">
+                  Habilita el botón Exportar en el listado de leads.
+                </span>
+              </span>
+            </label>
           )}
           {isVendor && (
             <>

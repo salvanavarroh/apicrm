@@ -34,11 +34,13 @@ export default async function ProfilePage() {
         <CardContent className="py-6">
           <ProfileForm
             initial={{
+              id: profile.id,
               first_name: profile.first_name,
               last_name: profile.last_name,
               phone: profile.phone,
               email,
               role: ROLE_LABEL[profile.role] ?? profile.role,
+              avatar_url: profile.avatar_url,
             }}
           />
         </CardContent>

@@ -68,6 +68,8 @@ type Props = {
   // Si se pasan, se habilita la selección múltiple + reasignación masiva
   // (Admin / Gerente).
   assignableUsers?: AssignableUser[];
+  // Descarga de base: solo admin/superadmin, o gerente con permiso. Default off.
+  canExport?: boolean;
 };
 
 const STATUS_FILTER: { value: LeadStatus | "all"; label: string }[] = [
@@ -127,6 +129,7 @@ export function LeadsTable({
   showAssignee = true,
   editableTemperature = true,
   assignableUsers,
+  canExport = false,
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -275,14 +278,16 @@ export function LeadsTable({
             ))}
           </SelectContent>
         </Select>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => exportRows(filtered)}
-          disabled={filtered.length === 0}
-        >
-          <Download className="mr-2 size-4" /> Exportar
-        </Button>
+        {canExport && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportRows(filtered)}
+            disabled={filtered.length === 0}
+          >
+            <Download className="mr-2 size-4" /> Exportar
+          </Button>
+        )}
         <span className="ml-auto text-sm text-muted-foreground">
           {filtered.length} de {rows.length}
         </span>

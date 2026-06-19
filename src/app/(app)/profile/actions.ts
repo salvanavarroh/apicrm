@@ -37,6 +37,20 @@ export async function updateMyProfile(
   return { ok: true };
 }
 
+export async function updateMyAvatar(
+  url: string | null,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const profile = await requireProfile();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("profiles")
+    .update({ avatar_url: url })
+    .eq("id", profile.id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/profile");
+  return { ok: true };
+}
+
 const passwordSchema = z
   .object({
     password: z.string().min(8, "Mínimo 8 caracteres"),

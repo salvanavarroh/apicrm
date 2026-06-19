@@ -38,7 +38,7 @@ export default async function AdminUserDetailPage({
     supabase
       .from("profiles")
       .select(
-        "id, first_name, last_name, role, status, phone, branch_id, manager_id, commission_percent, commission_conditions, avatar_url",
+        "id, first_name, last_name, role, status, phone, branch_id, manager_id, commission_percent, commission_conditions, avatar_url, can_export_leads",
       )
       .eq("id", id)
       .eq("company_id", profile.company_id)
@@ -167,6 +167,7 @@ export default async function AdminUserDetailPage({
                 ? Number(user.commission_percent)
                 : null,
               commission_conditions: user.commission_conditions ?? "",
+              can_export_leads: user.can_export_leads ?? false,
             }}
             branches={branches}
           />

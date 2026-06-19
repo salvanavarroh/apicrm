@@ -27,6 +27,7 @@ const inviteSchema = z.discriminatedUnion("role", [
     product_type_ids: z
       .array(z.string().uuid())
       .min(1, "Al menos un tipo de producto"),
+    can_export_leads: z.boolean().optional(),
   }),
   baseSchema.extend({
     role: z.literal("sales"),
@@ -136,6 +137,14 @@ export async function inviteUser(
         .eq("user_id", newUserId);
       await supabase.auth.admin.deleteUser(newUserId);
       return { ok: false, message: `Error al crear gerencias: ${mErr.message}` };
+    }
+
+    // Permiso de descarga de base (default off).
+    if (parsed.data.can_export_leads) {
+      await supabase
+        .from("profiles")
+        .update({ can_export_leads: true })
+        .eq("id", newUserId);
     }
   }
 
@@ -322,6 +331,7 @@ export type UpdateProfileInput = {
   branch_id: string | null;
   commission_percent: number | null;
   commission_conditions: string;
+  can_export_leads?: boolean;
 };
 
 export async function updateUserProfile(
@@ -339,6 +349,9 @@ export async function updateUserProfile(
       branch_id: data.branch_id,
       commission_percent: data.commission_percent,
       commission_conditions: data.commission_conditions.trim() || null,
+      ...(data.can_export_leads !== undefined
+        ? { can_export_leads: data.can_export_leads }
+        : {}),
     })
     .eq("id", userId);
   if (error) return { ok: false, message: error.message };

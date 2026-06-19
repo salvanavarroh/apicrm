@@ -1,31 +1,91 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createClient } from "@/lib/supabase/client";
 
-import { changeMyPassword, updateMyProfile } from "./actions";
+import { changeMyPassword, updateMyAvatar, updateMyProfile } from "./actions";
 
 export function ProfileForm({
   initial,
 }: {
   initial: {
+    id: string;
     first_name: string;
     last_name: string;
     phone: string | null;
     email: string;
     role: string;
+    avatar_url: string | null;
   };
 }) {
   const router = useRouter();
   const [firstName, setFirstName] = useState(initial.first_name);
   const [lastName, setLastName] = useState(initial.last_name);
   const [phone, setPhone] = useState(initial.phone ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(initial.avatar_url);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
+
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("El archivo debe ser una imagen");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("La imagen no puede superar 5 MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      // El path arranca con el uid para cumplir la RLS del bucket.
+      const path = `${initial.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true });
+      if (upErr) {
+        toast.error(`No se pudo subir: ${upErr.message}`);
+        return;
+      }
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      const publicUrl = data.publicUrl;
+      const res = await updateMyAvatar(publicUrl);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setAvatarUrl(publicUrl);
+      toast.success("Foto actualizada");
+      router.refresh();
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function removeAvatar() {
+    startTransition(async () => {
+      const res = await updateMyAvatar(null);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setAvatarUrl(null);
+      toast.success("Foto eliminada");
+      router.refresh();
+    });
+  }
 
   const [pwd, setPwd] = useState("");
   const [pwdConfirm, setPwdConfirm] = useState("");
@@ -67,6 +127,51 @@ export function ProfileForm({
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold">Datos básicos</h2>
+
+        <div className="flex items-center gap-4">
+          <UserAvatar
+            firstName={firstName}
+            lastName={lastName}
+            email={initial.email}
+            avatarUrl={avatarUrl}
+            size="xl"
+          />
+          <div className="flex flex-col gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onPickFile}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploading ? "Subiendo…" : "Cambiar foto"}
+              </Button>
+              {avatarUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending || uploading}
+                  onClick={removeAvatar}
+                  className="text-destructive"
+                >
+                  Quitar
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              JPG o PNG, hasta 5 MB.
+            </p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">

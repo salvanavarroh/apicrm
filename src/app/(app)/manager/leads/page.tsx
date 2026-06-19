@@ -1,4 +1,4 @@
-import { LayoutGrid, List, Plus, UserPlus } from "lucide-react";
+import { LayoutGrid, List, Plus, Upload, UserPlus } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -127,11 +127,18 @@ export default async function ManagerLeadsPage() {
             manejás).
           </p>
         </div>
-        <Button asChild>
-          <Link href="/manager/leads/new">
-            <Plus className="mr-2 size-4" /> Nuevo lead
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/manager/leads/import">
+              <Upload className="mr-2 size-4" /> Importar CSV
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/manager/leads/new">
+              <Plus className="mr-2 size-4" /> Nuevo lead
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <Tabs defaultValue="kanban">
@@ -164,6 +171,7 @@ export default async function ManagerLeadsPage() {
             rows={tableRows}
             detailHrefPrefix="/manager/leads"
             assignableUsers={team}
+            canExport={profile.can_export_leads}
           />
         </TabsContent>
 

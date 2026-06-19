@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { Logo } from "@/components/logo";
+import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,7 @@ const PROVIDER_NAV: Item[] = [
 const SALES_NAV: Item[] = [
   { href: "/sales", label: "Inicio", icon: Home, match: "exact" },
   { href: "/sales/leads", label: "Mis leads", icon: Inbox },
+  { href: "/sales/leads/new", label: "Nuevo lead", icon: UserPlus },
   {
     href: "/sales/tasks-visits",
     label: "Tareas y Visitas",
@@ -189,9 +191,13 @@ export function AppSidebar({
               : "hover:bg-white/5",
           )}
         >
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] font-semibold text-accent-foreground">
-            {initials(profile.first_name, profile.last_name)}
-          </span>
+          <UserAvatar
+            firstName={profile.first_name}
+            lastName={profile.last_name}
+            avatarUrl={profile.avatar_url}
+            role={profile.role}
+            size="sm"
+          />
           <span className="flex min-w-0 flex-col text-left leading-tight">
             <span className="truncate text-xs font-medium text-sidebar-foreground">
               {[profile.first_name, profile.last_name]
@@ -237,8 +243,3 @@ const ROLE_LABELS: Record<UserRole, string> = {
   data_provider: "Proveedor de datos",
 };
 
-function initials(first: string, last: string) {
-  const f = (first || "").trim().charAt(0).toUpperCase();
-  const l = (last || "").trim().charAt(0).toUpperCase();
-  return (f + l) || "U";
-}

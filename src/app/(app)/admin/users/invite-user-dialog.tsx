@@ -65,6 +65,7 @@ export function InviteUserDialog({
   const [productTypeIds, setProductTypeIds] = useState<string[]>([]);
   const [managerId, setManagerId] = useState("");
   const [branchId, setBranchId] = useState(""); // vendedor: sucursal única
+  const [canExport, setCanExport] = useState(false); // gerente: descargar base
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -102,6 +103,7 @@ export function InviteUserDialog({
       setProductTypeIds([]);
       setManagerId("");
       setBranchId("");
+      setCanExport(false);
       setError(null);
     }
     setOpen(next);
@@ -148,6 +150,7 @@ export function InviteUserDialog({
           ...base,
           branch_ids: branchIds,
           product_type_ids: finalTypeIds,
+          can_export_leads: canExport,
         };
       } else if (role === "sales") {
         payload = {
@@ -452,6 +455,23 @@ export function InviteUserDialog({
                 </button>
               </div>
             </div>
+          )}
+
+          {role === "manager" && (
+            <label className="flex items-center gap-2 rounded-md border p-2.5 text-sm">
+              <input
+                type="checkbox"
+                checked={canExport}
+                onChange={(e) => setCanExport(e.target.checked)}
+                className="size-4 rounded border-input"
+              />
+              <span>
+                Puede descargar base de leads
+                <span className="block text-xs text-muted-foreground">
+                  Habilita el botón Exportar en el listado de leads.
+                </span>
+              </span>
+            </label>
           )}
 
           {error && (

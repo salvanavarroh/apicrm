@@ -118,6 +118,7 @@ export default async function AdminLeadsPage() {
         rows={rows}
         detailHrefPrefix="/admin/leads"
         assignableUsers={assignableUsers}
+        canExport
       />
     </div>
   );

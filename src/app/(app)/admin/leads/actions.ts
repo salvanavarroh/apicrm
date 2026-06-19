@@ -55,7 +55,12 @@ export async function findDuplicateLead(
   phone: string | null,
   email: string | null,
 ): Promise<DuplicateInfo | null> {
-  const profile = await requireRole(["admin", "manager", "data_provider"]);
+  const profile = await requireRole([
+    "admin",
+    "manager",
+    "sales",
+    "data_provider",
+  ]);
   if (!profile.company_id) return null;
 
   const supabase = await createClient();
@@ -98,7 +103,12 @@ export async function createLead(
     duplicate?: DuplicateInfo;
   }
 > {
-  const profile = await requireRole(["admin", "manager", "data_provider"]);
+  const profile = await requireRole([
+    "admin",
+    "manager",
+    "sales",
+    "data_provider",
+  ]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }
@@ -182,6 +192,9 @@ export async function createLead(
     product_type_id: parsed.data.product_type_id || null,
     initial_notes: parsed.data.initial_notes || null,
     created_by: profile.id,
+    // Un vendedor que carga un lead manual queda asignado a sí mismo.
+    assigned_user_id: profile.role === "sales" ? profile.id : null,
+    assigned_at: profile.role === "sales" ? new Date().toISOString() : null,
   };
 
   const { data: lead, error } = await supabase
@@ -210,8 +223,13 @@ export async function createLead(
     preferred_color: parsed.data.preferred_color || null,
   });
 
-  // Intento de auto-asignación (no falla si no hay candidatos).
-  if (insert.branch_id && insert.product_type_id) {
+  // Intento de auto-asignación (no falla si no hay candidatos). No aplica a
+  // leads cargados por un vendedor: ya quedan asignados a él mismo.
+  if (
+    profile.role !== "sales" &&
+    insert.branch_id &&
+    insert.product_type_id
+  ) {
     await supabase.rpc("auto_assign_lead", { p_lead_id: lead.id });
   }
 
@@ -357,7 +375,7 @@ export async function bulkInsertLeads(
     campaign_id?: string;
   } = {},
 ): Promise<BulkInsertResult | { ok: false; message: string }> {
-  const profile = await requireRole(["admin", "data_provider"]);
+  const profile = await requireRole(["admin", "manager", "data_provider"]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }

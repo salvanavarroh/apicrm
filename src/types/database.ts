@@ -1136,6 +1136,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           branch_id: string | null
+          can_export_leads: boolean
           commission_conditions: string | null
           commission_percent: number | null
           company_id: string | null
@@ -1153,6 +1154,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           branch_id?: string | null
+          can_export_leads?: boolean
           commission_conditions?: string | null
           commission_percent?: number | null
           company_id?: string | null
@@ -1170,6 +1172,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           branch_id?: string | null
+          can_export_leads?: boolean
           commission_conditions?: string | null
           commission_percent?: number | null
           company_id?: string | null
