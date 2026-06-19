@@ -104,6 +104,7 @@ export const leadInputSchema = z
       .or(z.literal("")),
     phone: optionalString,
     city: optionalString,
+    vehicle_brand: optionalString,
     vehicle_model: optionalString,
     vehicle_version: optionalString,
     preferred_color: optionalString,

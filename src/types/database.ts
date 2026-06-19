@@ -766,6 +766,7 @@ export type Database = {
           lead_id: string
           notes: string | null
           preferred_color: string | null
+          vehicle_brand: string | null
           vehicle_model: string | null
           vehicle_version: string | null
         }
@@ -776,6 +777,7 @@ export type Database = {
           lead_id: string
           notes?: string | null
           preferred_color?: string | null
+          vehicle_brand?: string | null
           vehicle_model?: string | null
           vehicle_version?: string | null
         }
@@ -786,6 +788,7 @@ export type Database = {
           lead_id?: string
           notes?: string | null
           preferred_color?: string | null
+          vehicle_brand?: string | null
           vehicle_model?: string | null
           vehicle_version?: string | null
         }
@@ -844,6 +847,7 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
+          vehicle_brand: string | null
           vehicle_model: string | null
           vehicle_version: string | null
         }
@@ -884,6 +888,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          vehicle_brand?: string | null
           vehicle_model?: string | null
           vehicle_version?: string | null
         }
@@ -924,6 +929,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          vehicle_brand?: string | null
           vehicle_model?: string | null
           vehicle_version?: string | null
         }
@@ -1030,6 +1036,57 @@ export type Database = {
             columns: ["product_type_id"]
             isOneToOne: false
             referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_templates: {
+        Row: {
+          body: string
+          company_id: string | null
+          created_at: string
+          id: string
+          label: string
+          owner_id: string | null
+          scope: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          owner_id?: string | null
+          scope: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          owner_id?: string | null
+          scope?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_templates_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

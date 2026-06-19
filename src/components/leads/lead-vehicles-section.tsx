@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 
 export type LeadVehicleItem = {
   id: string;
+  vehicle_brand: string | null;
   vehicle_model: string | null;
   vehicle_version: string | null;
   preferred_color: string | null;
@@ -33,6 +34,7 @@ export function LeadVehiclesSection({
 }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
+  const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [version, setVersion] = useState("");
   const [color, setColor] = useState("");
@@ -40,6 +42,7 @@ export function LeadVehiclesSection({
   const [pending, startTransition] = useTransition();
 
   function reset() {
+    setBrand("");
     setModel("");
     setVersion("");
     setColor("");
@@ -50,6 +53,7 @@ export function LeadVehiclesSection({
   function add() {
     startTransition(async () => {
       const res = await addLeadVehicleAction(leadId, {
+        vehicle_brand: brand,
         vehicle_model: model,
         vehicle_version: version,
         preferred_color: color,
@@ -103,7 +107,7 @@ export function LeadVehiclesSection({
               <Car className="mt-0.5 size-4 text-muted-foreground" />
               <div>
                 <div className="font-medium">
-                  {[v.vehicle_model, v.vehicle_version]
+                  {[v.vehicle_brand, v.vehicle_model, v.vehicle_version]
                     .filter(Boolean)
                     .join(" ") || "Auto sin especificar"}
                 </div>
@@ -131,6 +135,11 @@ export function LeadVehiclesSection({
         {adding && (
           <div className="flex flex-col gap-2 rounded-md border border-dashed p-3">
             <div className="grid grid-cols-2 gap-2">
+              <Input
+                placeholder="Marca"
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+              />
               <Input
                 placeholder="Modelo"
                 value={model}

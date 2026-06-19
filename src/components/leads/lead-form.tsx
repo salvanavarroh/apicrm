@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { CarModelCombobox } from "@/components/leads/car-model-combobox";
+import { CatalogCombobox } from "@/components/leads/catalog-combobox";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -55,6 +55,7 @@ const EMPTY: LeadInput = {
   email: "",
   phone: "",
   city: "",
+  vehicle_brand: "",
   vehicle_model: "",
   vehicle_version: "",
   preferred_color: "",
@@ -155,16 +156,34 @@ export function LeadForm({
       {/* Vehículo */}
       <Section title="Vehículo de interés">
         <Grid2>
-          <Field label="Modelo">
-            <CarModelCombobox
+          <Field label="Marca">
+            <CatalogCombobox
+              kind="brands"
+              value={data.vehicle_brand ?? ""}
+              onChange={(v) => {
+                // Al cambiar la marca, reseteamos el modelo (cascada).
+                setData((d) => ({ ...d, vehicle_brand: v, vehicle_model: "" }));
+              }}
+              placeholder="Ej: Volkswagen"
+            />
+          </Field>
+          <Field
+            label="Modelo"
+            hint={!data.vehicle_brand ? "Elegí primero la marca" : undefined}
+          >
+            <CatalogCombobox
+              kind="models"
+              brand={data.vehicle_brand ?? ""}
               value={data.vehicle_model ?? ""}
               onChange={(v) => update("vehicle_model", v)}
+              placeholder="Ej: Amarok"
             />
           </Field>
           <Field label="Versión">
             <Input
               value={data.vehicle_version ?? ""}
               onChange={(e) => update("vehicle_version", e.target.value)}
+              placeholder="Ej: Comfortline TDI"
             />
           </Field>
           <Field label="Color preferido">

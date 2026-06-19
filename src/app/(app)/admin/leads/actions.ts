@@ -154,6 +154,7 @@ export async function createLead(
     // Reingreso: la nueva consulta (auto) se agrega al lead existente, que
     // conserva su vendedor.
     await appendLeadVehicle(supabase, duplicate.id, profile.company_id, {
+      vehicle_brand: parsed.data.vehicle_brand || null,
       vehicle_model: parsed.data.vehicle_model || null,
       vehicle_version: parsed.data.vehicle_version || null,
       preferred_color: parsed.data.preferred_color || null,
@@ -174,6 +175,7 @@ export async function createLead(
     email,
     phone,
     city: parsed.data.city || null,
+    vehicle_brand: parsed.data.vehicle_brand || null,
     vehicle_model: parsed.data.vehicle_model || null,
     vehicle_version: parsed.data.vehicle_version || null,
     preferred_color: parsed.data.preferred_color || null,
@@ -279,6 +281,7 @@ export async function updateLead(
     email: normalizeEmail(parsed.data.email || null),
     phone: normalizePhone(parsed.data.phone || null),
     city: parsed.data.city || null,
+    vehicle_brand: parsed.data.vehicle_brand || null,
     vehicle_model: parsed.data.vehicle_model || null,
     vehicle_version: parsed.data.vehicle_version || null,
     preferred_color: parsed.data.preferred_color || null,
@@ -515,6 +518,7 @@ export async function deleteLead(id: string): Promise<Result<{ id: string }>> {
 // ----------------------------------------------------------------------------
 
 const vehicleInputSchema = z.object({
+  vehicle_brand: z.string().optional().or(z.literal("")),
   vehicle_model: z.string().optional().or(z.literal("")),
   vehicle_version: z.string().optional().or(z.literal("")),
   preferred_color: z.string().optional().or(z.literal("")),
@@ -549,7 +553,13 @@ export async function addLeadVehicleAction(
     return { ok: false, message: "Datos inválidos" };
   }
   const v = parsed.data;
-  if (!v.vehicle_model && !v.vehicle_version && !v.preferred_color && !v.notes) {
+  if (
+    !v.vehicle_brand &&
+    !v.vehicle_model &&
+    !v.vehicle_version &&
+    !v.preferred_color &&
+    !v.notes
+  ) {
     return { ok: false, message: "Cargá al menos un dato de la consulta" };
   }
 
@@ -559,6 +569,7 @@ export async function addLeadVehicleAction(
     .insert({
       lead_id: leadId,
       company_id: profile.company_id,
+      vehicle_brand: v.vehicle_brand || null,
       vehicle_model: v.vehicle_model || null,
       vehicle_version: v.vehicle_version || null,
       preferred_color: v.preferred_color || null,

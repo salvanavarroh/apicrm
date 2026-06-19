@@ -53,6 +53,7 @@ export async function findReentryLead(
 }
 
 export type VehicleData = {
+  vehicle_brand?: string | null;
   vehicle_model?: string | null;
   vehicle_version?: string | null;
   preferred_color?: string | null;
@@ -61,7 +62,11 @@ export type VehicleData = {
 
 function hasVehicleData(v: VehicleData): boolean {
   return Boolean(
-    v.vehicle_model || v.vehicle_version || v.preferred_color || v.notes,
+    v.vehicle_brand ||
+      v.vehicle_model ||
+      v.vehicle_version ||
+      v.preferred_color ||
+      v.notes,
   );
 }
 
@@ -78,6 +83,7 @@ export async function appendLeadVehicle(
   await supabase.from("lead_vehicles").insert({
     lead_id: leadId,
     company_id: companyId,
+    vehicle_brand: vehicle.vehicle_brand ?? null,
     vehicle_model: vehicle.vehicle_model ?? null,
     vehicle_version: vehicle.vehicle_version ?? null,
     preferred_color: vehicle.preferred_color ?? null,

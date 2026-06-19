@@ -98,7 +98,7 @@ export default async function AdminLeadDetailPage({
       supabase
         .from("lead_vehicles")
         .select(
-          "id, vehicle_model, vehicle_version, preferred_color, notes, created_at",
+          "id, vehicle_brand, vehicle_model, vehicle_version, preferred_color, notes, created_at",
         )
         .eq("lead_id", id)
         .order("created_at", { ascending: true }),
@@ -149,6 +149,7 @@ export default async function AdminLeadDetailPage({
     : null;
   const vehicleRows: LeadVehicleItem[] = (leadVehicles ?? []).map((v) => ({
     id: v.id,
+    vehicle_brand: v.vehicle_brand,
     vehicle_model: v.vehicle_model,
     vehicle_version: v.vehicle_version,
     preferred_color: v.preferred_color,
@@ -218,6 +219,7 @@ export default async function AdminLeadDetailPage({
               <CardTitle>Vehículo de interés</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-3 text-sm">
+              <Detail label="Marca" value={lead.vehicle_brand} />
               <Detail label="Modelo" value={lead.vehicle_model} />
               <Detail label="Versión" value={lead.vehicle_version} />
               <Detail label="Color" value={lead.preferred_color} />

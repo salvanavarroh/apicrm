@@ -53,6 +53,7 @@ export default async function SalesLeadDetailPage({
     { data: company },
     { data: quotes },
     { data: sales },
+    { data: templates },
   ] = await Promise.all([
     supabase
       .from("leads")
@@ -120,9 +121,22 @@ export default async function SalesLeadDetailPage({
       .eq("lead_id", id)
       .eq("vendor_id", profile.id)
       .order("started_at", { ascending: false }),
+    supabase
+      .from("message_templates")
+      .select("id, label, body, scope")
+      .order("scope", { ascending: true })
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true }),
   ]);
 
   if (!lead) notFound();
+
+  const templateRows = (templates ?? []).map((t) => ({
+    id: t.id,
+    label: t.label,
+    body: t.body,
+    scope: t.scope as "global" | "user",
+  }));
 
   const noteRows: LeadNote[] = (notes ?? []).map((n) => ({
     id: n.id,
@@ -204,6 +218,7 @@ export default async function SalesLeadDetailPage({
           <TemperatureChanger leadId={lead.id} current={lead.temperature} />
           <TemplatesModal
             leadId={lead.id}
+            templates={templateRows}
             trigger={
               <Button className="bg-[#25D366] text-white hover:bg-[#1ebe5d]">
                 <WhatsappIcon className="mr-2 size-4" /> Enviar mensaje

@@ -14,6 +14,7 @@ import {
   Layers,
   LogOut,
   Megaphone,
+  MessageCircle,
   Receipt,
   Settings2,
   ShoppingBag,
@@ -45,6 +46,7 @@ const SUPER_ADMIN_NAV: Item[] = [
     label: "Solicitudes",
     icon: Layers,
   },
+  { href: "/super-admin/templates", label: "Plantillas", icon: MessageCircle },
   { href: "/super-admin/billing", label: "Facturación", icon: Receipt },
 ];
 
