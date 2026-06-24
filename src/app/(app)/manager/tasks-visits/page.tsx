@@ -7,7 +7,7 @@ export default async function ManagerTasksVisitsPage({
 }: {
   searchParams: Promise<{ tab?: string }>;
 }) {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   if (!profile.company_id) return null;
 
   const { tab } = await searchParams;

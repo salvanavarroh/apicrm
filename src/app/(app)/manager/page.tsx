@@ -5,7 +5,7 @@ import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { AgendaCalendar } from "@/components/dashboard/agenda-calendar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import { fullName, type LeadStatus } from "@/lib/leads";
 import { loadForecast } from "@/lib/forecast";
 import { ForecastCard } from "@/components/dashboard/forecast-card";
@@ -23,8 +23,10 @@ const ACTIVE_STATUSES: LeadStatus[] = [
 ];
 
 export default async function ManagerHomePage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
+  // El supervisor (sub-gerente) trabaja sobre el equipo de su gerente padre.
+  const managerId = actingManagerId(profile);
 
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -59,7 +61,7 @@ export default async function ManagerHomePage() {
       .from("profiles")
       .select("id, first_name, last_name, status, commission_percent")
       .eq("company_id", profile.company_id!)
-      .eq("manager_id", profile.id)
+      .eq("manager_id", managerId)
       .eq("role", "sales"),
     supabase
       .from("sales")
@@ -79,11 +81,11 @@ export default async function ManagerHomePage() {
   const myLeads = (leads ?? []).filter(
     (l) => l.assigned_user_id && teamIds.has(l.assigned_user_id),
   );
-  const unassignedInMine = (leads ?? []).filter(
-    (l) =>
-      !l.assigned_user_id &&
-      l.campaign_id !== null,
-  );
+  // Leads sin asignar visibles para esta gerencia (la RLS ya acota `leads` a
+  // las gerencias del manager). Incluye los cargados por el Proveedor de datos
+  // aunque no tengan campaña — antes el filtro `campaign_id !== null` los
+  // ocultaba del dashboard pese a verse en el listado de leads.
+  const unassignedInMine = (leads ?? []).filter((l) => !l.assigned_user_id);
 
   const pipelineByStatus = ACTIVE_STATUSES.map((s) => ({
     status: s,

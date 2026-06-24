@@ -58,10 +58,25 @@ export function homePathForRole(role: UserRole): string {
     case "admin":
       return "/admin";
     case "manager":
+    case "supervisor":
+      // El Supervisor reutiliza las pantallas del gerente.
       return "/manager";
     case "sales":
       return "/sales";
     case "data_provider":
       return "/data-provider";
   }
+}
+
+/**
+ * Gerente "efectivo" del usuario: para un manager es su propio id; para un
+ * supervisor (sub-gerente) es el id de su gerente padre (manager_id). Para
+ * cualquier otro rol, su propio id. Es el espejo en app-layer de la función
+ * SQL `acting_manager_id()` usada en las policies RLS.
+ */
+export function actingManagerId(profile: Profile): string {
+  if (profile.role === "supervisor" && profile.manager_id) {
+    return profile.manager_id;
+  }
+  return profile.id;
 }

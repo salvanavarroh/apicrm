@@ -13,6 +13,11 @@ export const CAMPAIGN_ORIGIN_LABELS: Record<CampaignOrigin, string> = {
   referral: "Referido",
   web: "Web",
   email: "Email",
+  instagram: "Instagram",
+  tiktok_ads: "TikTok Ads",
+  marketplace: "Marketplace",
+  portal_usados: "Portal de usados",
+  inbound_call: "Llamada entrante",
   other: "Otros",
 };
 

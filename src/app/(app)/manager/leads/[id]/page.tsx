@@ -19,7 +19,7 @@ import {
 } from "@/components/leads/visits-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import {
   LEAD_PAYMENT_LABELS,
   fullName,
@@ -35,7 +35,7 @@ export default async function ManagerLeadDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   const [{ data: lead }, { data: notes }, { data: tasks }, { data: visits }, team] =
@@ -70,7 +70,7 @@ export default async function ManagerLeadDetailPage({
       supabase
         .from("lead_tasks")
         .select(
-          `id, title, task_type, description, priority, due_date,
+          `id, title, task_type, description, priority, due_date, due_time,
            completed_at, created_at, assigned_to,
            assignee:profiles!assigned_to (first_name, last_name)`,
         )
@@ -86,7 +86,7 @@ export default async function ManagerLeadDetailPage({
         .order("scheduled_at", { ascending: true }),
       getAssignableSalesUsers({
         companyId: profile.company_id!,
-        managerId: profile.id,
+        managerId: actingManagerId(profile),
       }),
     ]);
 
@@ -106,6 +106,7 @@ export default async function ManagerLeadDetailPage({
     description: t.description,
     priority: t.priority,
     due_date: t.due_date,
+    due_time: t.due_time,
     completed_at: t.completed_at,
     created_at: t.created_at,
     assigned_to: t.assigned_to,

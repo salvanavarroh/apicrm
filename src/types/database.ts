@@ -690,6 +690,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           due_date: string | null
+          due_time: string | null
           id: string
           lead_id: string
           priority: Database["public"]["Enums"]["task_priority"]
@@ -705,6 +706,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           id?: string
           lead_id: string
           priority?: Database["public"]["Enums"]["task_priority"]
@@ -720,6 +722,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
           id?: string
           lead_id?: string
           priority?: Database["public"]["Enums"]["task_priority"]
@@ -1697,6 +1700,11 @@ export type Database = {
         | "referral"
         | "web"
         | "email"
+        | "instagram"
+        | "tiktok_ads"
+        | "marketplace"
+        | "portal_usados"
+        | "inbound_call"
         | "other"
       campaign_status: "active" | "inactive"
       commercial_lead_status:
@@ -1744,7 +1752,13 @@ export type Database = {
         | "follow_up"
         | "document"
         | "other"
-      user_role: "super_admin" | "admin" | "manager" | "sales" | "data_provider"
+      user_role:
+        | "super_admin"
+        | "admin"
+        | "manager"
+        | "sales"
+        | "data_provider"
+        | "supervisor"
       visit_status: "scheduled" | "completed" | "no_show" | "canceled"
     }
     CompositeTypes: {
@@ -1883,6 +1897,11 @@ export const Constants = {
         "referral",
         "web",
         "email",
+        "instagram",
+        "tiktok_ads",
+        "marketplace",
+        "portal_usados",
+        "inbound_call",
         "other",
       ],
       campaign_status: ["active", "inactive"],
@@ -1936,7 +1955,14 @@ export const Constants = {
         "document",
         "other",
       ],
-      user_role: ["super_admin", "admin", "manager", "sales", "data_provider"],
+      user_role: [
+        "super_admin",
+        "admin",
+        "manager",
+        "sales",
+        "data_provider",
+        "supervisor",
+      ],
       visit_status: ["scheduled", "completed", "no_show", "canceled"],
     },
   },

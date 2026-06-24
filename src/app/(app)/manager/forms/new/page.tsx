@@ -2,11 +2,11 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 
 import { FormBuilder } from "@/components/forms/form-builder";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NewFormManagerPage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   // Solo sucursales y tipos dentro de las gerencias del manager.
@@ -16,7 +16,7 @@ export default async function NewFormManagerPage() {
       `branch:branches!branch_id (id, name),
        product_type:product_types!product_type_id (id, name)`,
     )
-    .eq("manager_id", profile.id);
+    .eq("manager_id", actingManagerId(profile));
 
   const branchMap = new Map<string, string>();
   const productTypeMap = new Map<string, string>();

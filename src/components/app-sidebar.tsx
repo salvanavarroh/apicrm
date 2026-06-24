@@ -76,6 +76,16 @@ const MANAGER_NAV: Item[] = [
   { href: "/manager/managements", label: "Gerencias", icon: Settings2 },
 ];
 
+// El Supervisor (sub-gerente) reutiliza las pantallas del gerente, pero no
+// gestiona Gerencias (eso es exclusivo del gerente dueño).
+const SUPERVISOR_NAV: Item[] = [
+  { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
+  { href: "/manager/leads", label: "Leads", icon: Inbox },
+  { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
+  { href: "/manager/forms", label: "Formularios", icon: FileInput },
+  { href: "/manager/team", label: "Equipo", icon: Users },
+];
+
 const PROVIDER_NAV: Item[] = [
   { href: "/data-provider", label: "Inicio", icon: Home, match: "exact" },
   { href: "/data-provider/leads", label: "Mis cargas", icon: Inbox },
@@ -107,6 +117,7 @@ function navForRole(role: UserRole): Item[] {
   if (role === "super_admin") return SUPER_ADMIN_NAV;
   if (role === "admin") return ADMIN_NAV;
   if (role === "manager") return MANAGER_NAV;
+  if (role === "supervisor") return SUPERVISOR_NAV;
   if (role === "sales") return SALES_NAV;
   if (role === "data_provider") return PROVIDER_NAV;
   return APP_NAV;
@@ -241,6 +252,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "SuperAdmin",
   admin: "Admin",
   manager: "Gerente de ventas",
+  supervisor: "Supervisor",
   sales: "Vendedor",
   data_provider: "Proveedor de datos",
 };

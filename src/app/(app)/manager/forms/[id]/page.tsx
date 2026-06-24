@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { FormBuilder } from "@/components/forms/form-builder";
 import { Button } from "@/components/ui/button";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import { parseFields } from "@/lib/forms";
 import { createClient } from "@/lib/supabase/server";
 
@@ -16,7 +16,7 @@ export default async function EditFormManagerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   const [{ data: form }, { data: managements }, { data: campaigns }] =
@@ -33,7 +33,7 @@ export default async function EditFormManagerPage({
           `branch:branches!branch_id (id, name),
            product_type:product_types!product_type_id (id, name)`,
         )
-        .eq("manager_id", profile.id),
+        .eq("manager_id", actingManagerId(profile)),
       supabase
         .from("campaigns")
         .select("id, name")

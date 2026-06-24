@@ -2,11 +2,11 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 
 import { LeadForm } from "@/components/leads/lead-form";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function NewLeadManagerPage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   // Manager solo puede cargar leads dentro de sus gerencias.
@@ -20,7 +20,7 @@ export default async function NewLeadManagerPage() {
         product_types:product_type_id (id, name)
       `,
     )
-    .eq("manager_id", profile.id);
+    .eq("manager_id", actingManagerId(profile));
 
   const branchMap = new Map<string, string>();
   const productTypeMap = new Map<string, string>();

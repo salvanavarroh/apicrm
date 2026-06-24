@@ -32,6 +32,11 @@ type Origin =
   | "referral"
   | "web"
   | "email"
+  | "instagram"
+  | "tiktok_ads"
+  | "marketplace"
+  | "portal_usados"
+  | "inbound_call"
   | "other";
 
 type Campaign = {
@@ -51,13 +56,23 @@ const ORIGIN_LABELS: Record<Origin, string> = {
   referral: "Referido",
   web: "Web",
   email: "Email",
+  instagram: "Instagram",
+  tiktok_ads: "TikTok Ads",
+  marketplace: "Marketplace",
+  portal_usados: "Portal de usados",
+  inbound_call: "Llamada entrante",
   other: "Otros",
 };
 const ORIGINS: Origin[] = [
   "meta_ads",
   "google_ads",
   "whatsapp",
+  "instagram",
+  "tiktok_ads",
+  "marketplace",
+  "portal_usados",
   "showroom",
+  "inbound_call",
   "referral",
   "web",
   "email",

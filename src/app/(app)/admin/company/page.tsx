@@ -204,22 +204,24 @@ export default async function AdminCompanyPage() {
           <Button variant="outline" asChild>
             <Link href="/admin/users">Ver lista de usuarios</Link>
           </Button>
-          {hasPendingRequest ? (
+          {hasPendingRequest && (
             <span className="inline-flex items-center gap-1.5 rounded-md bg-success/10 px-3 py-2 text-sm font-medium text-success">
-              <CheckCircle2 className="size-4" /> Solicitud enviada
+              <CheckCircle2 className="size-4" />
+              {pendingRequests.length === 1
+                ? "1 solicitud pendiente"
+                : `${pendingRequests.length} solicitudes pendientes`}
             </span>
-          ) : (
-            <RequestBranchDialog
-              trigger={
-                <Button>
-                  Solicitar nueva sucursal{" "}
-                  <span aria-hidden className="ml-1">
-                    ›
-                  </span>
-                </Button>
-              }
-            />
           )}
+          <RequestBranchDialog
+            trigger={
+              <Button>
+                Solicitar nueva sucursal{" "}
+                <span aria-hidden className="ml-1">
+                  ›
+                </span>
+              </Button>
+            }
+          />
         </div>
       </header>
 
@@ -267,15 +269,13 @@ export default async function AdminCompanyPage() {
             <p className="text-sm text-muted-foreground">
               Todavía no tenés sucursales. Solicitá la primera al SuperAdmin.
             </p>
-            {!hasPendingRequest && (
-              <RequestBranchDialog
-                trigger={
-                  <Button variant="outline" size="sm">
-                    Solicitar sucursal
-                  </Button>
-                }
-              />
-            )}
+            <RequestBranchDialog
+              trigger={
+                <Button variant="outline" size="sm">
+                  Solicitar sucursal
+                </Button>
+              }
+            />
           </Card>
         ) : (
           branches.map((b) => {

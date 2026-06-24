@@ -5,7 +5,7 @@ import { DownloadSampleCsv } from "@/components/download-sample-csv";
 import { CsvImporter } from "@/components/leads/csv-importer";
 import { Card } from "@/components/ui/card";
 import { CSV_HEADERS } from "@/lib/leads";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 const LEADS_CSV_EXAMPLES = [
@@ -28,14 +28,14 @@ const LEADS_CSV_EXAMPLES = [
 ];
 
 export default async function ImportLeadsManagerPage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   // Solo sucursales/tipos de las gerencias del manager.
   const { data: managements } = await supabase
     .from("managements")
     .select("branches(id, name), product_types(id, name)")
-    .eq("manager_id", profile.id);
+    .eq("manager_id", actingManagerId(profile));
 
   const branchMap = new Map<string, string>();
   const ptMap = new Map<string, string>();

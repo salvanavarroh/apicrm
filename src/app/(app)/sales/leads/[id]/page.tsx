@@ -84,7 +84,7 @@ export default async function SalesLeadDetailPage({
     supabase
       .from("lead_tasks")
       .select(
-        `id, title, task_type, description, priority, due_date,
+        `id, title, task_type, description, priority, due_date, due_time,
          completed_at, created_at, assigned_to,
          assignee:profiles!assigned_to (first_name, last_name)`,
       )
@@ -152,6 +152,7 @@ export default async function SalesLeadDetailPage({
     description: t.description,
     priority: t.priority,
     due_date: t.due_date,
+    due_time: t.due_time,
     completed_at: t.completed_at,
     created_at: t.created_at,
     assigned_to: t.assigned_to,

@@ -33,6 +33,7 @@ import {
   dueBucket,
   formatDateAR,
   formatDateTimeAR,
+  formatTimeAR,
   type TaskPriority,
   type TaskType,
   type VisitStatus,
@@ -46,6 +47,7 @@ export type TaskRow = {
   description: string | null;
   priority: TaskPriority;
   due_date: string | null;
+  due_time: string | null;
   completed_at: string | null;
   assignee_name: string | null;
   /** Legacy fallback */
@@ -181,7 +183,12 @@ function TasksTab({
         const aDone = !!a.completed_at;
         const bDone = !!b.completed_at;
         if (aDone !== bDone) return aDone ? 1 : -1;
-        if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+        if (a.due_date && b.due_date) {
+          const byDate = a.due_date.localeCompare(b.due_date);
+          if (byDate !== 0) return byDate;
+          // Mismo día: ordenar por horario (sin hora va al final).
+          return (a.due_time ?? "99:99").localeCompare(b.due_time ?? "99:99");
+        }
         if (a.due_date) return -1;
         if (b.due_date) return 1;
         return 0;
@@ -296,7 +303,12 @@ function TasksTab({
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     {t.due_date && (
-                      <DueLabel bucket={bucket} date={t.due_date} done={done} />
+                      <DueLabel
+                        bucket={bucket}
+                        date={t.due_date}
+                        time={t.due_time}
+                        done={done}
+                      />
                     )}
                     {t.assignee_name && (
                       <>
@@ -449,13 +461,23 @@ function VisitsTab({
 function DueLabel({
   bucket,
   date,
+  time,
   done,
 }: {
   bucket: ReturnType<typeof dueBucket> | null;
   date: string;
+  time?: string | null;
   done: boolean;
 }) {
-  if (done) return <span>Vencía el {formatDateAR(date)}</span>;
+  const hhmm = formatTimeAR(time ?? null);
+  const at = hhmm ? ` ${hhmm}` : "";
+  if (done)
+    return (
+      <span>
+        Vencía el {formatDateAR(date)}
+        {at}
+      </span>
+    );
   if (!bucket || bucket.kind === "none") return null;
   if (bucket.kind === "overdue") {
     return (
@@ -467,18 +489,23 @@ function DueLabel({
   if (bucket.kind === "today") {
     return (
       <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium text-warning-foreground">
-        Hoy
+        Hoy{at}
       </span>
     );
   }
   if (bucket.kind === "tomorrow") {
     return (
       <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
-        Mañana
+        Mañana{at}
       </span>
     );
   }
-  return <span>Vence el {formatDateAR(date)}</span>;
+  return (
+    <span>
+      Vence el {formatDateAR(date)}
+      {at}
+    </span>
+  );
 }
 
 function EmptyState({

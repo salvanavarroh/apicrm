@@ -4,13 +4,13 @@ import Link from "next/link";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
 import { Button } from "@/components/ui/button";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
 
 export default async function UnassignedLeadsPage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   // RLS se encarga de filtrar por las gerencias del manager.
@@ -40,7 +40,7 @@ export default async function UnassignedLeadsPage() {
       .order("created_at", { ascending: false }),
     getAssignableSalesUsers({
       companyId: profile.company_id!,
-      managerId: profile.id,
+      managerId: actingManagerId(profile),
     }),
   ]);
 

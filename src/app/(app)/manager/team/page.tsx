@@ -1,19 +1,23 @@
-import { Plus, Users } from "lucide-react";
+import { Plus, ShieldCheck, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 
 import { InviteSellerDialog } from "./invite-seller-dialog";
+import { InviteSupervisorDialog } from "./invite-supervisor-dialog";
 import { SellerRowActions } from "./seller-row-actions";
 
 export default async function ManagerTeamPage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   if (!profile.company_id) return null;
 
   const supabase = await createClient();
+  // El supervisor opera sobre el equipo de su gerente padre.
+  const mgrId = actingManagerId(profile);
+  const isManager = profile.role === "manager";
 
   // Gerencias del manager → branches + product_types disponibles para
   // armar el form del nuevo vendedor.
@@ -22,7 +26,7 @@ export default async function ManagerTeamPage() {
     .select(
       "branch_id, product_type_id, branches(id, name), product_types(id, name)",
     )
-    .eq("manager_id", profile.id);
+    .eq("manager_id", mgrId);
 
   const branchesMap = new Map<
     string,
@@ -49,11 +53,22 @@ export default async function ManagerTeamPage() {
     .select(
       "id, first_name, last_name, status, branch_id, commission_percent, commission_conditions, branches(name)",
     )
-    .eq("manager_id", profile.id)
+    .eq("manager_id", mgrId)
+    .eq("role", "sales")
     .neq("status", "deleted")
     .order("created_at", { ascending: false });
 
   const list = sellers ?? [];
+
+  // Supervisores (sub-gerentes) del manager.
+  const { data: supervisorsData } = await supabase
+    .from("profiles")
+    .select("id, first_name, last_name, status")
+    .eq("manager_id", mgrId)
+    .eq("role", "supervisor")
+    .neq("status", "deleted")
+    .order("created_at", { ascending: false });
+  const supervisors = supervisorsData ?? [];
 
   // Emails desde service-role
   const emailMap = new Map<string, string>();
@@ -74,15 +89,61 @@ export default async function ManagerTeamPage() {
             asignados.
           </p>
         </div>
-        <InviteSellerDialog
-          branches={branches}
-          trigger={
-            <Button>
-              <Plus className="mr-1 size-4" /> Invitar vendedor
-            </Button>
-          }
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {isManager && (
+            <InviteSupervisorDialog
+              trigger={
+                <Button variant="outline">
+                  <ShieldCheck className="mr-1 size-4" /> Invitar supervisor
+                </Button>
+              }
+            />
+          )}
+          <InviteSellerDialog
+            branches={branches}
+            trigger={
+              <Button>
+                <Plus className="mr-1 size-4" /> Invitar vendedor
+              </Button>
+            }
+          />
+        </div>
       </header>
+
+      {supervisors.length > 0 && (
+        <Card className="flex flex-col gap-2 p-4">
+          <h2 className="flex items-center gap-2 text-sm font-semibold">
+            <ShieldCheck className="size-4 text-accent" /> Supervisores
+          </h2>
+          <ul className="flex flex-col divide-y divide-border">
+            {supervisors.map((s) => (
+              <li
+                key={s.id}
+                className="flex items-center justify-between gap-2 py-2 text-sm"
+              >
+                <span className="font-medium">
+                  {`${s.first_name} ${s.last_name}`.trim() || "(sin nombre)"}
+                </span>
+                <span
+                  className={
+                    s.status === "active"
+                      ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
+                      : s.status === "pending"
+                        ? "rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-foreground"
+                        : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                  }
+                >
+                  {s.status === "active"
+                    ? "Activo"
+                    : s.status === "pending"
+                      ? "Pendiente"
+                      : "Inactivo"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {list.length === 0 ? (
         <Card className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">

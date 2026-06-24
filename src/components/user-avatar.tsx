@@ -1,6 +1,12 @@
 import { cn } from "@/lib/utils";
 
-type Role = "admin" | "manager" | "sales" | "data_provider" | "super_admin";
+type Role =
+  | "admin"
+  | "manager"
+  | "supervisor"
+  | "sales"
+  | "data_provider"
+  | "super_admin";
 
 type Props = {
   firstName?: string | null;
@@ -25,6 +31,7 @@ const ROLE_BG: Record<Role, string> = {
   super_admin: "bg-purple-500/15 text-purple-700",
   admin: "bg-amber-500/15 text-amber-700",
   manager: "bg-accent/15 text-accent",
+  supervisor: "bg-teal-500/15 text-teal-700",
   sales: "bg-emerald-500/15 text-emerald-700",
   data_provider: "bg-blue-500/15 text-blue-700",
 };

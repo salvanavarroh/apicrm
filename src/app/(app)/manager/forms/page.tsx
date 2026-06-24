@@ -10,7 +10,7 @@ import { FormShareDialog } from "@/app/(app)/admin/forms/share-dialog";
 import { FormRowActions } from "@/app/(app)/admin/forms/row-actions";
 
 export default async function ManagerFormsPage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   // RLS filtra a sus gerencias automáticamente.

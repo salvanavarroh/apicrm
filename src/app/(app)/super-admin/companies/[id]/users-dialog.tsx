@@ -15,16 +15,23 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-type Role = "admin" | "manager" | "sales" | "data_provider";
+type Role = "admin" | "manager" | "supervisor" | "sales" | "data_provider";
 
 const ROLE_LABEL: Record<Role, string> = {
   admin: "Admin",
   manager: "Gerente",
+  supervisor: "Supervisor",
   sales: "Vendedor",
   data_provider: "Proveedor",
 };
 
-const ROLE_ORDER: Role[] = ["admin", "manager", "sales", "data_provider"];
+const ROLE_ORDER: Role[] = [
+  "admin",
+  "manager",
+  "supervisor",
+  "sales",
+  "data_provider",
+];
 
 type Status = "pending" | "active" | "inactive" | "deleted";
 const STATUS_LABEL: Record<Status, string> = {

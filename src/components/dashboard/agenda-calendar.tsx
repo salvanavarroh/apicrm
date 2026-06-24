@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { TASK_TYPE_LABEL, type TaskType } from "@/lib/tasks";
+import { type TaskType } from "@/lib/tasks";
 
 export type AgendaItem = {
   id: string;
@@ -21,6 +21,8 @@ export type AgendaItem = {
   dateKey: string;
   /** ISO completo para visitas (con hora) o null para tasks. */
   scheduledAt: string | null;
+  /** Horario "HH:MM" de la tarea (opcional). Las visitas usan scheduledAt. */
+  time?: string | null;
   title: string;
   taskType: TaskType | null;
   leadId: string;
@@ -77,13 +79,15 @@ export function AgendaCalendar({ items, todayKey }: Props) {
 
   const selectedItems = useMemo(() => {
     const arr = itemsByDate.get(selectedKey) ?? [];
+    // Orden por horario del día: tareas y visitas con hora se intercalan por
+    // su hora; lo que no tiene hora va al final.
     return [...arr].sort((a, b) => {
-      // Visitas con hora primero, ordenadas por hora; después tasks.
-      if (a.scheduledAt && b.scheduledAt)
-        return a.scheduledAt.localeCompare(b.scheduledAt);
-      if (a.scheduledAt) return -1;
-      if (b.scheduledAt) return 1;
-      return 0;
+      const ma = minutesOfDay(a);
+      const mb = minutesOfDay(b);
+      if (ma === null && mb === null) return 0;
+      if (ma === null) return 1;
+      if (mb === null) return -1;
+      return ma - mb;
     });
   }, [itemsByDate, selectedKey]);
 
@@ -148,7 +152,7 @@ export function AgendaCalendar({ items, todayKey }: Props) {
                 {d}
               </div>
             ))}
-            {grid.map((cell) => {
+            {grid.map((cell, idx) => {
               const dayItems = cell ? (itemsByDate.get(cell.key) ?? []) : [];
               const isToday = cell?.key === todayKey;
               const isSelected = cell?.key === selectedKey;
@@ -160,7 +164,7 @@ export function AgendaCalendar({ items, todayKey }: Props) {
               ).length;
               return (
                 <button
-                  key={cell?.key ?? Math.random()}
+                  key={cell?.key ?? `empty-${idx}`}
                   type="button"
                   disabled={!cell}
                   onClick={() => cell && setSelectedKey(cell.key)}
@@ -238,8 +242,23 @@ export function AgendaCalendar({ items, todayKey }: Props) {
   );
 }
 
+// Minuto del día (0–1439) del item, o null si no tiene horario.
+function minutesOfDay(it: AgendaItem): number | null {
+  if (it.scheduledAt) {
+    const d = new Date(it.scheduledAt);
+    if (!Number.isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
+  }
+  if (it.time) {
+    const [h, m] = it.time.split(":").map(Number);
+    if (!Number.isNaN(h) && !Number.isNaN(m)) return h * 60 + m;
+  }
+  return null;
+}
+
 function AgendaItemCard({ item }: { item: AgendaItem }) {
-  const time = item.scheduledAt ? formatTime(item.scheduledAt) : null;
+  const time = item.scheduledAt
+    ? formatTime(item.scheduledAt)
+    : (item.time ?? null);
   return (
     <Link
       href={item.href}

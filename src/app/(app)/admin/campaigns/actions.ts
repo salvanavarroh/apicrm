@@ -14,6 +14,11 @@ const ORIGINS = [
   "referral",
   "web",
   "email",
+  "instagram",
+  "tiktok_ads",
+  "marketplace",
+  "portal_usados",
+  "inbound_call",
   "other",
 ] as const;
 

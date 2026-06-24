@@ -25,6 +25,7 @@ import {
   TASK_TYPE_LABEL,
   dueBucket,
   formatDateAR,
+  formatTimeAR,
   type TaskPriority,
   type TaskType,
 } from "@/lib/tasks";
@@ -41,6 +42,7 @@ export type LeadTask = {
   description: string | null;
   priority: TaskPriority;
   due_date: string | null; // "YYYY-MM-DD" (date column)
+  due_time: string | null; // "HH:MM[:SS]" (time column) — opcional
   completed_at: string | null;
   created_at?: string | null;
   assigned_to: string | null;
@@ -88,6 +90,7 @@ export function TasksSection({
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dueDate, setDueDate] = useState(""); // "YYYY-MM-DD"
+  const [dueTime, setDueTime] = useState(""); // "HH:MM"
   const [assignedTo, setAssignedTo] = useState<string>(SELF_SENTINEL);
 
   // Re-sync con el server cuando llegan tareas nuevas.
@@ -113,6 +116,7 @@ export function TasksSection({
       description: description.trim() || null,
       priority,
       due_date: dueDate || null,
+      due_time: dueTime || null,
       completed_at: null,
       created_at: new Date().toISOString(),
       assigned_to: resolvedAssignee,
@@ -125,10 +129,12 @@ export function TasksSection({
       description,
       priority,
       dueDate,
+      dueTime,
       assignedTo,
     };
     setDescription("");
     setDueDate("");
+    setDueTime("");
     setPriority("medium");
 
     startTransition(async () => {
@@ -137,6 +143,7 @@ export function TasksSection({
         description: snapshot.description,
         priority: snapshot.priority,
         due_date: snapshot.dueDate,
+        due_time: snapshot.dueTime,
         assigned_to:
           snapshot.assignedTo === SELF_SENTINEL ? "" : snapshot.assignedTo,
       });
@@ -145,6 +152,7 @@ export function TasksSection({
         setItems((prev) => prev.filter((t) => t.id !== tempId));
         setDescription(snapshot.description);
         setDueDate(snapshot.dueDate);
+        setDueTime(snapshot.dueTime);
         setPriority(snapshot.priority);
         setTaskType(snapshot.taskType);
         setAssignedTo(snapshot.assignedTo);
@@ -219,13 +227,24 @@ export function TasksSection({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-[11px]">Vencimiento</Label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[11px]">Vencimiento</Label>
+                  <Input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label className="text-[11px]">Horario</Label>
+                  <Input
+                    type="time"
+                    value={dueTime}
+                    onChange={(e) => setDueTime(e.target.value)}
+                    disabled={!dueDate}
+                  />
+                </div>
               </div>
             </div>
             <div className="flex flex-col gap-1">
@@ -343,7 +362,11 @@ export function TasksSection({
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                     {task.due_date && (
-                      <DueBadge bucket={bucket} date={task.due_date} />
+                      <DueBadge
+                        bucket={bucket}
+                        date={task.due_date}
+                        time={task.due_time}
+                      />
                     )}
                     {task.assignee_name && (
                       <span className="inline-flex items-center gap-1">
@@ -388,12 +411,21 @@ export function TasksSection({
 function DueBadge({
   bucket,
   date,
+  time,
 }: {
   bucket: ReturnType<typeof dueBucket> | null;
   date: string;
+  time?: string | null;
 }) {
+  const hhmm = formatTimeAR(time ?? null);
+  const at = hhmm ? ` ${hhmm}` : "";
   if (!bucket || bucket.kind === "none") {
-    return <span>Vence el {formatDateAR(date)}</span>;
+    return (
+      <span>
+        Vence el {formatDateAR(date)}
+        {at}
+      </span>
+    );
   }
   if (bucket.kind === "overdue") {
     return (
@@ -405,16 +437,21 @@ function DueBadge({
   if (bucket.kind === "today") {
     return (
       <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium text-warning-foreground">
-        Hoy
+        Hoy{at}
       </span>
     );
   }
   if (bucket.kind === "tomorrow") {
     return (
       <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
-        Mañana
+        Mañana{at}
       </span>
     );
   }
-  return <span>Vence el {formatDateAR(date)}</span>;
+  return (
+    <span>
+      Vence el {formatDateAR(date)}
+      {at}
+    </span>
+  );
 }

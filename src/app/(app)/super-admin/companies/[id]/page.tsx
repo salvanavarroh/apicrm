@@ -1,17 +1,12 @@
 import {
-  Building2,
   ChevronLeft,
   MapPin,
   PencilLine,
-  Phone,
   Plus,
   ShieldCheck,
   Store,
-  Trash2,
   UserCog,
-  UserPlus,
   Users,
-  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -23,6 +18,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
+import {
+  BranchDetailCard,
+  type BranchUser,
+} from "./branch-detail-card";
 import { CreateBranchDialog } from "./create-branch-dialog";
 import { EditCompanyAsSuperAdminDialog } from "./edit-company-dialog";
 import { UsersDialog, type CompanyUser } from "./users-dialog";
@@ -38,26 +37,33 @@ export default async function CompanyDetailPage({
   const supabase = await createClient();
   const adminClient = createAdminClient();
 
-  const [companyRes, branchesRes, profilesRes, usersList] = await Promise.all([
-    supabase
-      .from("companies")
-      .select(
-        "id, name, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
-      )
-      .eq("id", id)
-      .maybeSingle(),
-    supabase
-      .from("branches")
-      .select("id, name, address, phone, status")
-      .eq("company_id", id)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("profiles")
-      .select("id, first_name, last_name, role, status, branch_id")
-      .eq("company_id", id)
-      .neq("status", "deleted"),
-    adminClient.auth.admin.listUsers({ perPage: 1000 }),
-  ]);
+  const [companyRes, branchesRes, profilesRes, managementsRes, usersList] =
+    await Promise.all([
+      supabase
+        .from("companies")
+        .select(
+          "id, name, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
+        )
+        .eq("id", id)
+        .maybeSingle(),
+      supabase
+        .from("branches")
+        .select("id, name, address, phone, status")
+        .eq("company_id", id)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("profiles")
+        .select("id, first_name, last_name, role, status, branch_id")
+        .eq("company_id", id)
+        .neq("status", "deleted"),
+      // Gerentes se vinculan a sucursales vía gerencias (managements), no por
+      // profiles.branch_id. Necesario para contar gerentes por sucursal.
+      supabase
+        .from("managements")
+        .select("branch_id, manager_id")
+        .eq("company_id", id),
+      adminClient.auth.admin.listUsers({ perPage: 1000 }),
+    ]);
 
   if (!companyRes.data) notFound();
   const company = companyRes.data;
@@ -69,6 +75,19 @@ export default async function CompanyDetailPage({
   const sellers = profiles.filter((p) => p.role === "sales");
   const providers = profiles.filter((p) => p.role === "data_provider");
   const primaryAdmin = admins[0];
+
+  const managements = managementsRes.data ?? [];
+  const profileById = new Map(profiles.map((p) => [p.id, p]));
+  // Gerentes (ids) por sucursal, vía gerencias. Un gerente puede estar en
+  // varias sucursales; se cuenta una vez por sucursal.
+  const managerIdsByBranch = new Map<string, Set<string>>();
+  for (const m of managements) {
+    if (!m.branch_id || !m.manager_id) continue;
+    if (!managerIdsByBranch.has(m.branch_id)) {
+      managerIdsByBranch.set(m.branch_id, new Set());
+    }
+    managerIdsByBranch.get(m.branch_id)!.add(m.manager_id);
+  }
 
   const emailById = new Map<string, string>();
   for (const u of usersList.data?.users ?? []) {
@@ -213,126 +232,56 @@ export default async function CompanyDetailPage({
           </Card>
         ) : (
           branches.map((b) => {
-            const branchManagers = managers.filter(
-              (m) => m.branch_id === b.id,
-            );
+            const branchManagerIds = managerIdsByBranch.get(b.id) ?? new Set();
             const branchSellers = sellers.filter((s) => s.branch_id === b.id);
-            return (
-              <Card key={b.id} className="flex flex-col gap-4 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="size-4 text-foreground" />
-                      <span className="text-lg font-semibold">{b.name}</span>
-                      <span
-                        className={
-                          b.status === "active"
-                            ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
-                            : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                        }
-                      >
-                        {b.status === "active" ? "Activa" : "Inactiva"}
-                      </span>
-                    </div>
-                    {b.address && (
-                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <MapPin className="size-3.5" /> {b.address}
-                      </p>
-                    )}
-                    {b.phone && (
-                      <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <Phone className="size-3.5" /> {b.phone}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="Toggle estado"
-                      disabled
-                    >
-                      <Building2 className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      aria-label="Eliminar"
-                      className="text-destructive"
-                      disabled
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                </div>
+            const branchProviders = providers.filter(
+              (p) => p.branch_id === b.id,
+            );
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-                  <BranchStat
-                    icon={UserPlus}
-                    label="Proveedores"
-                    value={providers.length}
-                  />
-                  <BranchStat
-                    icon={UserCog}
-                    label="Gerentes"
-                    value={branchManagers.length}
-                  />
-                  <BranchStat
-                    icon={Users}
-                    label="Vendedores"
-                    value={branchSellers.length}
-                  />
-                  <BranchStat
-                    icon={Wallet}
-                    label="Leads activos"
-                    value="—"
-                    caption="Sprint 4"
-                  />
-                  <BranchStat
-                    icon={Wallet}
-                    label="Ventas"
-                    value="—"
-                    caption="Sprint 7"
-                  />
-                  <BranchStat
-                    icon={Wallet}
-                    label="Conversión"
-                    value="—"
-                    caption="Sprint 7"
-                  />
-                </div>
-              </Card>
+            const users: BranchUser[] = [
+              ...[...branchManagerIds]
+                .map((mid) => profileById.get(mid))
+                .filter((m): m is NonNullable<typeof m> => Boolean(m))
+                .map((m) => ({
+                  id: m.id,
+                  name: `${m.first_name} ${m.last_name}`.trim() || "—",
+                  role: "manager" as const,
+                  status: m.status,
+                })),
+              ...branchSellers.map((s) => ({
+                id: s.id,
+                name: `${s.first_name} ${s.last_name}`.trim() || "—",
+                role: "sales" as const,
+                status: s.status,
+              })),
+              ...branchProviders.map((p) => ({
+                id: p.id,
+                name: `${p.first_name} ${p.last_name}`.trim() || "—",
+                role: "data_provider" as const,
+                status: p.status,
+              })),
+            ];
+
+            return (
+              <BranchDetailCard
+                key={b.id}
+                companyId={company.id}
+                branch={{
+                  id: b.id,
+                  name: b.name,
+                  address: b.address,
+                  phone: b.phone,
+                  status: b.status as "active" | "inactive",
+                  providers: branchProviders.length,
+                  managers: branchManagerIds.size,
+                  sellers: branchSellers.length,
+                  users,
+                }}
+              />
             );
           })
         )}
       </div>
-    </div>
-  );
-}
-
-function BranchStat({
-  icon: Icon,
-  label,
-  value,
-  caption,
-}: {
-  icon: typeof Building2;
-  label: string;
-  value: number | string;
-  caption?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-md border border-border p-3">
-      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <Icon className="size-3.5 text-accent" />
-        {label}
-      </div>
-      <p className="text-2xl font-bold leading-none tracking-tight">{value}</p>
-      {caption && (
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {caption}
-        </p>
-      )}
     </div>
   );
 }

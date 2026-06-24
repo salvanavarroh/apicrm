@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import {
   generateInvitationLink,
   generateReinviteLink,
@@ -36,10 +36,13 @@ export type InviteSellerResult =
 export async function inviteSeller(
   raw: InviteSellerInput,
 ): Promise<InviteSellerResult> {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }
+  // Los vendedores cuelgan del gerente; un supervisor invita en nombre de su
+  // gerente padre.
+  const mgrId = actingManagerId(profile);
 
   const parsed = inviteSchema.safeParse(raw);
   if (!parsed.success) {
@@ -54,7 +57,7 @@ export async function inviteSeller(
   const { data: myManagements } = await supabaseSession
     .from("managements")
     .select("branch_id, product_type_id")
-    .eq("manager_id", profile.id);
+    .eq("manager_id", mgrId);
 
   const allowedBranches = new Set(
     (myManagements ?? []).map((m) => m.branch_id),
@@ -103,7 +106,7 @@ export async function inviteSeller(
     .from("profiles")
     .update({
       branch_id: parsed.data.branch_id,
-      manager_id: profile.id,
+      manager_id: mgrId,
       commission_percent: parsed.data.commission_percent,
       commission_conditions: parsed.data.commission_conditions || null,
     })
@@ -163,7 +166,8 @@ export async function resendSellerInvitation(
   userId: string,
   newEmail?: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
+  const mgrId = actingManagerId(profile);
   const supabase = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -172,7 +176,7 @@ export async function resendSellerInvitation(
     .select("id, manager_id, status, first_name, company_id")
     .eq("id", userId)
     .maybeSingle();
-  if (!seller || seller.manager_id !== profile.id) {
+  if (!seller || seller.manager_id !== mgrId) {
     return { ok: false, message: "No podés reenviar a este vendedor" };
   }
   if (seller.status !== "pending") {
@@ -240,7 +244,8 @@ export type UpdateSellerInput = z.input<typeof updateSchema>;
 export async function updateSeller(
   raw: UpdateSellerInput,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
+  const mgrId = actingManagerId(profile);
   const parsed = updateSchema.safeParse(raw);
   if (!parsed.success) {
     return { ok: false, message: parsed.error.issues[0]?.message ?? "Inválido" };
@@ -254,7 +259,7 @@ export async function updateSeller(
     .select("manager_id")
     .eq("id", parsed.data.id)
     .single();
-  if (!seller || seller.manager_id !== profile.id) {
+  if (!seller || seller.manager_id !== mgrId) {
     return { ok: false, message: "No podés editar este vendedor" };
   }
 
@@ -284,11 +289,102 @@ export async function updateSeller(
   return { ok: true };
 }
 
+// ----------------------------------------------------------------------------
+// Invitar Supervisor (sub-gerente). Solo el gerente lo crea; queda atado a su
+// manager_id y reutiliza las pantallas del gerente con el alcance de su equipo.
+// ----------------------------------------------------------------------------
+
+const inviteSupervisorSchema = z.object({
+  first_name: z.string().min(1, "Nombre obligatorio"),
+  last_name: z.string().min(1, "Apellido obligatorio"),
+  email: z.string().email("Email inválido"),
+  phone: z.string().optional().or(z.literal("")),
+});
+
+export type InviteSupervisorInput = z.input<typeof inviteSupervisorSchema>;
+export type InviteSupervisorResult =
+  | { ok: true; userId: string; emailWarning?: string }
+  | { ok: false; message: string };
+
+export async function inviteSupervisor(
+  raw: InviteSupervisorInput,
+): Promise<InviteSupervisorResult> {
+  // Solo el gerente puede crear supervisores (no un supervisor a otro).
+  const profile = await requireRole(["manager"]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+
+  const parsed = inviteSupervisorSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+    };
+  }
+
+  const supabase = createAdminClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  const link = await generateInvitationLink(supabase, {
+    email: parsed.data.email,
+    metadata: {
+      role: "supervisor",
+      company_id: profile.company_id,
+      first_name: parsed.data.first_name.trim(),
+      last_name: parsed.data.last_name.trim(),
+      phone: parsed.data.phone || null,
+    },
+    appUrl,
+  });
+  if (!link.ok) {
+    return { ok: false, message: link.message };
+  }
+
+  const newUserId = link.userId;
+
+  // Atar el supervisor a este gerente (manager_id) + su sucursal.
+  const { error: pErr } = await supabase
+    .from("profiles")
+    .update({ manager_id: profile.id, branch_id: profile.branch_id })
+    .eq("id", newUserId);
+  if (pErr) {
+    await supabase.auth.admin.deleteUser(newUserId);
+    return { ok: false, message: pErr.message };
+  }
+
+  const { data: company } = await supabase
+    .from("companies")
+    .select("name")
+    .eq("id", profile.company_id)
+    .maybeSingle();
+
+  const emailResult = await sendInvitationEmail({
+    to: parsed.data.email,
+    firstName: parsed.data.first_name.trim(),
+    companyName: company?.name ?? "tu empresa",
+    role: "supervisor",
+    actionLink: link.actionLink,
+  });
+
+  revalidatePath("/manager/team");
+
+  if (!emailResult.ok) {
+    return {
+      ok: true,
+      userId: newUserId,
+      emailWarning: `Supervisor creado, pero no se pudo enviar el email (${emailResult.message}). Reenviá la invitación.`,
+    };
+  }
+  return { ok: true, userId: newUserId };
+}
+
 export async function toggleSellerStatus(
   userId: string,
   next: "active" | "inactive",
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
+  const mgrId = actingManagerId(profile);
   const supabase = createAdminClient();
 
   const { data: seller } = await supabase
@@ -296,7 +392,7 @@ export async function toggleSellerStatus(
     .select("manager_id")
     .eq("id", userId)
     .single();
-  if (!seller || seller.manager_id !== profile.id) {
+  if (!seller || seller.manager_id !== mgrId) {
     return { ok: false, message: "No podés editar este vendedor" };
   }
 

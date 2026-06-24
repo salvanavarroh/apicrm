@@ -7,7 +7,7 @@ import type {
   TaskRow,
   VisitRow,
 } from "@/components/tasks-visits/tasks-visits-view";
-import { TASK_TYPE_LABEL } from "@/lib/tasks";
+import { TASK_TYPE_LABEL, formatTimeAR } from "@/lib/tasks";
 import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
@@ -29,13 +29,14 @@ export async function loadTasksAndVisitsForCompany(
   let tasksQuery = supabase
     .from("lead_tasks")
     .select(
-      `id, task_type, title, description, priority, due_date, completed_at,
+      `id, task_type, title, description, priority, due_date, due_time, completed_at,
        assigned_to, lead_id,
        lead:leads!lead_id (first_name, last_name),
        assignee:profiles!assigned_to (first_name, last_name)`,
     )
     .eq("company_id", companyId)
-    .order("due_date", { ascending: true, nullsFirst: false });
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("due_time", { ascending: true, nullsFirst: false });
 
   let visitsQuery = supabase
     .from("visits")
@@ -76,6 +77,7 @@ export async function loadTasksAndVisitsForCompany(
     description: t.description,
     priority: t.priority,
     due_date: t.due_date,
+    due_time: t.due_time,
     completed_at: t.completed_at,
     assignee_name: t.assignee
       ? fullName(t.assignee.first_name, t.assignee.last_name)
@@ -122,6 +124,7 @@ export async function loadAgendaForCompany(
       kind: "task",
       dateKey: t.due_date.slice(0, 10),
       scheduledAt: null,
+      time: formatTimeAR(t.due_time),
       title: TASK_TYPE_LABEL[t.task_type] ?? t.title ?? "Tarea",
       taskType: t.task_type,
       leadId: t.lead_id,

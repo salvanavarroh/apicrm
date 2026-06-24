@@ -174,6 +174,51 @@ export default async function AdminUsersPage() {
     productTypesByManager.get(m.manager_id)!.add(m.product_type_id);
   }
 
+  // Nombres de tipos de producto por gerente, para mostrar el detalle del rol
+  // (ej. "Gerente de ventas · 0km, Usados").
+  const ptNameById = new Map(productTypes.map((pt) => [pt.id, pt.name]));
+  const productTypeNamesByManager = new Map<string, string[]>();
+  for (const [mid, set] of productTypesByManager.entries()) {
+    productTypeNamesByManager.set(
+      mid,
+      [...set]
+        .map((id) => ptNameById.get(id))
+        .filter((n): n is string => Boolean(n))
+        .sort((a, b) => a.localeCompare(b)),
+    );
+  }
+
+  // Leads activos asignados a cada vendedor.
+  const sellerActiveLeads = new Map<string, number>();
+  for (const l of leads) {
+    if (l.status === "closed" || !l.assigned_user_id) continue;
+    sellerActiveLeads.set(
+      l.assigned_user_id,
+      (sellerActiveLeads.get(l.assigned_user_id) ?? 0) + 1,
+    );
+  }
+
+  // Vendedores agrupados bajo su gerente (para mostrarlos debajo de cada uno).
+  const vendorsListByManager = new Map<
+    string,
+    NonNullable<UsersTableRow["vendorsList"]>
+  >();
+  for (const u of allUsers) {
+    if (u.role !== "sales" || !u.manager_id) continue;
+    const arr = vendorsListByManager.get(u.manager_id) ?? [];
+    arr.push({
+      id: u.id,
+      firstName: u.first_name,
+      lastName: u.last_name,
+      email: emailMap[u.id] ?? "—",
+      status: u.status as UsersTableRow["status"],
+      avatarUrl: u.avatar_url ?? null,
+      branchId: u.branch_id ?? null,
+      activeLeads: sellerActiveLeads.get(u.id) ?? 0,
+    });
+    vendorsListByManager.set(u.manager_id, arr);
+  }
+
   // Gerentes activos disponibles para asignar vendedores.
   const managersForInvite = allUsers
     .filter((u) => u.role === "manager" && u.status === "active")
@@ -210,6 +255,10 @@ export default async function AdminUsersPage() {
       pendingLeads: isManager
         ? (pendingLeadsByManager.get(u.id) ?? 0)
         : (providerLeadsPending.get(u.id) ?? 0),
+      productTypeNames: isManager
+        ? (productTypeNamesByManager.get(u.id) ?? [])
+        : [],
+      vendorsList: isManager ? (vendorsListByManager.get(u.id) ?? []) : [],
       branchIds,
     };
   });
@@ -220,8 +269,8 @@ export default async function AdminUsersPage() {
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Usuarios</h1>
           <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
-            Gerentes de ventas y proveedores de datos. Hacé click sobre uno
-            para ver su detalle, su equipo y sus métricas.
+            Gerentes de ventas (con sus vendedores) y proveedores de datos.
+            Expandí un gerente para ver su equipo, o filtrá por “Vendedores”.
           </p>
         </div>
         <InviteUserDialog

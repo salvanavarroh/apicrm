@@ -84,6 +84,17 @@ export function formatDateAR(isoDate: string | null): string {
 }
 
 /**
+ * Formatea una hora de la columna TIME ("HH:MM" o "HH:MM:SS") como "HH:MM".
+ * No pasa por Date para no arrastrar timezone.
+ */
+export function formatTimeAR(time: string | null): string {
+  if (!time) return "";
+  const [h, m] = time.split(":");
+  if (!h || !m) return "";
+  return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+}
+
+/**
  * Formatea un timestamptz como "DD/MM/YYYY HH:MM" en zona AR.
  */
 export function formatDateTimeAR(isoTimestamp: string | null): string {

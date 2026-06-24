@@ -3,6 +3,7 @@ import { ctaButton, emailShell, escapeHtml, linkFallback } from "./shared";
 export type InvitationRole =
   | "admin"
   | "manager"
+  | "supervisor"
   | "sales"
   | "data_provider"
   | "super_admin";
@@ -11,6 +12,7 @@ const ROLE_LABEL: Record<InvitationRole, string> = {
   super_admin: "super administrador",
   admin: "administrador",
   manager: "gerente",
+  supervisor: "supervisor",
   sales: "vendedor",
   data_provider: "proveedor de datos",
 };

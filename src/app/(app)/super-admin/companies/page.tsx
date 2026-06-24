@@ -1,14 +1,11 @@
 import {
   Building2,
   ChevronRight,
-  PencilLine,
-  Shield,
   ShieldCheck,
   Store,
   UserCog,
   Users,
 } from "lucide-react";
-import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
 import { CreateCompanyDialog } from "./create-company-dialog";
-import { EditCompanyAsSuperAdminDialog } from "./[id]/edit-company-dialog";
+import { CompaniesTable, type CompanyRow } from "./companies-table";
 
 type CompanyData = {
   id: string;
@@ -105,6 +102,38 @@ export default async function CompaniesPage() {
     if (b.status === "active") bucket.branches++;
   }
 
+  // Filas para la tabla (client component con búsqueda + orden).
+  const rows: CompanyRow[] = companies.map((c) => {
+    const agg = byCompany.get(c.id) ?? {
+      admins: 0,
+      managers: 0,
+      sales: 0,
+      branches: 0,
+      primaryAdmin: null,
+    };
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      legal_name: c.legal_name,
+      cuit: c.cuit,
+      phone: c.phone,
+      address: c.address,
+      logo_url: c.logo_url,
+      monthly_price: c.monthly_price,
+      subscription_starts_at: c.subscription_starts_at,
+      subscription_ends_at: c.subscription_ends_at,
+      primaryAdmin: agg.primaryAdmin
+        ? `${agg.primaryAdmin.first_name} ${agg.primaryAdmin.last_name}`.trim() ||
+          "—"
+        : "—",
+      branches: agg.branches,
+      admins: agg.admins,
+      managers: agg.managers,
+      sales: agg.sales,
+    };
+  });
+
   const cta = (
     <Button>
       Cargar concesionaria <ChevronRight className="ml-1 size-4" />
@@ -172,136 +201,8 @@ export default async function CompaniesPage() {
           />
         </Card>
       ) : (
-        <Card className="overflow-hidden p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">Concesionaria</th>
-                <th className="px-4 py-3 font-medium">Administrador</th>
-                <th className="px-4 py-3 text-center font-medium">Sucursales</th>
-                <th className="px-4 py-3 text-center font-medium">Admins</th>
-                <th className="px-4 py-3 text-center font-medium">Gerentes</th>
-                <th className="px-4 py-3 text-center font-medium">Vendedores</th>
-                <th className="px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3 text-right font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {companies.map((c) => {
-                const agg = byCompany.get(c.id) ?? {
-                  admins: 0,
-                  managers: 0,
-                  sales: 0,
-                  branches: 0,
-                  primaryAdmin: null,
-                };
-                const display = agg.primaryAdmin
-                  ? `${agg.primaryAdmin.first_name} ${agg.primaryAdmin.last_name}`.trim() ||
-                    "—"
-                  : "—";
-
-                return (
-                  <tr
-                    key={c.id}
-                    className="border-t border-border bg-card hover:bg-muted/40"
-                  >
-                    <td className="px-4 py-3 font-medium">
-                      <Link
-                        href={`/super-admin/companies/${c.id}`}
-                        className="flex items-center gap-2 hover:underline"
-                      >
-                        <Shield className="size-3.5 text-accent" />
-                        {c.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {display}
-                    </td>
-                    <td className="px-4 py-3 text-center text-foreground">
-                      {agg.branches}
-                    </td>
-                    <td className="px-4 py-3 text-center text-foreground">
-                      {agg.admins}
-                    </td>
-                    <td className="px-4 py-3 text-center text-foreground">
-                      {agg.managers}
-                    </td>
-                    <td className="px-4 py-3 text-center text-foreground">
-                      {agg.sales}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={c.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <EditCompanyAsSuperAdminDialog
-                          initial={{
-                            id: c.id,
-                            name: c.name,
-                            legal_name: c.legal_name,
-                            cuit: c.cuit,
-                            phone: c.phone,
-                            address: c.address,
-                            logo_url: c.logo_url,
-                            monthly_price: c.monthly_price
-                              ? Number(c.monthly_price)
-                              : null,
-                            subscription_starts_at: c.subscription_starts_at,
-                            subscription_ends_at: c.subscription_ends_at,
-                            status: c.status,
-                          }}
-                          trigger={
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              aria-label="Editar"
-                              className="size-8"
-                            >
-                              <PencilLine className="size-3.5" />
-                            </Button>
-                          }
-                        />
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="icon"
-                          aria-label="Detalle"
-                          className="size-8"
-                        >
-                          <Link href={`/super-admin/companies/${c.id}`}>
-                            <ChevronRight className="size-3.5" />
-                          </Link>
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+        <CompaniesTable rows={rows} />
       )}
     </div>
-  );
-}
-
-function StatusBadge({
-  status,
-}: {
-  status: "active" | "pending" | "suspended";
-}) {
-  const cfg =
-    status === "active"
-      ? { label: "Activa", cls: "bg-success/10 text-success" }
-      : status === "pending"
-        ? {
-            label: "Pendiente",
-            cls: "bg-warning/10 text-warning-foreground",
-          }
-        : { label: "Suspendida", cls: "bg-destructive/10 text-destructive" };
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cfg.cls}`}>
-      {cfg.label}
-    </span>
   );
 }

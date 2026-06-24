@@ -59,6 +59,7 @@ export async function findDuplicateLead(
   const profile = await requireRole([
     "admin",
     "manager",
+    "supervisor",
     "sales",
     "data_provider",
   ]);
@@ -107,6 +108,7 @@ export async function createLead(
   const profile = await requireRole([
     "admin",
     "manager",
+    "supervisor",
     "sales",
     "data_provider",
   ]);
@@ -260,6 +262,7 @@ export async function updateLead(
   const profile = await requireRole([
     "admin",
     "manager",
+    "supervisor",
     "sales",
     "data_provider",
   ]);
@@ -379,7 +382,7 @@ export async function bulkInsertLeads(
     campaign_id?: string;
   } = {},
 ): Promise<BulkInsertResult | { ok: false; message: string }> {
-  const profile = await requireRole(["admin", "manager", "data_provider"]);
+  const profile = await requireRole(["admin", "manager", "supervisor", "data_provider"]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }
@@ -541,6 +544,7 @@ export async function addLeadVehicleAction(
   const profile = await requireRole([
     "admin",
     "manager",
+    "supervisor",
     "sales",
     "data_provider",
   ]);
@@ -589,7 +593,7 @@ export async function deleteLeadVehicleAction(
   vehicleId: string,
   leadId: string,
 ): Promise<Result<{ id: string }>> {
-  await requireRole(["admin", "manager", "sales", "data_provider"]);
+  await requireRole(["admin", "manager", "supervisor", "sales", "data_provider"]);
   const supabase = await createClient();
   const { error } = await supabase
     .from("lead_vehicles")
@@ -609,7 +613,7 @@ export async function reassignLead(
   leadId: string,
   newAssigneeId: string | null,
 ): Promise<Result<{ leadId: string }>> {
-  const profile = await requireRole(["admin", "manager"]);
+  const profile = await requireRole(["admin", "manager", "supervisor"]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }
@@ -637,7 +641,7 @@ export async function reassignLeadsBulk(
   leadIds: string[],
   newAssigneeId: string | null,
 ): Promise<Result<{ updated: number }>> {
-  const profile = await requireRole(["admin", "manager"]);
+  const profile = await requireRole(["admin", "manager", "supervisor"]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }
@@ -681,7 +685,7 @@ export async function updateLeadStatus(
   leadId: string,
   newStatus: (typeof STATUS_VALUES)[number],
 ): Promise<Result<{ leadId: string }>> {
-  const profile = await requireRole(["sales", "admin", "manager"]);
+  const profile = await requireRole(["sales", "admin", "manager", "supervisor"]);
   if (!STATUS_VALUES.includes(newStatus)) {
     return { ok: false, message: "Estado inválido" };
   }
@@ -713,7 +717,7 @@ export async function updateLeadTemperature(
   leadId: string,
   temperature: (typeof TEMPERATURE_VALUES)[number] | null,
 ): Promise<Result<{ leadId: string }>> {
-  const profile = await requireRole(["sales", "admin", "manager"]);
+  const profile = await requireRole(["sales", "admin", "manager", "supervisor"]);
   if (temperature !== null && !TEMPERATURE_VALUES.includes(temperature)) {
     return { ok: false, message: "Temperatura inválida" };
   }
@@ -769,6 +773,7 @@ export async function addLeadNote(
   const profile = await requireRole([
     "admin",
     "manager",
+    "supervisor",
     "sales",
   ]);
   if (!profile.company_id) {
@@ -832,6 +837,11 @@ const taskInputSchema = z.object({
   description: z.string().optional().or(z.literal("")),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
   due_date: z.string().optional().or(z.literal("")), // "YYYY-MM-DD"
+  due_time: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Horario inválido")
+    .optional()
+    .or(z.literal("")), // "HH:MM"
   assigned_to: z.string().uuid().optional().or(z.literal("")),
 });
 
@@ -893,7 +903,7 @@ export async function addLeadTask(
   leadId: string,
   raw: TaskInput,
 ): Promise<Result<{ taskId: string }>> {
-  const profile = await requireRole(["admin", "manager", "sales"]);
+  const profile = await requireRole(["admin", "manager", "supervisor", "sales"]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }
@@ -923,6 +933,7 @@ export async function addLeadTask(
       description: parsed.data.description?.trim() || null,
       priority: parsed.data.priority,
       due_date: parsed.data.due_date || null,
+      due_time: parsed.data.due_time || null,
       assigned_to: assignee.id,
     })
     .select("id")
@@ -931,36 +942,56 @@ export async function addLeadTask(
     return { ok: false, message: error?.message ?? "Error inesperado" };
   }
 
+  revalidateTaskViews(leadId);
+  return { ok: true, taskId: data.id };
+}
+
+// Revalida las vistas que muestran tareas: detalle del lead, "Tareas y Visitas"
+// y los dashboards de inicio (que muestran la agenda del día). Sin esto, al
+// completar/crear una tarea el dashboard quedaba con datos viejos (cache).
+function revalidateTaskViews(leadId: string) {
   revalidatePath(`/admin/leads/${leadId}`);
   revalidatePath(`/manager/leads/${leadId}`);
   revalidatePath(`/sales/leads/${leadId}`);
   revalidatePath("/admin/tasks-visits");
   revalidatePath("/manager/tasks-visits");
   revalidatePath("/sales/tasks-visits");
-  return { ok: true, taskId: data.id };
+  revalidatePath("/admin");
+  revalidatePath("/manager");
+  revalidatePath("/sales");
+  revalidatePath("/dashboard");
 }
 
 export async function toggleLeadTask(
   taskId: string,
   done: boolean,
 ): Promise<Result<{ taskId: string }>> {
-  await requireRole(["admin", "manager", "sales"]);
+  await requireRole(["admin", "manager", "supervisor", "sales"]);
   const supabase = await createClient();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("lead_tasks")
     .update({ completed_at: done ? new Date().toISOString() : null })
-    .eq("id", taskId);
+    .eq("id", taskId)
+    .select("lead_id")
+    .single();
   if (error) return { ok: false, message: error.message };
+  if (data?.lead_id) revalidateTaskViews(data.lead_id);
   return { ok: true, taskId };
 }
 
 export async function deleteLeadTask(
   taskId: string,
 ): Promise<Result<{ taskId: string }>> {
-  await requireRole(["admin", "manager", "sales"]);
+  await requireRole(["admin", "manager", "supervisor", "sales"]);
   const supabase = await createClient();
-  const { error } = await supabase.from("lead_tasks").delete().eq("id", taskId);
+  const { data, error } = await supabase
+    .from("lead_tasks")
+    .delete()
+    .eq("id", taskId)
+    .select("lead_id")
+    .single();
   if (error) return { ok: false, message: error.message };
+  if (data?.lead_id) revalidateTaskViews(data.lead_id);
   return { ok: true, taskId };
 }
 

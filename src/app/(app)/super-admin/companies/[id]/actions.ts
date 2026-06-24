@@ -47,6 +47,26 @@ export async function createBranchAsSuperAdmin(
   return { ok: true };
 }
 
+export async function deleteBranchAsSuperAdmin(
+  branchId: string,
+  companyId: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await requireRole(["super_admin"]);
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("branches").delete().eq("id", branchId);
+  if (error) {
+    // FK restrict (ej. leads colgando de la sucursal) → mensaje claro.
+    return {
+      ok: false,
+      message:
+        "No se pudo eliminar. Puede tener leads, gerencias o usuarios asociados.",
+    };
+  }
+  revalidatePath(`/super-admin/companies/${companyId}`);
+  revalidatePath("/super-admin/companies");
+  return { ok: true };
+}
+
 const updateCompanySchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(2),

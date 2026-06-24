@@ -15,13 +15,13 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import { fullName, normalizePhone } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
 
 export default async function ManagerLeadsPage() {
-  const profile = await requireRole(["manager"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   // RLS filtra automáticamente a sus gerencias.
@@ -56,7 +56,7 @@ export default async function ManagerLeadsPage() {
       .order("created_at", { ascending: false }),
     getAssignableSalesUsers({
       companyId: profile.company_id!,
-      managerId: profile.id,
+      managerId: actingManagerId(profile),
     }),
   ]);
 

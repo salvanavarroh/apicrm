@@ -48,6 +48,47 @@ export async function requestBranch(
   return { ok: true };
 }
 
+// Solicitar varias sucursales de una. El concesionario suele querer cargar
+// todas sus sucursales juntas, sin esperar a que el SuperAdmin apruebe una por
+// una. No hay límite de solicitudes pendientes.
+export async function requestBranches(
+  inputs: RequestBranchInput[],
+): Promise<{ ok: true; count: number } | { ok: false; message: string }> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+  if (!inputs.length) {
+    return { ok: false, message: "Agregá al menos una sucursal" };
+  }
+
+  const rows = [];
+  for (const input of inputs) {
+    const parsed = schema.safeParse(input);
+    if (!parsed.success) {
+      return {
+        ok: false,
+        message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+      };
+    }
+    rows.push({
+      company_id: profile.company_id,
+      requested_by: profile.id,
+      name: parsed.data.name.trim(),
+      address: parsed.data.address || null,
+      city: parsed.data.city || null,
+      phone: parsed.data.phone || null,
+      notes: parsed.data.notes || null,
+    });
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("branch_requests").insert(rows);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/admin/company");
+  return { ok: true, count: rows.length };
+}
+
 export async function cancelBranchRequest(
   id: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
