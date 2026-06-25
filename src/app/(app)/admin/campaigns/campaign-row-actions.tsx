@@ -15,6 +15,7 @@ type Campaign = {
   id: string;
   name: string;
   origin: Origin;
+  origin_other: string | null;
   product_type_id: string | null;
   branch_id: string | null;
   status: "active" | "inactive";
@@ -24,10 +25,12 @@ export function CampaignRowActions({
   campaign,
   branches,
   productTypes,
+  customOrigins = [],
 }: {
   campaign: Campaign;
   branches: { id: string; name: string }[];
   productTypes: { id: string; name: string }[];
+  customOrigins?: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -66,6 +69,7 @@ export function CampaignRowActions({
         branches={branches}
         productTypes={productTypes}
         campaign={campaign}
+        customOrigins={customOrigins}
         trigger={
           <Button
             variant="outline"

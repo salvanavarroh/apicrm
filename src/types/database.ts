@@ -179,6 +179,7 @@ export type Database = {
           id: string
           name: string
           origin: Database["public"]["Enums"]["campaign_origin"]
+          origin_other: string | null
           product_type_id: string | null
           status: Database["public"]["Enums"]["campaign_status"]
           updated_at: string
@@ -190,6 +191,7 @@ export type Database = {
           id?: string
           name: string
           origin: Database["public"]["Enums"]["campaign_origin"]
+          origin_other?: string | null
           product_type_id?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
           updated_at?: string
@@ -201,6 +203,7 @@ export type Database = {
           id?: string
           name?: string
           origin?: Database["public"]["Enums"]["campaign_origin"]
+          origin_other?: string | null
           product_type_id?: string | null
           status?: Database["public"]["Enums"]["campaign_status"]
           updated_at?: string
@@ -821,6 +824,15 @@ export type Database = {
           budget_min: number | null
           campaign_id: string | null
           city: string | null
+          birth_date: string | null
+          external_id: string | null
+          locality: string | null
+          metadata: Json | null
+          national_id: string | null
+          preferred_contact_time: string | null
+          province: string | null
+          source: string | null
+          source_created_at: string | null
           company_id: string
           created_at: string
           created_by: string | null
@@ -862,6 +874,15 @@ export type Database = {
           budget_min?: number | null
           campaign_id?: string | null
           city?: string | null
+          birth_date?: string | null
+          external_id?: string | null
+          locality?: string | null
+          metadata?: Json | null
+          national_id?: string | null
+          preferred_contact_time?: string | null
+          province?: string | null
+          source?: string | null
+          source_created_at?: string | null
           company_id: string
           created_at?: string
           created_by?: string | null
@@ -903,6 +924,15 @@ export type Database = {
           budget_min?: number | null
           campaign_id?: string | null
           city?: string | null
+          birth_date?: string | null
+          external_id?: string | null
+          locality?: string | null
+          metadata?: Json | null
+          national_id?: string | null
+          preferred_contact_time?: string | null
+          province?: string | null
+          source?: string | null
+          source_created_at?: string | null
           company_id?: string
           created_at?: string
           created_by?: string | null

@@ -43,6 +43,7 @@ type Campaign = {
   id: string;
   name: string;
   origin: Origin;
+  origin_other: string | null;
   product_type_id: string | null;
   branch_id: string | null;
   status: "active" | "inactive";
@@ -85,8 +86,10 @@ export function CampaignDialog({
   branches,
   productTypes,
   campaign,
+  customOrigins = [],
 }: {
   trigger: ReactNode;
+  customOrigins?: string[];
   branches: { id: string; name: string }[];
   productTypes: { id: string; name: string }[];
   campaign?: Campaign;
@@ -97,6 +100,7 @@ export function CampaignDialog({
   const [origin, setOrigin] = useState<Origin>(
     campaign?.origin ?? "meta_ads",
   );
+  const [originOther, setOriginOther] = useState(campaign?.origin_other ?? "");
   const [productTypeId, setProductTypeId] = useState<string>(
     campaign?.product_type_id ?? NONE,
   );
@@ -110,6 +114,7 @@ export function CampaignDialog({
     if (next) {
       setName(campaign?.name ?? "");
       setOrigin(campaign?.origin ?? "meta_ads");
+      setOriginOther(campaign?.origin_other ?? "");
       setProductTypeId(campaign?.product_type_id ?? NONE);
       setBranchId(campaign?.branch_id ?? NONE);
       setError(null);
@@ -118,11 +123,16 @@ export function CampaignDialog({
   }
 
   function submit() {
+    if (origin === "other" && !originOther.trim()) {
+      setError("Escribí el origen cuando elegís “Otros”.");
+      return;
+    }
     startTransition(async () => {
       const result = await upsertCampaign({
         id: campaign?.id,
         name,
         origin,
+        origin_other: origin === "other" ? originOther.trim() : "",
         product_type_id: productTypeId === NONE ? "" : productTypeId,
         branch_id: branchId === NONE ? "" : branchId,
         status: campaign?.status ?? "active",
@@ -177,6 +187,26 @@ export function CampaignDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {origin === "other" && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="cmp-origin-other">Especificá el origen</Label>
+              <Input
+                id="cmp-origin-other"
+                value={originOther}
+                onChange={(e) => setOriginOther(e.target.value)}
+                placeholder="ej: Feria, Radio, Volante…"
+                list="cmp-origin-other-options"
+                required
+              />
+              {/* Orígenes "Otros" ya usados → reutilizables (elegibles). */}
+              <datalist id="cmp-origin-other-options">
+                {customOrigins.map((o) => (
+                  <option key={o} value={o} />
+                ))}
+              </datalist>
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label>Tipo de producto (opcional)</Label>

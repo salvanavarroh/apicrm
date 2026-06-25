@@ -22,14 +22,20 @@ const ORIGINS = [
   "other",
 ] as const;
 
-const inputSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().min(2, "Nombre obligatorio"),
-  origin: z.enum(ORIGINS),
-  product_type_id: z.string().uuid().optional().or(z.literal("")),
-  branch_id: z.string().uuid().optional().or(z.literal("")),
-  status: z.enum(["active", "inactive"]).default("active"),
-});
+const inputSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    name: z.string().min(2, "Nombre obligatorio"),
+    origin: z.enum(ORIGINS),
+    origin_other: z.string().optional().or(z.literal("")),
+    product_type_id: z.string().uuid().optional().or(z.literal("")),
+    branch_id: z.string().uuid().optional().or(z.literal("")),
+    status: z.enum(["active", "inactive"]).default("active"),
+  })
+  .refine((d) => d.origin !== "other" || Boolean(d.origin_other?.trim()), {
+    message: "Especificá el origen cuando elegís “Otros”",
+    path: ["origin_other"],
+  });
 
 export type CampaignInput = z.input<typeof inputSchema>;
 export type CampaignResult =
@@ -51,6 +57,10 @@ export async function upsertCampaign(
     company_id: profile.company_id,
     name: parsed.data.name.trim(),
     origin: parsed.data.origin,
+    origin_other:
+      parsed.data.origin === "other"
+        ? (parsed.data.origin_other?.trim() ?? null)
+        : null,
     product_type_id: parsed.data.product_type_id || null,
     branch_id: parsed.data.branch_id || null,
     status: parsed.data.status,

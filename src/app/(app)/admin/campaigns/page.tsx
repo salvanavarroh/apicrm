@@ -5,9 +5,9 @@ import { Card } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
-import { CampaignDialog, ORIGIN_LABELS } from "./campaign-dialog";
+import { CampaignDialog } from "./campaign-dialog";
 import type { Origin } from "./campaign-dialog";
-import { CampaignRowActions } from "./campaign-row-actions";
+import { CampaignsTable, type CampaignRow } from "./campaigns-table";
 
 export default async function CampaignsPage() {
   const profile = await requireRole(["admin"]);
@@ -33,6 +33,31 @@ export default async function CampaignsPage() {
   const branches = branchesRes.data ?? [];
   const productTypes = ptsRes.data ?? [];
 
+  // Orígenes "Otros" ya cargados (distintos) → reutilizables en el diálogo.
+  const customOrigins = Array.from(
+    new Set(
+      campaigns
+        .filter((c) => c.origin === "other" && c.origin_other)
+        .map((c) => c.origin_other!.trim()),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const rows: CampaignRow[] = campaigns.map((c) => ({
+    id: c.id,
+    name: c.name,
+    origin: c.origin as Origin,
+    origin_other: c.origin_other,
+    product_type_id: c.product_type_id,
+    branch_id: c.branch_id,
+    status: c.status as "active" | "inactive",
+    ptName: c.product_type_id
+      ? (productTypes.find((p) => p.id === c.product_type_id)?.name ?? null)
+      : null,
+    branchName: c.branch_id
+      ? (branches.find((b) => b.id === c.branch_id)?.name ?? null)
+      : null,
+  }));
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-start justify-between gap-4">
@@ -46,6 +71,7 @@ export default async function CampaignsPage() {
         <CampaignDialog
           branches={branches}
           productTypes={productTypes}
+          customOrigins={customOrigins}
           trigger={
             <Button>
               <Plus className="mr-1 size-4" /> Nueva campaña
@@ -62,67 +88,12 @@ export default async function CampaignsPage() {
           </p>
         </Card>
       ) : (
-        <Card className="overflow-hidden p-0">
-          <table className="w-full text-sm">
-            <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">Campaña</th>
-                <th className="px-4 py-3 font-medium">Origen</th>
-                <th className="px-4 py-3 font-medium">Tipo de producto</th>
-                <th className="px-4 py-3 font-medium">Sucursal</th>
-                <th className="px-4 py-3 font-medium">Estado</th>
-                <th className="px-4 py-3 text-right font-medium">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {campaigns.map((c) => {
-                const ptName = c.product_type_id
-                  ? productTypes.find((p) => p.id === c.product_type_id)?.name
-                  : null;
-                const branchName = c.branch_id
-                  ? branches.find((b) => b.id === c.branch_id)?.name
-                  : null;
-                return (
-                  <tr key={c.id} className="border-t border-border bg-card hover:bg-muted/40">
-                    <td className="px-4 py-3 font-medium">
-                      <span className="flex items-center gap-2">
-                        <Megaphone className="size-3.5 text-accent" />
-                        {c.name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {ORIGIN_LABELS[c.origin as Origin]}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {ptName ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {branchName ?? "Todas"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={
-                          c.status === "active"
-                            ? "rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success"
-                            : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                        }
-                      >
-                        {c.status === "active" ? "Activa" : "Inactiva"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <CampaignRowActions
-                        campaign={{ ...c, origin: c.origin as Origin }}
-                        branches={branches}
-                        productTypes={productTypes}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+        <CampaignsTable
+          rows={rows}
+          branches={branches}
+          productTypes={productTypes}
+          customOrigins={customOrigins}
+        />
       )}
     </div>
   );

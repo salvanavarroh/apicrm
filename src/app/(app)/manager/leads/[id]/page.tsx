@@ -2,12 +2,19 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { WhatsappIcon } from "@/components/icons/whatsapp";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import {
   NotesSection,
   type LeadNote,
 } from "@/components/leads/notes-section";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
+import { StatusChanger } from "@/components/leads/status-changer";
+import {
+  TemperatureBadge,
+  TemperatureChanger,
+} from "@/components/leads/temperature-control";
+import { TemplatesModal } from "@/components/leads/templates-modal";
 import {
   TasksSection,
   type LeadTask,
@@ -38,8 +45,15 @@ export default async function ManagerLeadDetailPage({
   const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
-  const [{ data: lead }, { data: notes }, { data: tasks }, { data: visits }, team] =
-    await Promise.all([
+  const [
+    { data: lead },
+    { data: notes },
+    { data: tasks },
+    { data: visits },
+    team,
+    { data: company },
+    { data: templates },
+  ] = await Promise.all([
       supabase
         .from("leads")
         .select(
@@ -88,9 +102,29 @@ export default async function ManagerLeadDetailPage({
         companyId: profile.company_id!,
         managerId: actingManagerId(profile),
       }),
+      profile.company_id
+        ? supabase
+            .from("companies")
+            .select("name, phone")
+            .eq("id", profile.company_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("message_templates")
+        .select("id, label, body, scope")
+        .order("scope", { ascending: true })
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
     ]);
 
   if (!lead) notFound();
+
+  const templateRows = (templates ?? []).map((t) => ({
+    id: t.id,
+    label: t.label,
+    body: t.body,
+    scope: t.scope as "global" | "user",
+  }));
 
   const noteRows: LeadNote[] = (notes ?? []).map((n) => ({
     id: n.id,
@@ -148,19 +182,46 @@ export default async function ManagerLeadDetailPage({
           </h1>
           <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
             <LeadStatusBadge status={lead.status} />
+            {lead.temperature && (
+              <TemperatureBadge temperature={lead.temperature} />
+            )}
             <span>·</span>
             <span>
               {new Date(lead.created_at).toLocaleDateString("es-AR")}
             </span>
           </div>
         </div>
-        <ReassignDialog
-          leadId={lead.id}
-          leadProductTypeId={lead.product_type_id}
-          currentAssigneeId={lead.assigned_user_id}
-          users={team}
-          trigger={<Button variant="outline">Reasignar</Button>}
-        />
+        {/* El gerente/supervisor opera el lead igual que un vendedor:
+            estado, temperatura, mensajería; además puede reasignar. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusChanger leadId={lead.id} current={lead.status} />
+          <TemperatureChanger leadId={lead.id} current={lead.temperature} />
+          <TemplatesModal
+            leadId={lead.id}
+            templates={templateRows}
+            trigger={
+              <Button className="bg-[#25D366] text-white hover:bg-[#1ebe5d]">
+                <WhatsappIcon className="mr-2 size-4" /> Enviar mensaje
+              </Button>
+            }
+            leadPhone={lead.phone}
+            context={{
+              nombre: lead.first_name ?? "",
+              nombre_completo: fullName(lead.first_name, lead.last_name),
+              vendedor: fullName(profile.first_name, profile.last_name),
+              vehiculo: lead.vehicle_model ?? "el vehículo",
+              concesionaria: company?.name ?? "",
+              telefono_concesionaria: company?.phone ?? "",
+            }}
+          />
+          <ReassignDialog
+            leadId={lead.id}
+            leadProductTypeId={lead.product_type_id}
+            currentAssigneeId={lead.assigned_user_id}
+            users={team}
+            trigger={<Button variant="outline">Reasignar</Button>}
+          />
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
