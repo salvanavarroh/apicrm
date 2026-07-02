@@ -3,7 +3,7 @@
 Documento funcional del CRM: roles, entidades, asignación de leads, reglas de
 reingreso, duplicados, multi-gerente, multi-consulta, impersonación,
 transiciones de estado, plantillas y visibilidad por rol. Refleja el estado del
-sistema al **19/06/2026** (sprints 13–14).
+sistema al **02/07/2026** (sprints 13–15).
 
 > Para detalle de implementación, las referencias de código están al pie de cada
 > sección. La fuente de verdad de la lógica de asignación es la función SQL
@@ -13,13 +13,14 @@ sistema al **19/06/2026** (sprints 13–14).
 
 ## 1. Roles
 
-Enum `user_role`: `super_admin`, `admin`, `manager`, `sales`, `data_provider`.
+Enum `user_role`: `super_admin`, `admin`, `manager`, `supervisor`, `sales`, `data_provider`.
 
 | Rol | Alcance | Qué hace |
 |-----|---------|----------|
 | **super_admin** | Plataforma (sin empresa) | Soporte global. Ve todo (solo lectura sobre leads). Crea empresas, aprueba sucursales, factura. Puede **"acceder como"** admin/gerente. |
 | **admin** | Una empresa (concesionaria) | Dueño de la operación. Crea gerentes, vendedores y proveedores. Ve y edita todos los leads de su empresa. |
 | **manager** (gerente) | Sus gerencias (sucursal + tipo de producto) | Gestiona su equipo de vendedores, su pipeline y el toggle de asignación automática. |
+| **supervisor** (sub-gerente) | El equipo de **su** gerente (via `manager_id`) | Lo crea el gerente desde Equipo. Reutiliza las pantallas del gerente y opera su equipo/leads (reasignar, tareas, métricas), pero **no** administra gerencias ni crea otros supervisores. Ver §19. |
 | **sales** (vendedor) | Sus leads asignados | Trabaja el pipeline de sus leads (estado, temperatura, notas, tareas, visitas, presupuestos). |
 | **data_provider** (proveedor) | Sus cargas | Carga leads (manual / CSV). Solo ve/edita los que creó, mientras estén en estado `new`. |
 
@@ -378,6 +379,9 @@ Código: `src/app/(app)/layout.tsx`, `src/components/app-sidebar.tsx`.
 3. **Importación CSV / bulk** (admin / **gerente** / proveedor): carga masiva con
    defaults de sucursal/tipo/campaña. El gerente importa desde
    `/manager/leads/import`, scopeado a sus gerencias.
+4. **Carga con IA (en diseño, no implementada)**: uploader de archivo →
+   mapeo de columnas con IA → pantalla de revisión → commit. Ver el diseño y el
+   estado en `docs/carga-leads-ia.md`.
 
 Un lead **sin** sucursal o **sin** tipo de producto queda en el **pool** ("sin
 clasificar"); al clasificarlo (asignarle ambos) se dispara la auto-asignación.
@@ -475,3 +479,66 @@ Mejoras / features:
 Migraciones aplicadas al piloto: `20260619120000_todos_wildcard_assignment`,
 `20260619130000_sales_lead_export_perm_avatars`, `20260619140000_message_templates`,
 `20260619150000_vehicle_brand`.
+
+---
+
+## 19. Resumen de avances (sprint 15 — 24/06 a 02/07/2026)
+
+### Rol Supervisor (sub-gerente)
+Nuevo `user_role` = `supervisor`. Lo crea **el gerente** desde `/manager/team`
+("Invitar supervisor"); queda atado a ese gerente por `manager_id`. **Reutiliza
+las pantallas del gerente** (`homePathForRole('supervisor') = '/manager'`) y
+opera el equipo y los leads de su gerente padre. No administra Gerencias ni crea
+otros supervisores.
+
+- **RLS**: helper `public.acting_manager_id()` (gerente → su id; supervisor → el
+  `manager_id` de su gerente). Policies del supervisor que espejan las del
+  gerente (leads, forms, quotes, sales, user_product_types) scopeadas por
+  `acting_manager_id()`. Son aditivas (OR con las del gerente).
+- **App**: helper `actingManagerId(profile)` en `src/lib/auth.ts`; las páginas de
+  `/manager/*` aceptan `["manager","supervisor"]` y usan el id efectivo.
+- Nav del supervisor = nav del gerente sin "Gerencias".
+
+Código: `supabase/migrations/20260624130000_supervisor_rls_task_time.sql`,
+`src/lib/auth.ts`, `src/components/app-sidebar.tsx`,
+`src/app/(app)/manager/team/*`.
+
+### Otros cambios (pedido Salvador)
+1. **Solicitudes de sucursal múltiples**: el admin pide varias sucursales de una
+   (sin bloqueo de "una a la vez"). `branch-request-actions.ts` (`requestBranches`).
+2. **Listado de usuarios (admin)**: el rol del gerente muestra sus **tipos de
+   producto**; sus **vendedores se despliegan** debajo; nuevo **filtro
+   "Vendedores"**. §10, `admin/users/users-table.tsx`.
+3. **Tareas con horario**: nueva columna `lead_tasks.due_time`. Se ordena por
+   `(due_date, due_time)` en el dashboard y en Tareas y Visitas. El dashboard
+   **revalida** al crear/completar/borrar tareas.
+4. **Fix**: el lead cargado por **Proveedor de datos** ahora aparece en el
+   dashboard del gerente (se quitó el filtro `campaign_id !== null`).
+5. **Campañas**: +5 canales de origen (`instagram`, `tiktok_ads`, `marketplace`,
+   `portal_usados`, `inbound_call`) y **origen "Otros"** con texto libre
+   (`campaigns.origin_other`), reutilizable (datalist) y **filtrable** en el
+   listado. §14.
+6. **Concesionarias (super_admin)**: búsqueda por nombre + orden por
+   sucursales/gerentes/vendedores. En el **detalle de empresa** se cuentan los
+   gerentes por sucursal vía `managements` (no por `profiles.branch_id`), se
+   arregló el conteo de proveedores, y los botones **Ver** (expande usuarios de
+   la sucursal) y **Eliminar** funcionan.
+7. **Detalle del lead — gerente/supervisor**: ahora opera el lead **como un
+   vendedor** (cambiar estado, temperatura, enviar plantillas/WhatsApp), además
+   de Reasignar. Pendiente decidir: generar presupuestos/registrar venta (atados
+   a `vendor_id`). `manager/leads/[id]/page.tsx`.
+
+### Campos nuevos en `leads` (base para la carga con IA)
+Aditivos y nullable: `province`, `locality`, `national_id` (DNI/CUIT),
+`birth_date`, `preferred_contact_time`, `source`, `external_id` (dedup por
+fuente), `source_created_at`, `metadata` (jsonb, comodín para columnas
+desconocidas). Índice parcial `(company_id, external_id)`. "Financiación" y
+"usado en parte de pago" **reusan** `declared_payment_method`/`has_used_car`.
+Todavía **no** están en el alta manual ni en el importador (se cablean con la
+carga IA). Ver `docs/carga-leads-ia.md`.
+
+Migraciones aplicadas al piloto: `20260624120000_supervisor_role_campaign_origins`,
+`20260624130000_supervisor_rls_task_time`, `20260625120000_campaign_origin_other`,
+`20260625130000_leads_import_fields`. Además se **backfilleó** el ledger
+`schema_migrations` (12 migraciones de sprints 9–14 estaban aplicadas al schema
+pero sin registrar).

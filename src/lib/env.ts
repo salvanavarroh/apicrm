@@ -7,6 +7,7 @@ const serverSchema = z.object({
   RESEND_FROM_EMAIL: z.string().email().optional(),
   RESEND_FROM_NAME: z.string().optional(),
   SENTRY_DSN: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
 });
 
 const clientSchema = z.object({
@@ -31,5 +32,6 @@ export function getServerEnv() {
     RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL,
     RESEND_FROM_NAME: process.env.RESEND_FROM_NAME,
     SENTRY_DSN: process.env.SENTRY_DSN,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   });
 }

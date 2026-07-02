@@ -1,12 +1,12 @@
 import { ChevronLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 
-import { CsvImporter } from "@/components/leads/csv-importer";
+import { AiLeadImporter } from "@/components/leads/ai-lead-importer";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function ImportLeadsProviderPage() {
+export default async function ImportLeadsAiProviderPage() {
   const profile = await requireRole(["data_provider"]);
   const supabase = await createClient();
 
@@ -25,35 +25,37 @@ export default async function ImportLeadsProviderPage() {
       >
         <ChevronLeft className="size-4" /> Volver
       </Link>
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Importar leads desde CSV
+      <header className="flex flex-col gap-1">
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+          <Sparkles className="size-5 text-primary" /> Carga de leads con IA
         </h1>
         <p className="text-sm text-muted-foreground">
-          Las filas se cargan al pool sin clasificar — el Admin las clasifica
-          después.
+          Subí cualquier CSV o Excel: la IA mapea las columnas y revisás antes de
+          confirmar. Los leads se cargan al pool sin clasificar — el Admin los
+          clasifica después.
         </p>
       </header>
 
-      <Link href="/data-provider/leads/import-ai">
-        <Card className="flex items-center gap-3 border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
-          <Sparkles className="size-5 shrink-0 text-primary" />
-          <div className="text-sm">
-            <p className="font-medium text-foreground">Nuevo: carga con IA</p>
-            <p className="text-xs text-muted-foreground">
-              Subí cualquier archivo (aunque las columnas no coincidan) y la IA
-              las mapea sola.
-            </p>
-          </div>
-        </Card>
-      </Link>
+      <Card className="p-3 text-xs text-muted-foreground">
+        ¿Preferís la plantilla estructurada?{" "}
+        <Link
+          href="/data-provider/leads/import"
+          className="font-medium text-foreground underline"
+        >
+          Importar desde CSV con columnas fijas
+        </Link>
+        .
+      </Card>
 
-      <CsvImporter
+      <AiLeadImporter
+        companyId={profile.company_id!}
         redirectTo="/data-provider/leads"
         branches={[]}
         productTypes={[]}
         campaigns={(campaigns ?? []).map((c) => ({ id: c.id, label: c.name }))}
-        showDefaults={false}
+        vendors={[]}
+        showClassification={false}
+        showDistribution={false}
       />
     </div>
   );
