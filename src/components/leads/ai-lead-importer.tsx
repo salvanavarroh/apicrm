@@ -80,11 +80,11 @@ const STATUS_CLASSES: Record<MappedRowStatus, string> = {
   duplicate: "bg-muted text-muted-foreground",
 };
 
-function fileTypeFromName(name: string): ImportFileType | null {
+// Pista de formato por extensión. El parser del server decide por CONTENIDO,
+// así que esto es sólo una pista (default: tratarlo como texto/CSV).
+function fileTypeHint(name: string): ImportFileType {
   const ext = name.split(".").pop()?.toLowerCase();
-  if (ext === "csv") return "csv";
-  if (ext === "xlsx" || ext === "xls") return "excel";
-  return null;
+  return ext === "xlsx" || ext === "xls" || ext === "xlsm" ? "excel" : "csv";
 }
 
 export function AiLeadImporter({
@@ -138,15 +138,11 @@ export function AiLeadImporter({
       toast.error("Elegí un archivo primero");
       return;
     }
-    const ft = fileTypeFromName(file.name);
-    if (!ft) {
-      toast.error("Formato no soportado (usá CSV o Excel)");
-      return;
-    }
+    const ft = fileTypeHint(file.name);
     setStep("analyzing");
     try {
       const supabase = createClient();
-      const ext = file.name.split(".").pop()!.toLowerCase();
+      const ext = file.name.split(".").pop()?.toLowerCase() || "csv";
       const path = `${companyId}/${crypto.randomUUID()}.${ext}`;
       const { error } = await supabase.storage
         .from("lead-imports")
@@ -323,14 +319,16 @@ export function AiLeadImporter({
           <Input
             id="ai-file"
             type="file"
-            accept=".csv,.xlsx,.xls,text/csv"
+            accept=".csv,.tsv,.txt,.xlsx,.xls,.xlsm,text/csv,text/tab-separated-values,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             disabled={analyzing}
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="max-w-md"
           />
           <p className="text-xs text-muted-foreground">
-            La IA lee los encabezados y una muestra para mapear las columnas.
-            Después revisás cómo quedó antes de confirmar.
+            CSV, TSV o Excel, en cualquier codificación (UTF-8, UTF-16, Latin-1)
+            y con cualquier separador. La IA lee los encabezados y una muestra
+            para mapear las columnas; después revisás cómo quedó antes de
+            confirmar.
           </p>
           <Button
             onClick={handleAnalyze}
