@@ -14,19 +14,58 @@ export type ParsedFile = {
   rows: Record<string, string>[];
 };
 
+// Saca NUL y BOM sueltos que dejan algunos exports (UTF-16 / Excel).
+function cleanCell(s: string): string {
+  return s.replace(/\u0000/g, "").replace(/\uFEFF/g, "").trim();
+}
+
 function stringify(value: unknown): string {
   if (value === null || value === undefined) return "";
-  return String(value).trim();
+  return cleanCell(String(value));
+}
+
+// Detecta el encoding por BOM y decodifica. Muchos exports (Meta, Excel "CSV
+// UTF-16") vienen en UTF-16 LE separados por tabs; leerlos como UTF-8 corrompe
+// headers y acentos ("Generación" → "Generaci�n") y rompe el mapeo con IA.
+function decodeBuffer(buffer: Buffer): string {
+  if (buffer.length >= 2 && buffer[0] === 0xff && buffer[1] === 0xfe) {
+    return buffer.toString("utf16le", 2);
+  }
+  if (buffer.length >= 2 && buffer[0] === 0xfe && buffer[1] === 0xff) {
+    // UTF-16 BE → swap de bytes y decodificar como LE.
+    const swapped = Buffer.from(buffer.subarray(2));
+    for (let i = 0; i + 1 < swapped.length; i += 2) {
+      const t = swapped[i];
+      swapped[i] = swapped[i + 1];
+      swapped[i + 1] = t;
+    }
+    return swapped.toString("utf16le");
+  }
+  if (
+    buffer.length >= 3 &&
+    buffer[0] === 0xef &&
+    buffer[1] === 0xbb &&
+    buffer[2] === 0xbf
+  ) {
+    return buffer.toString("utf8", 3);
+  }
+  // Sin BOM: si hay muchos bytes NUL en el arranque, casi seguro es UTF-16 LE.
+  const head = buffer.subarray(0, Math.min(buffer.length, 200));
+  let nulls = 0;
+  for (const b of head) if (b === 0x00) nulls++;
+  if (nulls > head.length / 4) return buffer.toString("utf16le");
+  return buffer.toString("utf8");
 }
 
 function parseCsvBuffer(buffer: Buffer): ParsedFile {
-  const text = buffer.toString("utf-8");
+  const text = decodeBuffer(buffer);
+  // delimiter sin setear → Papa auto-detecta coma / tab / ; / |.
   const result = Papa.parse<Record<string, unknown>>(text, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (h) => h.trim(),
+    transformHeader: (h) => cleanCell(h),
   });
-  const headers = (result.meta.fields ?? []).filter(Boolean);
+  const headers = (result.meta.fields ?? []).map(cleanCell).filter(Boolean);
   const rows: Record<string, string>[] = (result.data ?? []).map((raw) => {
     const out: Record<string, string> = {};
     for (const h of headers) out[h] = stringify(raw[h]);

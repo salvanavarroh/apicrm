@@ -36,7 +36,7 @@ export default async function ImportLeadsProviderPage() {
       </header>
 
       <Link href="/data-provider/leads/import-ai">
-        <Card className="flex items-center gap-3 border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
+        <Card className="flex flex-row items-center gap-3 border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
           <Sparkles className="size-5 shrink-0 text-primary" />
           <div className="text-sm">
             <p className="font-medium text-foreground">Nuevo: carga con IA</p>

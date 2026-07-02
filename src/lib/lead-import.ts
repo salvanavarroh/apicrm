@@ -356,15 +356,14 @@ function applyRow(
         break;
       }
       case "date": {
+        // Campo opcional: si no parsea, lo dejamos vacío sin marcar la fila.
         const d = coerceDate(value);
         if (d) data.birth_date = d;
-        else warnings.push(`Fecha inválida: ${value}`);
         break;
       }
       case "datetime": {
         const d = coerceDateTime(value);
         if (d) data.source_created_at = d;
-        else warnings.push(`Fecha/hora inválida: ${value}`);
         break;
       }
       case "notes":

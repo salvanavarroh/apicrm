@@ -30,7 +30,7 @@ const ALL_TARGETS = [
 ];
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-4o-mini";
+const MODEL = "gpt-4.1-mini";
 
 function buildSystemPrompt(): string {
   const catalog = TARGET_FIELDS.map(
@@ -41,17 +41,33 @@ function buildSystemPrompt(): string {
     "un concesionario de autos a los campos de nuestro CRM.",
     "",
     "Para CADA columna del archivo devolvés a qué campo destino corresponde.",
-    "Elegí el destino mirando el nombre de la columna Y los valores de ejemplo.",
+    "El NOMBRE de la columna es la señal MÁS FUERTE: si se llama igual o muy",
+    "parecido a un campo destino, mapealo a ese campo salvo que los valores de",
+    "ejemplo lo contradigan claramente. Recién si el nombre no ayuda, mirá los",
+    "valores.",
     "",
     "Campos destino disponibles:",
     catalog,
     "",
     "Destinos especiales:",
-    "- full_name: usalo cuando una sola columna trae nombre y apellido juntos.",
+    "- full_name: una sola columna con nombre y apellido juntos (ej. columna",
+    "  'full_name', 'nombre', 'nombre y apellido', 'cliente').",
     "- metadata: columnas estructuradas útiles pero sin campo propio (ids de",
-    "  anuncio/campaña de la fuente, flags, etc.). NO uses metadata para texto",
-    "  humano libre: eso va a initial_notes.",
-    "- ignore: columnas sin valor (vacías, separadores, ids internos inútiles).",
+    "  anuncio/campaña/formulario de la fuente, flags como is_organic, etc.). NO",
+    "  uses metadata para texto humano libre: eso va a initial_notes.",
+    "- ignore: columnas realmente inútiles (vacías, separadores).",
+    "",
+    "Mapeos frecuentes de exports de Meta Lead Ads (guía, no obligatoria):",
+    "- full_name→full_name, phone_number→phone, email→email.",
+    "- modelo/vehiculo→vehicle_model, consulta/mensaje/comentario→initial_notes.",
+    "- province→province, city/ciudad→city, horario_de_contacto→preferred_contact_time.",
+    "- platform→utm_source, campaign_name→utm_campaign, ad_name→utm_content,",
+    "  adset_name→utm_term.",
+    "- id (id del lead en la fuente)→external_id, created_time→source_created_at.",
+    "- ad_id, adset_id, campaign_id, form_id, form_name, is_organic,",
+    "  retailer_item_id→metadata.",
+    "- ¡Ojo! ad_name/adset_name/campaign_name son nombres de anuncio/campaña, NO",
+    "  el nombre de la persona: NUNCA los mapees a full_name/first_name.",
     "",
     "Reglas:",
     "- Cada columna del archivo aparece EXACTAMENTE una vez en la respuesta,",

@@ -2,7 +2,6 @@ import { ChevronLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { AiLeadImporter } from "@/components/leads/ai-lead-importer";
-import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -35,17 +34,6 @@ export default async function ImportLeadsAiProviderPage() {
           clasifica después.
         </p>
       </header>
-
-      <Card className="p-3 text-xs text-muted-foreground">
-        ¿Preferís la plantilla estructurada?{" "}
-        <Link
-          href="/data-provider/leads/import"
-          className="font-medium text-foreground underline"
-        >
-          Importar desde CSV con columnas fijas
-        </Link>
-        .
-      </Card>
 
       <AiLeadImporter
         companyId={profile.company_id!}

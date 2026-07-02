@@ -474,44 +474,65 @@ export function AiLeadImporter({
                 <TableHead className="text-xs">Teléfono</TableHead>
                 <TableHead className="text-xs">Email</TableHead>
                 <TableHead className="text-xs">Vehículo</TableHead>
+                <TableHead className="text-xs">Ubicación</TableHead>
+                <TableHead className="text-xs">Horario</TableHead>
                 <TableHead className="text-xs">Notas</TableHead>
+                <TableHead className="text-xs">Detalle</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {result?.preview.map((row) => (
-                <TableRow key={row.index}>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
-                        STATUS_CLASSES[row.status],
-                      )}
-                      title={[...row.errors, ...row.warnings].join(" · ")}
-                    >
-                      {MAPPED_STATUS_META[row.status].label}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {[row.data.first_name, row.data.last_name]
-                      .filter(Boolean)
-                      .join(" ") || "—"}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {row.data.phone ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {row.data.email ?? "—"}
-                  </TableCell>
-                  <TableCell className="text-xs">
-                    {[row.data.vehicle_brand, row.data.vehicle_model]
-                      .filter(Boolean)
-                      .join(" ") || "—"}
-                  </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
-                    {row.data.initial_notes ?? "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {result?.preview.map((row) => {
+                const detail = [...row.errors, ...row.warnings].join(" · ");
+                const ubicacion = [
+                  row.data.locality,
+                  row.data.city,
+                  row.data.province,
+                ]
+                  .filter(Boolean)
+                  .join(", ");
+                return (
+                  <TableRow key={row.index}>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          STATUS_CLASSES[row.status],
+                        )}
+                      >
+                        {MAPPED_STATUS_META[row.status].label}
+                      </span>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {[row.data.first_name, row.data.last_name]
+                        .filter(Boolean)
+                        .join(" ") || "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {row.data.phone ?? "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {row.data.email ?? "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {[row.data.vehicle_brand, row.data.vehicle_model]
+                        .filter(Boolean)
+                        .join(" ") || "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {ubicacion || "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-xs">
+                      {row.data.preferred_contact_time ?? "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">
+                      {row.data.initial_notes ?? "—"}
+                    </TableCell>
+                    <TableCell className="max-w-[220px] text-[11px] text-amber-700">
+                      {detail || "—"}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
