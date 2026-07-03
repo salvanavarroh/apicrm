@@ -81,12 +81,23 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(days / 30)} m`;
 }
 
+// Cuántas tarjetas se muestran por columna antes de "Cargar más".
+const PER_COLUMN = 25;
+
 type Props = {
   leads: KanbanLead[];
   detailHrefPrefix: string;
+  // Total real en la base (puede ser mayor que `leads` si se topó la carga).
+  total?: number;
+  capped?: boolean;
 };
 
-export function KanbanBoard({ leads, detailHrefPrefix }: Props) {
+export function KanbanBoard({
+  leads,
+  detailHrefPrefix,
+  total,
+  capped,
+}: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -141,6 +152,13 @@ export function KanbanBoard({ leads, detailHrefPrefix }: Props) {
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
+      {capped && total && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          Mostrando los {optimistic.length.toLocaleString("es-AR")} leads más
+          recientes de {total.toLocaleString("es-AR")}. Usá la tabla y sus
+          filtros para acotar la búsqueda.
+        </p>
+      )}
       <div className="overflow-x-auto pb-2">
         <div className="grid auto-rows-min grid-flow-col gap-3 [grid-auto-columns:minmax(220px,1fr)]">
           {COLUMN_ORDER.map((status) => {
@@ -177,6 +195,10 @@ function Column({
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: status });
   const tint = COLUMN_TINT[status];
+  const [visible, setVisible] = useState(PER_COLUMN);
+  // Si la columna se achica (drag out), no dejamos `visible` colgado alto.
+  const shown = items.slice(0, visible);
+  const remaining = items.length - shown.length;
   return (
     <div
       ref={setNodeRef}
@@ -199,13 +221,22 @@ function Column({
             Sin leads
           </p>
         )}
-        {items.map((lead) => (
+        {shown.map((lead) => (
           <Card
             key={lead.id}
             lead={lead}
             detailHrefPrefix={detailHrefPrefix}
           />
         ))}
+        {remaining > 0 && (
+          <button
+            type="button"
+            onClick={() => setVisible((v) => v + PER_COLUMN)}
+            className="rounded-md border border-dashed border-border bg-card/60 py-2 text-xs font-medium text-muted-foreground hover:bg-card"
+          >
+            Cargar más ({remaining.toLocaleString("es-AR")})
+          </button>
+        )}
       </div>
     </div>
   );

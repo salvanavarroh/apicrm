@@ -4,36 +4,39 @@ import Link from "next/link";
 import { LeadsTable, type LeadsTableRow } from "@/components/leads/leads-table";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
+import { fetchPaged } from "@/lib/leads-fetch";
 import { createClient } from "@/lib/supabase/server";
+
+const LEADS_SELECT = `
+  id,
+  first_name,
+  last_name,
+  phone,
+  email,
+  status,
+  temperature,
+  city,
+  vehicle_model,
+  vehicle_version,
+  created_at,
+  branches:branch_id (name),
+  product_types:product_type_id (name),
+  campaigns:campaign_id (name)
+`;
 
 export default async function DataProviderLeadsPage() {
   const profile = await requireRole(["data_provider"]);
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("leads")
-    .select(
-      `
-        id,
-        first_name,
-        last_name,
-        phone,
-        email,
-        status,
-        temperature,
-        city,
-        vehicle_model,
-        vehicle_version,
-        created_at,
-        branches:branch_id (name),
-        product_types:product_type_id (name),
-        campaigns:campaign_id (name)
-      `,
-    )
-    .eq("created_by", profile.id)
-    .order("created_at", { ascending: false });
+  const leadsPage = await fetchPaged((withCount) =>
+    supabase
+      .from("leads")
+      .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
+      .eq("created_by", profile.id)
+      .order("created_at", { ascending: false }),
+  );
 
-  const rows: LeadsTableRow[] = (data ?? []).map((l) => ({
+  const rows: LeadsTableRow[] = leadsPage.rows.map((l) => ({
     id: l.id,
     first_name: l.first_name,
     last_name: l.last_name,
@@ -80,6 +83,8 @@ export default async function DataProviderLeadsPage() {
         detailHrefPrefix="/data-provider/leads"
         showAssignee={false}
         editableTemperature={false}
+        total={leadsPage.total}
+        capped={leadsPage.capped}
       />
     </div>
   );

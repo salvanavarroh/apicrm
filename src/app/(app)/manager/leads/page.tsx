@@ -16,48 +16,51 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { actingManagerId, requireRole } from "@/lib/auth";
+import { fetchPaged } from "@/lib/leads-fetch";
 import { fullName, normalizePhone } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
+
+const LEADS_SELECT = `
+  id,
+  first_name,
+  last_name,
+  phone,
+  email,
+  city,
+  vehicle_model,
+  vehicle_version,
+  status,
+  temperature,
+  status_changed_at,
+  created_at,
+  last_contacted_at,
+  branch_id,
+  product_type_id,
+  assigned_user_id,
+  branches:branch_id (name),
+  product_types:product_type_id (name),
+  campaigns:campaign_id (name),
+  assignee:profiles!assigned_user_id (first_name, last_name)
+`;
 
 export default async function ManagerLeadsPage() {
   const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   // RLS filtra automáticamente a sus gerencias.
-  // Los "No asignados" van en su propio query con count EXACTO: la lista
-  // principal está topeada (PostgREST devuelve máx. 1000 filas) y contar sobre
-  // ese array daría un número corto cuando hay miles de leads.
+  // La lista principal se trae en tandas (PostgREST topa en 1000 filas/request)
+  // hasta el cap; tabla y kanban paginan del lado del cliente. Los "No
+  // asignados" van en su propio query con count EXACTO.
   const UNASSIGNED_LIST_LIMIT = 500;
-  const [{ data }, team, unassignedRes] = await Promise.all([
-    supabase
-      .from("leads")
-      .select(
-        `
-          id,
-          first_name,
-          last_name,
-          phone,
-          email,
-          city,
-          vehicle_model,
-          vehicle_version,
-          status,
-          temperature,
-          status_changed_at,
-          created_at,
-          last_contacted_at,
-          branch_id,
-          product_type_id,
-          assigned_user_id,
-          branches:branch_id (name),
-          product_types:product_type_id (name),
-          campaigns:campaign_id (name),
-          assignee:profiles!assigned_user_id (first_name, last_name)
-        `,
-      )
-      .eq("company_id", profile.company_id!)
-      .order("created_at", { ascending: false }),
+  const [leadsPage, team, unassignedRes] = await Promise.all([
+    fetchPaged((withCount) =>
+      supabase
+        .from("leads")
+        .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
+        .eq("company_id", profile.company_id!)
+        .order("created_at", { ascending: false }),
+    ),
     getAssignableSalesUsers({
       companyId: profile.company_id!,
       managerId: actingManagerId(profile),
@@ -85,7 +88,9 @@ export default async function ManagerLeadsPage() {
       .limit(UNASSIGNED_LIST_LIMIT),
   ]);
 
-  const leads = data ?? [];
+  const leads = leadsPage.rows;
+  const leadsTotal = leadsPage.total;
+  const leadsCapped = leadsPage.capped;
   const unassigned = unassignedRes.data ?? [];
   const unassignedCount = unassignedRes.count ?? unassigned.length;
 
@@ -184,6 +189,8 @@ export default async function ManagerLeadsPage() {
           <KanbanBoard
             leads={kanbanItems}
             detailHrefPrefix="/manager/leads"
+            total={leadsTotal}
+            capped={leadsCapped}
           />
         </TabsContent>
 
@@ -193,6 +200,8 @@ export default async function ManagerLeadsPage() {
             detailHrefPrefix="/manager/leads"
             assignableUsers={team}
             canExport={profile.can_export_leads}
+            total={leadsTotal}
+            capped={leadsCapped}
           />
         </TabsContent>
 

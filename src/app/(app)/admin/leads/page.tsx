@@ -4,41 +4,44 @@ import Link from "next/link";
 import { LeadsTable, type LeadsTableRow } from "@/components/leads/leads-table";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
+import { fetchPaged } from "@/lib/leads-fetch";
 import { fullName, normalizePhone } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
+
+const LEADS_SELECT = `
+  id,
+  first_name,
+  last_name,
+  phone,
+  email,
+  status,
+  temperature,
+  city,
+  vehicle_model,
+  vehicle_version,
+  created_at,
+  last_contacted_at,
+  branch_id,
+  product_type_id,
+  branches:branch_id (name),
+  product_types:product_type_id (name),
+  campaigns:campaign_id (name),
+  assignee:profiles!assigned_user_id (first_name, last_name)
+`;
 
 export default async function AdminLeadsPage() {
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
 
-  const [{ data }, assignableUsers, poolRes] = await Promise.all([
-    supabase
-      .from("leads")
-      .select(
-        `
-        id,
-        first_name,
-        last_name,
-        phone,
-        email,
-        status,
-        temperature,
-        city,
-        vehicle_model,
-        vehicle_version,
-        created_at,
-        last_contacted_at,
-        branch_id,
-        product_type_id,
-        branches:branch_id (name),
-        product_types:product_type_id (name),
-        campaigns:campaign_id (name),
-        assignee:profiles!assigned_user_id (first_name, last_name)
-      `,
-      )
-      .eq("company_id", profile.company_id!)
-      .order("created_at", { ascending: false }),
+  const [leadsPage, assignableUsers, poolRes] = await Promise.all([
+    fetchPaged((withCount) =>
+      supabase
+        .from("leads")
+        .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
+        .eq("company_id", profile.company_id!)
+        .order("created_at", { ascending: false }),
+    ),
     getAssignableSalesUsers({ companyId: profile.company_id! }),
     // Conteo exacto del pool (sin sucursal o sin tipo). No se calcula sobre el
     // array de arriba porque PostgREST topa en 1000 filas.
@@ -51,12 +54,12 @@ export default async function AdminLeadsPage() {
 
   // Alerta de duplicados: teléfonos (normalizados) que aparecen en >1 lead.
   const phoneCounts = new Map<string, number>();
-  for (const l of data ?? []) {
+  for (const l of leadsPage.rows) {
     const p = normalizePhone(l.phone);
     if (p) phoneCounts.set(p, (phoneCounts.get(p) ?? 0) + 1);
   }
 
-  const rows: LeadsTableRow[] = (data ?? []).map((l) => {
+  const rows: LeadsTableRow[] = leadsPage.rows.map((l) => {
     const p = normalizePhone(l.phone);
     return {
       id: l.id,
@@ -126,6 +129,8 @@ export default async function AdminLeadsPage() {
         detailHrefPrefix="/admin/leads"
         assignableUsers={assignableUsers}
         canExport
+        total={leadsPage.total}
+        capped={leadsPage.capped}
       />
     </div>
   );

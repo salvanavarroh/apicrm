@@ -70,7 +70,12 @@ type Props = {
   assignableUsers?: AssignableUser[];
   // Descarga de base: solo admin/superadmin, o gerente con permiso. Default off.
   canExport?: boolean;
+  // Total real en la base (puede superar rows.length si se topó la carga).
+  total?: number;
+  capped?: boolean;
 };
+
+const PAGE_SIZE = 50;
 
 const STATUS_FILTER: { value: LeadStatus | "all"; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -130,6 +135,8 @@ export function LeadsTable({
   editableTemperature = true,
   assignableUsers,
   canExport = false,
+  total,
+  capped = false,
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -141,6 +148,7 @@ export function LeadsTable({
   const [contactTo, setContactTo] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState<string>("");
+  const [page, setPage] = useState(1);
   const [pending, startTransition] = useTransition();
 
   const selectable = Array.isArray(assignableUsers);
@@ -191,6 +199,30 @@ export function LeadsTable({
     contactFrom,
     contactTo,
   ]);
+
+  // Volver a la página 1 cuando cambia el filtrado (ajuste de estado en render,
+  // el patrón recomendado por React en vez de un useEffect con setState).
+  const filterKey = [
+    query,
+    status,
+    temperature,
+    createdFrom,
+    createdTo,
+    contactFrom,
+    contactTo,
+  ].join("|");
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount);
+  const paged = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage],
+  );
 
   const filteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
   const allFilteredSelected =
@@ -289,7 +321,12 @@ export function LeadsTable({
           </Button>
         )}
         <span className="ml-auto text-sm text-muted-foreground">
-          {filtered.length} de {rows.length}
+          {filtered.length} de {(total ?? rows.length).toLocaleString("es-AR")}
+          {capped && total && total > rows.length && (
+            <span className="ml-1 text-xs">
+              (cargados {rows.length.toLocaleString("es-AR")})
+            </span>
+          )}
         </span>
       </div>
 
@@ -428,7 +465,7 @@ export function LeadsTable({
                 </TableCell>
               </TableRow>
             )}
-            {filtered.map((row) => (
+            {paged.map((row) => (
               <TableRow
                 key={row.id}
                 role="link"
@@ -523,6 +560,37 @@ export function LeadsTable({
           </TableBody>
         </Table>
       </div>
+
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <span className="text-muted-foreground">
+            Mostrando {(safePage - 1) * PAGE_SIZE + 1}–
+            {Math.min(safePage * PAGE_SIZE, filtered.length)} de{" "}
+            {filtered.length.toLocaleString("es-AR")}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Página {safePage} de {pageCount}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={safePage >= pageCount}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

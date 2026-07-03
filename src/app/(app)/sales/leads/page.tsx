@@ -12,38 +12,42 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
+import { fetchPaged } from "@/lib/leads-fetch";
 import { createClient } from "@/lib/supabase/server";
+
+const LEADS_SELECT = `
+  id,
+  first_name,
+  last_name,
+  phone,
+  email,
+  city,
+  vehicle_model,
+  vehicle_version,
+  status,
+  temperature,
+  status_changed_at,
+  created_at,
+  branches:branch_id (name),
+  product_types:product_type_id (name),
+  campaigns:campaign_id (name)
+`;
 
 export default async function SalesLeadsPage() {
   const profile = await requireRole(["sales"]);
   const supabase = await createClient();
 
-  const { data } = await supabase
-    .from("leads")
-    .select(
-      `
-        id,
-        first_name,
-        last_name,
-        phone,
-        email,
-        city,
-        vehicle_model,
-        vehicle_version,
-        status,
-        temperature,
-        status_changed_at,
-        created_at,
-        branches:branch_id (name),
-        product_types:product_type_id (name),
-        campaigns:campaign_id (name)
-      `,
-    )
-    .eq("assigned_user_id", profile.id)
-    .order("created_at", { ascending: false });
+  const leadsPage = await fetchPaged((withCount) =>
+    supabase
+      .from("leads")
+      .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
+      .eq("assigned_user_id", profile.id)
+      .order("created_at", { ascending: false }),
+  );
+  const data = leadsPage.rows;
 
   const myName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || null;
-  const kanbanItems: KanbanLead[] = (data ?? []).map((l) => ({
+  const kanbanItems: KanbanLead[] = data.map((l) => ({
     id: l.id,
     first_name: l.first_name,
     last_name: l.last_name,
@@ -58,7 +62,7 @@ export default async function SalesLeadsPage() {
     assignee_name: myName,
   }));
 
-  const tableRows: LeadsTableRow[] = (data ?? []).map((l) => ({
+  const tableRows: LeadsTableRow[] = data.map((l) => ({
     id: l.id,
     first_name: l.first_name,
     last_name: l.last_name,
@@ -100,6 +104,8 @@ export default async function SalesLeadsPage() {
           <KanbanBoard
             leads={kanbanItems}
             detailHrefPrefix="/sales/leads"
+            total={leadsPage.total}
+            capped={leadsPage.capped}
           />
         </TabsContent>
 
@@ -108,6 +114,8 @@ export default async function SalesLeadsPage() {
             rows={tableRows}
             detailHrefPrefix="/sales/leads"
             showAssignee={false}
+            total={leadsPage.total}
+            capped={leadsPage.capped}
           />
         </TabsContent>
       </Tabs>
