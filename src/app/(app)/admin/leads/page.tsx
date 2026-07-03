@@ -12,7 +12,7 @@ export default async function AdminLeadsPage() {
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
 
-  const [{ data }, assignableUsers] = await Promise.all([
+  const [{ data }, assignableUsers, poolRes] = await Promise.all([
     supabase
       .from("leads")
       .select(
@@ -40,6 +40,13 @@ export default async function AdminLeadsPage() {
       .eq("company_id", profile.company_id!)
       .order("created_at", { ascending: false }),
     getAssignableSalesUsers({ companyId: profile.company_id! }),
+    // Conteo exacto del pool (sin sucursal o sin tipo). No se calcula sobre el
+    // array de arriba porque PostgREST topa en 1000 filas.
+    supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", profile.company_id!)
+      .or("branch_id.is.null,product_type_id.is.null"),
   ]);
 
   // Alerta de duplicados: teléfonos (normalizados) que aparecen en >1 lead.
@@ -74,9 +81,9 @@ export default async function AdminLeadsPage() {
     };
   });
 
-  const poolCount = rows.filter(
-    (r) => !r.branch_name || !r.product_type_name,
-  ).length;
+  const poolCount =
+    poolRes.count ??
+    rows.filter((r) => !r.branch_name || !r.product_type_name).length;
 
   return (
     <div className="flex flex-col gap-6">
