@@ -309,14 +309,26 @@ export async function commitImport(
     for (const row of data ?? []) insertedIds.push(row.id);
   }
 
-  // Distribución round-robin: auto-asignar por gerencia (solo si clasificado).
+  // Distribución round-robin: asignación MASIVA balanceada en una sola query
+  // (antes se llamaba auto_assign_lead por lead → timeout con miles + desbalance).
+  // Se hace en tandas para no mandar un array gigante en un solo RPC.
   if (
     context.distribution === "round_robin" &&
     context.branch_id &&
-    context.product_type_id
+    context.product_type_id &&
+    insertedIds.length > 0
   ) {
-    for (const id of insertedIds) {
-      await supabase.rpc("auto_assign_lead", { p_lead_id: id });
+    const ASSIGN_BATCH = 2000;
+    for (let i = 0; i < insertedIds.length; i += ASSIGN_BATCH) {
+      const chunk = insertedIds.slice(i, i + ASSIGN_BATCH);
+      const { error } = await supabase.rpc("bulk_assign_leads", {
+        p_lead_ids: chunk,
+      });
+      if (error) {
+        // No abortamos el commit: los leads ya están cargados, sólo quedan sin
+        // asignar y el gerente los puede repartir a mano.
+        break;
+      }
     }
   }
 

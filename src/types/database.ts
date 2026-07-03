@@ -819,20 +819,12 @@ export type Database = {
         Row: {
           assigned_at: string | null
           assigned_user_id: string | null
+          birth_date: string | null
           branch_id: string | null
           budget_max: number | null
           budget_min: number | null
           campaign_id: string | null
           city: string | null
-          birth_date: string | null
-          external_id: string | null
-          locality: string | null
-          metadata: Json | null
-          national_id: string | null
-          preferred_contact_time: string | null
-          province: string | null
-          source: string | null
-          source_created_at: string | null
           company_id: string
           created_at: string
           created_by: string | null
@@ -840,6 +832,7 @@ export type Database = {
             | Database["public"]["Enums"]["lead_payment_method"]
             | null
           email: string | null
+          external_id: string | null
           first_name: string | null
           has_used_car: boolean
           id: string
@@ -847,10 +840,17 @@ export type Database = {
           landing_url: string | null
           last_contacted_at: string | null
           last_name: string | null
+          locality: string | null
+          metadata: Json | null
+          national_id: string | null
           phone: string | null
           preferred_color: string | null
+          preferred_contact_time: string | null
           product_type_id: string | null
+          province: string | null
           referrer: string | null
+          source: string | null
+          source_created_at: string | null
           status: Database["public"]["Enums"]["lead_status"]
           status_changed_at: string
           temperature: Database["public"]["Enums"]["lead_temperature"] | null
@@ -869,20 +869,12 @@ export type Database = {
         Insert: {
           assigned_at?: string | null
           assigned_user_id?: string | null
+          birth_date?: string | null
           branch_id?: string | null
           budget_max?: number | null
           budget_min?: number | null
           campaign_id?: string | null
           city?: string | null
-          birth_date?: string | null
-          external_id?: string | null
-          locality?: string | null
-          metadata?: Json | null
-          national_id?: string | null
-          preferred_contact_time?: string | null
-          province?: string | null
-          source?: string | null
-          source_created_at?: string | null
           company_id: string
           created_at?: string
           created_by?: string | null
@@ -890,6 +882,7 @@ export type Database = {
             | Database["public"]["Enums"]["lead_payment_method"]
             | null
           email?: string | null
+          external_id?: string | null
           first_name?: string | null
           has_used_car?: boolean
           id?: string
@@ -897,10 +890,17 @@ export type Database = {
           landing_url?: string | null
           last_contacted_at?: string | null
           last_name?: string | null
+          locality?: string | null
+          metadata?: Json | null
+          national_id?: string | null
           phone?: string | null
           preferred_color?: string | null
+          preferred_contact_time?: string | null
           product_type_id?: string | null
+          province?: string | null
           referrer?: string | null
+          source?: string | null
+          source_created_at?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           status_changed_at?: string
           temperature?: Database["public"]["Enums"]["lead_temperature"] | null
@@ -919,20 +919,12 @@ export type Database = {
         Update: {
           assigned_at?: string | null
           assigned_user_id?: string | null
+          birth_date?: string | null
           branch_id?: string | null
           budget_max?: number | null
           budget_min?: number | null
           campaign_id?: string | null
           city?: string | null
-          birth_date?: string | null
-          external_id?: string | null
-          locality?: string | null
-          metadata?: Json | null
-          national_id?: string | null
-          preferred_contact_time?: string | null
-          province?: string | null
-          source?: string | null
-          source_created_at?: string | null
           company_id?: string
           created_at?: string
           created_by?: string | null
@@ -940,6 +932,7 @@ export type Database = {
             | Database["public"]["Enums"]["lead_payment_method"]
             | null
           email?: string | null
+          external_id?: string | null
           first_name?: string | null
           has_used_car?: boolean
           id?: string
@@ -947,10 +940,17 @@ export type Database = {
           landing_url?: string | null
           last_contacted_at?: string | null
           last_name?: string | null
+          locality?: string | null
+          metadata?: Json | null
+          national_id?: string | null
           phone?: string | null
           preferred_color?: string | null
+          preferred_contact_time?: string | null
           product_type_id?: string | null
+          province?: string | null
           referrer?: string | null
+          source?: string | null
+          source_created_at?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           status_changed_at?: string
           temperature?: Database["public"]["Enums"]["lead_temperature"] | null
@@ -1700,7 +1700,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acting_manager_id: { Args: never; Returns: string }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
+      bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }
       current_company_id: { Args: never; Returns: string }
       current_role: {
         Args: never

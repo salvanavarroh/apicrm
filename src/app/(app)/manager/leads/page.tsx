@@ -25,7 +25,11 @@ export default async function ManagerLeadsPage() {
   const supabase = await createClient();
 
   // RLS filtra automáticamente a sus gerencias.
-  const [{ data }, team] = await Promise.all([
+  // Los "No asignados" van en su propio query con count EXACTO: la lista
+  // principal está topeada (PostgREST devuelve máx. 1000 filas) y contar sobre
+  // ese array daría un número corto cuando hay miles de leads.
+  const UNASSIGNED_LIST_LIMIT = 500;
+  const [{ data }, team, unassignedRes] = await Promise.all([
     supabase
       .from("leads")
       .select(
@@ -58,9 +62,32 @@ export default async function ManagerLeadsPage() {
       companyId: profile.company_id!,
       managerId: actingManagerId(profile),
     }),
+    supabase
+      .from("leads")
+      .select(
+        `
+          id,
+          first_name,
+          last_name,
+          vehicle_model,
+          status,
+          product_type_id,
+          branches:branch_id (name),
+          product_types:product_type_id (name)
+        `,
+        { count: "exact" },
+      )
+      .eq("company_id", profile.company_id!)
+      .is("assigned_user_id", null)
+      .not("branch_id", "is", null)
+      .not("product_type_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(UNASSIGNED_LIST_LIMIT),
   ]);
 
   const leads = data ?? [];
+  const unassigned = unassignedRes.data ?? [];
+  const unassignedCount = unassignedRes.count ?? unassigned.length;
 
   const kanbanItems: KanbanLead[] = leads.map((l) => ({
     id: l.id,
@@ -110,12 +137,6 @@ export default async function ManagerLeadsPage() {
     };
   });
 
-  const unassigned = leads.filter(
-    (l) =>
-      !l.assigned_user_id &&
-      l.branch_id !== null &&
-      l.product_type_id !== null,
-  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -151,9 +172,9 @@ export default async function ManagerLeadsPage() {
           </TabsTrigger>
           <TabsTrigger value="unassigned">
             <UserPlus className="mr-2 size-4" /> No asignados
-            {unassigned.length > 0 && (
+            {unassignedCount > 0 && (
               <span className="ml-2 rounded-full bg-warning/20 px-2 text-[10px] font-semibold text-warning-foreground">
-                {unassigned.length}
+                {unassignedCount > 999 ? "999+" : unassignedCount}
               </span>
             )}
           </TabsTrigger>
@@ -181,7 +202,14 @@ export default async function ManagerLeadsPage() {
               No hay leads pendientes de asignación.
             </div>
           ) : (
-            <div className="overflow-hidden rounded-md border">
+            <div className="flex flex-col gap-2">
+              {unassignedCount > unassigned.length && (
+                <p className="text-xs text-muted-foreground">
+                  Mostrando {unassigned.length} de {unassignedCount} sin asignar.
+                  Usá la asignación automática o reasigná por tandas.
+                </p>
+              )}
+              <div className="overflow-hidden rounded-md border">
               <table className="w-full text-sm">
                 <thead className="border-b bg-muted text-xs uppercase text-muted-foreground">
                   <tr>
@@ -231,6 +259,7 @@ export default async function ManagerLeadsPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </TabsContent>

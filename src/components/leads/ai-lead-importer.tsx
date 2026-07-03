@@ -200,7 +200,16 @@ export function AiLeadImporter({
     }
     setCommitting(true);
     startTransition(async () => {
-      const res = await commitImport(filePath, fileType, mapping, context);
+      let res: Awaited<ReturnType<typeof commitImport>>;
+      try {
+        res = await commitImport(filePath, fileType, mapping, context);
+      } catch {
+        setCommitting(false);
+        toast.error(
+          "La carga tardó demasiado o se cortó. Puede que se hayan cargado algunos leads; revisá la lista antes de reintentar.",
+        );
+        return;
+      }
       setCommitting(false);
       if (!res.ok) {
         toast.error(res.message);
