@@ -3,7 +3,7 @@
 import { Download, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -70,6 +70,11 @@ export type LeadsTableRow = {
 type Props = {
   scope: LeadsTableScope;
   detailHrefPrefix: string;
+  // Primera página renderizada en el server (SSR). El cliente sólo vuelve a
+  // pedir al server cuando el usuario busca / filtra / cambia de página, así
+  // entrar y salir de un lead NO re-dispara una carga.
+  initialRows: LeadsTableRow[];
+  initialTotal: number;
   showAssignee?: boolean;
   editableTemperature?: boolean;
   // Si se pasan, se habilita la selección + reasignación/archivado masivos.
@@ -130,16 +135,18 @@ function fmtDate(iso: string | null | undefined): string {
 export function LeadsTable({
   scope,
   detailHrefPrefix,
+  initialRows,
+  initialTotal,
   showAssignee = true,
   editableTemperature = true,
   assignableUsers,
   canExport = false,
 }: Props) {
   const router = useRouter();
-  const [rows, setRows] = useState<LeadsTableRow[]>([]);
-  const [total, setTotal] = useState(0);
+  const [rows, setRows] = useState<LeadsTableRow[]>(initialRows);
+  const [total, setTotal] = useState(initialTotal);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [query, setQuery] = useState("");
@@ -182,8 +189,16 @@ export function LeadsTable({
     setPage(1);
   }
 
-  // Carga server-side de la página actual.
+  // En el primer render mostramos los datos que ya vinieron del server (SSR);
+  // recién pedimos al server cuando el usuario interactúa.
+  const firstRun = useRef(true);
+
+  // Carga server-side de la página actual (sólo tras interacción).
   useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
     let cancelled = false;
     const run = async () => {
       setLoading(true);

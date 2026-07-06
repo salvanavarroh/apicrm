@@ -4,9 +4,11 @@ import Link from "next/link";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
+import { fetchLeadsTable } from "@/lib/leads-table-actions";
 
 export default async function DataProviderLeadsPage() {
   await requireRole(["data_provider"]);
+  const initial = await fetchLeadsTable({}, {}, 1);
 
   return (
     <div className="flex flex-col gap-6">
@@ -35,6 +37,8 @@ export default async function DataProviderLeadsPage() {
       <LeadsTable
         scope={{}}
         detailHrefPrefix="/data-provider/leads"
+        initialRows={initial.rows}
+        initialTotal={initial.total}
         showAssignee={false}
         editableTemperature={false}
       />

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { actingManagerId, requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
+import { fetchLeadsTable } from "@/lib/leads-table-actions";
 import { LEAD_STATUS_LABELS, fullName, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
@@ -172,11 +173,16 @@ async function ManagerTable({
   managerId: string;
   archived?: boolean;
 }) {
-  const team = await getAssignableSalesUsers({ companyId: cid, managerId });
+  const [team, initial] = await Promise.all([
+    getAssignableSalesUsers({ companyId: cid, managerId }),
+    fetchLeadsTable({ archived }, {}, 1),
+  ]);
   return (
     <LeadsTable
       scope={{ archived }}
       detailHrefPrefix="/manager/leads"
+      initialRows={initial.rows}
+      initialTotal={initial.total}
       assignableUsers={team}
       canExport={canExport}
     />

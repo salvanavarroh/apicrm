@@ -4,6 +4,7 @@ import Link from "next/link";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
+import { fetchLeadsTable } from "@/lib/leads-table-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
 
@@ -16,7 +17,7 @@ export default async function AdminLeadsPage({
   const supabase = await createClient();
   const archived = (await searchParams).archived === "1";
 
-  const [assignableUsers, poolRes] = await Promise.all([
+  const [assignableUsers, poolRes, initial] = await Promise.all([
     getAssignableSalesUsers({ companyId: profile.company_id! }),
     // Conteo exacto del pool (sin sucursal o sin tipo).
     supabase
@@ -25,6 +26,7 @@ export default async function AdminLeadsPage({
       .eq("company_id", profile.company_id!)
       .is("archived_at", null)
       .or("branch_id.is.null,product_type_id.is.null"),
+    fetchLeadsTable({ archived }, {}, 1),
   ]);
 
   const poolCount = poolRes.count ?? 0;
@@ -86,6 +88,8 @@ export default async function AdminLeadsPage({
       <LeadsTable
         scope={{ archived }}
         detailHrefPrefix="/admin/leads"
+        initialRows={initial.rows}
+        initialTotal={initial.total}
         assignableUsers={assignableUsers}
         canExport
       />
