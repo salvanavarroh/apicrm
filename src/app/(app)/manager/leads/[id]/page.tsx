@@ -8,6 +8,7 @@ import {
   NotesSection,
   type LeadNote,
 } from "@/components/leads/notes-section";
+import { ArchiveLeadButton } from "@/components/leads/archive-lead-button";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
 import { StatusChanger } from "@/components/leads/status-changer";
 import {
@@ -220,6 +221,10 @@ export default async function ManagerLeadDetailPage({
             currentAssigneeId={lead.assigned_user_id}
             users={team}
             trigger={<Button variant="outline">Reasignar</Button>}
+          />
+          <ArchiveLeadButton
+            leadId={lead.id}
+            archived={Boolean(lead.archived_at)}
           />
         </div>
       </header>

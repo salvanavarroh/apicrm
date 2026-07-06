@@ -11,6 +11,7 @@ import {
   LeadVehiclesSection,
   type LeadVehicleItem,
 } from "@/components/leads/lead-vehicles-section";
+import { ArchiveLeadButton } from "@/components/leads/archive-lead-button";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
 import {
   TasksSection,
@@ -193,13 +194,19 @@ export default async function AdminLeadDetailPage({
             )}
           </div>
         </div>
-        <ReassignDialog
-          leadId={lead.id}
-          leadProductTypeId={lead.product_type_id}
-          currentAssigneeId={lead.assigned_user_id}
-          users={team}
-          trigger={<Button variant="outline">Reasignar</Button>}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <ReassignDialog
+            leadId={lead.id}
+            leadProductTypeId={lead.product_type_id}
+            currentAssigneeId={lead.assigned_user_id}
+            users={team}
+            trigger={<Button variant="outline">Reasignar</Button>}
+          />
+          <ArchiveLeadButton
+            leadId={lead.id}
+            archived={Boolean(lead.archived_at)}
+          />
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">

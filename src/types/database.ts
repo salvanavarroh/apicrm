@@ -817,6 +817,7 @@ export type Database = {
       }
       leads: {
         Row: {
+          archived_at: string | null
           assigned_at: string | null
           assigned_user_id: string | null
           birth_date: string | null
@@ -867,6 +868,7 @@ export type Database = {
           vehicle_version: string | null
         }
         Insert: {
+          archived_at?: string | null
           assigned_at?: string | null
           assigned_user_id?: string | null
           birth_date?: string | null
@@ -917,6 +919,7 @@ export type Database = {
           vehicle_version?: string | null
         }
         Update: {
+          archived_at?: string | null
           assigned_at?: string | null
           assigned_user_id?: string | null
           birth_date?: string | null
@@ -1701,6 +1704,13 @@ export type Database = {
     }
     Functions: {
       acting_manager_id: { Args: never; Returns: string }
+      active_lead_counts: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          cnt: number
+          user_id: string
+        }[]
+      }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
       bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }
       current_company_id: { Args: never; Returns: string }
@@ -1718,6 +1728,13 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: never; Returns: boolean }
+      lead_status_counts: {
+        Args: never
+        Returns: {
+          cnt: number
+          status: Database["public"]["Enums"]["lead_status"]
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }

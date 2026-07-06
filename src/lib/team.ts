@@ -45,21 +45,17 @@ export async function getAssignableSalesUsers(opts: {
   const list = users ?? [];
   if (list.length === 0) return [];
 
-  // Carga: leads asignados con status distinto a 'closed'.
+  // Carga activa por vendedor vía agregado en SQL (RPC). Antes se traían TODOS
+  // los leads no-cerrados para contarlos en JS: lento y, peor, PostgREST topaba
+  // en 1000 filas → la carga quedaba mal contada a escala.
   const userIds = list.map((u) => u.id);
-  const { data: loadRows } = await supabase
-    .from("leads")
-    .select("assigned_user_id")
-    .in("assigned_user_id", userIds)
-    .neq("status", "closed");
+  const { data: countRows } = await supabase.rpc("active_lead_counts", {
+    p_user_ids: userIds,
+  });
 
   const loadByUser = new Map<string, number>();
-  for (const row of loadRows ?? []) {
-    if (!row.assigned_user_id) continue;
-    loadByUser.set(
-      row.assigned_user_id,
-      (loadByUser.get(row.assigned_user_id) ?? 0) + 1,
-    );
+  for (const row of countRows ?? []) {
+    if (row.user_id) loadByUser.set(row.user_id, Number(row.cnt));
   }
 
   return list.map((u) => {

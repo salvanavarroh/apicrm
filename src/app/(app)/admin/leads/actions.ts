@@ -503,6 +503,41 @@ function isValidPaymentMethod(
 }
 
 // ----------------------------------------------------------------------------
+// Archivar / desarchivar leads (dar de baja). Un lead archivado sale de todas
+// las vistas normales (kanban, tabla, conteos, asignación) pero no se borra:
+// conserva su historial. Admin / Manager / Supervisor.
+// ----------------------------------------------------------------------------
+
+export async function setLeadsArchived(
+  leadIds: string[],
+  archived: boolean,
+): Promise<Result<{ updated: number }>> {
+  const profile = await requireRole(["admin", "manager", "supervisor"]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+  if (!Array.isArray(leadIds) || leadIds.length === 0) {
+    return { ok: false, message: "No seleccionaste leads" };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .in("id", leadIds)
+    .select("id");
+
+  if (error) return { ok: false, message: error.message };
+
+  revalidateLeadsPaths();
+  for (const id of leadIds) {
+    revalidatePath(`/admin/leads/${id}`);
+    revalidatePath(`/manager/leads/${id}`);
+  }
+  return { ok: true, updated: data?.length ?? 0 };
+}
+
+// ----------------------------------------------------------------------------
 // Delete lead (Admin).
 // ----------------------------------------------------------------------------
 

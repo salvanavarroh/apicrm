@@ -24,6 +24,7 @@ import {
 } from "@/lib/leads";
 
 import { updateLeadStatus } from "@/app/(app)/admin/leads/actions";
+import { fetchKanbanColumn } from "@/lib/kanban-actions";
 
 import { LeadStatusBadge } from "./lead-status-badge";
 import { TemperatureBadge } from "./temperature-control";
@@ -81,38 +82,38 @@ function timeAgo(iso: string | null) {
   return `${Math.floor(days / 30)} m`;
 }
 
-// Cuántas tarjetas se muestran por columna antes de "Cargar más".
-const PER_COLUMN = 25;
-
 type Props = {
+  // Carga inicial: top-N por columna (no todos los leads).
   leads: KanbanLead[];
   detailHrefPrefix: string;
-  // Total real en la base (puede ser mayor que `leads` si se topó la carga).
-  total?: number;
-  capped?: boolean;
+  // Conteo real por estado (para el header y saber si hay "cargar más").
+  counts?: Partial<Record<LeadStatus, number>>;
 };
 
-export function KanbanBoard({
-  leads,
-  detailHrefPrefix,
-  total,
-  capped,
-}: Props) {
+export function KanbanBoard({ leads, detailHrefPrefix, counts }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [activeId, setActiveId] = useState<string | null>(null);
   // Optimistic state local — al soltar, actualizamos UI inmediatamente y luego
-  // confirmamos en servidor.
+  // confirmamos en servidor. También acumula lo que trae "cargar más".
   const [optimistic, setOptimistic] = useState<KanbanLead[]>(leads);
+  const [countMap, setCountMap] = useState<Partial<Record<LeadStatus, number>>>(
+    counts ?? {},
+  );
+  const [loadingCol, setLoadingCol] = useState<LeadStatus | null>(null);
+
+  // Reset SÓLO cuando cambia la prop `leads` por referencia (nuevo render del
+  // server), no en cada render — si no, "cargar más" se revertiría solo.
+  const [prevLeads, setPrevLeads] = useState(leads);
+  if (prevLeads !== leads) {
+    setPrevLeads(leads);
+    setOptimistic(leads);
+    setCountMap(counts ?? {});
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
-
-  // Re-sync si props cambian (después de refresh).
-  if (leads !== optimistic && leads.length !== optimistic.length) {
-    setOptimistic(leads);
-  }
 
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
@@ -125,10 +126,16 @@ export function KanbanBoard({
     const target = String(e.over.id) as LeadStatus;
     const lead = optimistic.find((l) => l.id === leadId);
     if (!lead || lead.status === target) return;
+    const from = lead.status;
 
     setOptimistic((prev) =>
       prev.map((l) => (l.id === leadId ? { ...l, status: target } : l)),
     );
+    setCountMap((c) => ({
+      ...c,
+      [from]: Math.max(0, (c[from] ?? 1) - 1),
+      [target]: (c[target] ?? 0) + 1,
+    }));
 
     startTransition(async () => {
       const result = await updateLeadStatus(leadId, target);
@@ -136,12 +143,33 @@ export function KanbanBoard({
         toast.error(result.message);
         // Revertir
         setOptimistic((prev) =>
-          prev.map((l) => (l.id === leadId ? { ...l, status: lead.status } : l)),
+          prev.map((l) => (l.id === leadId ? { ...l, status: from } : l)),
         );
+        setCountMap((c) => ({
+          ...c,
+          [target]: Math.max(0, (c[target] ?? 1) - 1),
+          [from]: (c[from] ?? 0) + 1,
+        }));
         return;
       }
       router.refresh();
     });
+  }
+
+  async function loadMore(status: LeadStatus) {
+    const loaded = optimistic.filter((l) => l.status === status).length;
+    setLoadingCol(status);
+    try {
+      const more = await fetchKanbanColumn(status, loaded);
+      setOptimistic((prev) => {
+        const seen = new Set(prev.map((l) => l.id));
+        return [...prev, ...more.filter((m) => !seen.has(m.id))];
+      });
+    } catch {
+      toast.error("No pude cargar más leads");
+    } finally {
+      setLoadingCol(null);
+    }
   }
 
   const activeLead = optimistic.find((l) => l.id === activeId);
@@ -152,13 +180,6 @@ export function KanbanBoard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
     >
-      {capped && total && (
-        <p className="mb-2 text-xs text-muted-foreground">
-          Mostrando los {optimistic.length.toLocaleString("es-AR")} leads más
-          recientes de {total.toLocaleString("es-AR")}. Usá la tabla y sus
-          filtros para acotar la búsqueda.
-        </p>
-      )}
       <div className="overflow-x-auto pb-2">
         <div className="grid auto-rows-min grid-flow-col gap-3 [grid-auto-columns:minmax(220px,1fr)]">
           {COLUMN_ORDER.map((status) => {
@@ -167,9 +188,11 @@ export function KanbanBoard({
               <Column
                 key={status}
                 status={status}
-                count={items.length}
+                count={countMap[status] ?? items.length}
                 items={items}
                 detailHrefPrefix={detailHrefPrefix}
+                onLoadMore={() => loadMore(status)}
+                loading={loadingCol === status}
               />
             );
           })}
@@ -187,18 +210,20 @@ function Column({
   count,
   items,
   detailHrefPrefix,
+  onLoadMore,
+  loading,
 }: {
   status: LeadStatus;
   count: number;
   items: KanbanLead[];
   detailHrefPrefix: string;
+  onLoadMore: () => void;
+  loading: boolean;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: status });
   const tint = COLUMN_TINT[status];
-  const [visible, setVisible] = useState(PER_COLUMN);
-  // Si la columna se achica (drag out), no dejamos `visible` colgado alto.
-  const shown = items.slice(0, visible);
-  const remaining = items.length - shown.length;
+  // Cuántos faltan por traer del server (el count real menos lo ya cargado).
+  const remaining = Math.max(0, count - items.length);
   return (
     <div
       ref={setNodeRef}
@@ -211,7 +236,7 @@ function Column({
           {LEAD_STATUS_LABELS[status]}
         </span>
         <span className="inline-flex min-w-6 items-center justify-center rounded-md bg-card px-2 py-0.5 text-xs font-semibold text-foreground shadow-sm">
-          {count}
+          {count.toLocaleString("es-AR")}
         </span>
       </div>
 
@@ -221,7 +246,7 @@ function Column({
             Sin leads
           </p>
         )}
-        {shown.map((lead) => (
+        {items.map((lead) => (
           <Card
             key={lead.id}
             lead={lead}
@@ -231,10 +256,13 @@ function Column({
         {remaining > 0 && (
           <button
             type="button"
-            onClick={() => setVisible((v) => v + PER_COLUMN)}
-            className="rounded-md border border-dashed border-border bg-card/60 py-2 text-xs font-medium text-muted-foreground hover:bg-card"
+            onClick={onLoadMore}
+            disabled={loading}
+            className="rounded-md border border-dashed border-border bg-card/60 py-2 text-xs font-medium text-muted-foreground hover:bg-card disabled:opacity-60"
           >
-            Cargar más ({remaining.toLocaleString("es-AR")})
+            {loading
+              ? "Cargando…"
+              : `Cargar más (${remaining.toLocaleString("es-AR")})`}
           </button>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { Plus, Upload } from "lucide-react";
+import { Archive, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 
 import { LeadsTable, type LeadsTableRow } from "@/components/leads/leads-table";
@@ -30,18 +30,26 @@ const LEADS_SELECT = `
   assignee:profiles!assigned_user_id (first_name, last_name)
 `;
 
-export default async function AdminLeadsPage() {
+export default async function AdminLeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ archived?: string }>;
+}) {
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
+  const archived = (await searchParams).archived === "1";
 
   const [leadsPage, assignableUsers, poolRes] = await Promise.all([
-    fetchPaged((withCount) =>
-      supabase
+    fetchPaged((withCount) => {
+      const q = supabase
         .from("leads")
         .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
         .eq("company_id", profile.company_id!)
-        .order("created_at", { ascending: false }),
-    ),
+        .order("created_at", { ascending: false });
+      return archived
+        ? q.not("archived_at", "is", null)
+        : q.is("archived_at", null);
+    }),
     getAssignableSalesUsers({ companyId: profile.company_id! }),
     // Conteo exacto del pool (sin sucursal o sin tipo). No se calcula sobre el
     // array de arriba porque PostgREST topa en 1000 filas.
@@ -49,6 +57,7 @@ export default async function AdminLeadsPage() {
       .from("leads")
       .select("id", { count: "exact", head: true })
       .eq("company_id", profile.company_id!)
+      .is("archived_at", null)
       .or("branch_id.is.null,product_type_id.is.null"),
   ]);
 
@@ -92,35 +101,53 @@ export default async function AdminLeadsPage() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {archived ? "Leads archivados" : "Leads"}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Todos los leads de tu empresa.
-            {poolCount > 0 && (
+            {archived ? (
+              "Leads dados de baja. Podés desarchivarlos desde la selección."
+            ) : (
               <>
-                {" "}
-                Hay{" "}
-                <Link
-                  href="/admin/leads/pool"
-                  className="font-medium text-accent underline-offset-4 hover:underline"
-                >
-                  {poolCount} sin clasificar
-                </Link>
-                .
+                Todos los leads de tu empresa.
+                {poolCount > 0 && (
+                  <>
+                    {" "}
+                    Hay{" "}
+                    <Link
+                      href="/admin/leads/pool"
+                      className="font-medium text-accent underline-offset-4 hover:underline"
+                    >
+                      {poolCount} sin clasificar
+                    </Link>
+                    .
+                  </>
+                )}
               </>
             )}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
-            <Link href="/admin/leads/import">
-              <Upload className="mr-2 size-4" /> Importar CSV
+            <Link href={archived ? "/admin/leads" : "/admin/leads?archived=1"}>
+              <Archive className="mr-2 size-4" />{" "}
+              {archived ? "Ver activos" : "Archivados"}
             </Link>
           </Button>
-          <Button asChild>
-            <Link href="/admin/leads/new">
-              <Plus className="mr-2 size-4" /> Nuevo lead
-            </Link>
-          </Button>
+          {!archived && (
+            <>
+              <Button variant="outline" asChild>
+                <Link href="/admin/leads/import">
+                  <Upload className="mr-2 size-4" /> Importar CSV
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href="/admin/leads/new">
+                  <Plus className="mr-2 size-4" /> Nuevo lead
+                </Link>
+              </Button>
+            </>
+          )}
         </div>
       </header>
 
@@ -129,6 +156,7 @@ export default async function AdminLeadsPage() {
         detailHrefPrefix="/admin/leads"
         assignableUsers={assignableUsers}
         canExport
+        archivedView={archived}
         total={leadsPage.total}
         capped={leadsPage.capped}
       />

@@ -1,21 +1,22 @@
 import { LayoutGrid, List } from "lucide-react";
+import Link from "next/link";
 
 import {
   KanbanBoard,
   type KanbanLead,
 } from "@/components/leads/kanban-board";
 import { LeadsTable, type LeadsTableRow } from "@/components/leads/leads-table";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
+import { fetchKanbanColumn } from "@/lib/kanban-actions";
 import { fetchPaged } from "@/lib/leads-fetch";
+import {
+  LEAD_STATUS_LABELS,
+  type LeadStatus,
+} from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
-const LEADS_SELECT = `
+const TABLE_SELECT = `
   id,
   first_name,
   last_name,
@@ -26,43 +27,99 @@ const LEADS_SELECT = `
   vehicle_version,
   status,
   temperature,
-  status_changed_at,
   created_at,
   branches:branch_id (name),
   product_types:product_type_id (name),
   campaigns:campaign_id (name)
 `;
 
-export default async function SalesLeadsPage() {
+const STATUSES = Object.keys(LEAD_STATUS_LABELS) as LeadStatus[];
+
+type Search = { tab?: string };
+
+export default async function SalesLeadsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Search>;
+}) {
   const profile = await requireRole(["sales"]);
   const supabase = await createClient();
+  const { tab } = await searchParams;
+  const activeTab = tab === "table" ? "table" : "kanban";
 
+  return (
+    <div className="flex flex-col gap-6">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Mis leads</h1>
+        <p className="text-sm text-muted-foreground">
+          Movelos entre columnas arrastrando, o abrí el detalle para gestionar
+          la conversación.
+        </p>
+      </header>
+
+      <Tabs value={activeTab}>
+        <TabsList>
+          <TabsTrigger value="kanban" asChild>
+            <Link href="/sales/leads?tab=kanban">
+              <LayoutGrid className="mr-2 size-4" /> Kanban
+            </Link>
+          </TabsTrigger>
+          <TabsTrigger value="table" asChild>
+            <Link href="/sales/leads?tab=table">
+              <List className="mr-2 size-4" /> Tabla
+            </Link>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {activeTab === "kanban" ? (
+        <SalesKanban supabase={supabase} />
+      ) : (
+        <SalesTable supabase={supabase} userId={profile.id} />
+      )}
+    </div>
+  );
+}
+
+async function SalesKanban({
+  supabase,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+}) {
+  const [countsRes, ...cols] = await Promise.all([
+    supabase.rpc("lead_status_counts"),
+    ...STATUSES.map((s) => fetchKanbanColumn(s, 0)),
+  ]);
+  const counts: Partial<Record<LeadStatus, number>> = {};
+  for (const row of countsRes.data ?? []) counts[row.status] = Number(row.cnt);
+  const kanbanItems: KanbanLead[] = cols.flat();
+
+  return (
+    <KanbanBoard
+      leads={kanbanItems}
+      counts={counts}
+      detailHrefPrefix="/sales/leads"
+    />
+  );
+}
+
+async function SalesTable({
+  supabase,
+  userId,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  userId: string;
+}) {
   const leadsPage = await fetchPaged((withCount) =>
     supabase
       .from("leads")
-      .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
-      .eq("assigned_user_id", profile.id)
+      .select(TABLE_SELECT, withCount ? { count: "exact" } : {})
+      .eq("assigned_user_id", userId)
+      .is("archived_at", null)
       .order("created_at", { ascending: false }),
   );
-  const data = leadsPage.rows;
 
-  const myName = `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() || null;
-  const kanbanItems: KanbanLead[] = data.map((l) => ({
-    id: l.id,
-    first_name: l.first_name,
-    last_name: l.last_name,
-    phone: l.phone,
-    vehicle_model: l.vehicle_model,
-    vehicle_version: l.vehicle_version,
-    status: l.status,
-    temperature: l.temperature,
-    status_changed_at: l.status_changed_at,
-    branch_name: l.branches?.name ?? null,
-    product_type_name: l.product_types?.name ?? null,
-    assignee_name: myName,
-  }));
-
-  const tableRows: LeadsTableRow[] = data.map((l) => ({
+  const tableRows: LeadsTableRow[] = leadsPage.rows.map((l) => ({
     id: l.id,
     first_name: l.first_name,
     last_name: l.last_name,
@@ -81,44 +138,12 @@ export default async function SalesLeadsPage() {
   }));
 
   return (
-    <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Mis leads</h1>
-        <p className="text-sm text-muted-foreground">
-          Movelos entre columnas arrastrando, o abrí el detalle para gestionar
-          la conversación.
-        </p>
-      </header>
-
-      <Tabs defaultValue="kanban">
-        <TabsList>
-          <TabsTrigger value="kanban">
-            <LayoutGrid className="mr-2 size-4" /> Kanban
-          </TabsTrigger>
-          <TabsTrigger value="table">
-            <List className="mr-2 size-4" /> Tabla
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="kanban" className="mt-4">
-          <KanbanBoard
-            leads={kanbanItems}
-            detailHrefPrefix="/sales/leads"
-            total={leadsPage.total}
-            capped={leadsPage.capped}
-          />
-        </TabsContent>
-
-        <TabsContent value="table" className="mt-4">
-          <LeadsTable
-            rows={tableRows}
-            detailHrefPrefix="/sales/leads"
-            showAssignee={false}
-            total={leadsPage.total}
-            capped={leadsPage.capped}
-          />
-        </TabsContent>
-      </Tabs>
-    </div>
+    <LeadsTable
+      rows={tableRows}
+      detailHrefPrefix="/sales/leads"
+      showAssignee={false}
+      total={leadsPage.total}
+      capped={leadsPage.capped}
+    />
   );
 }

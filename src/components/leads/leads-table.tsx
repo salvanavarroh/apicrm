@@ -6,7 +6,10 @@ import Papa from "papaparse";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
-import { reassignLeadsBulk } from "@/app/(app)/admin/leads/actions";
+import {
+  reassignLeadsBulk,
+  setLeadsArchived,
+} from "@/app/(app)/admin/leads/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -73,6 +76,8 @@ type Props = {
   // Total real en la base (puede superar rows.length si se topó la carga).
   total?: number;
   capped?: boolean;
+  // Vista de archivados: el bulk ofrece "Desarchivar" en vez de "Archivar".
+  archivedView?: boolean;
 };
 
 const PAGE_SIZE = 50;
@@ -137,6 +142,7 @@ export function LeadsTable({
   canExport = false,
   total,
   capped = false,
+  archivedView = false,
 }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -264,6 +270,25 @@ export function LeadsTable({
       );
       setSelected(new Set());
       setBulkAssignee("");
+      router.refresh();
+    });
+  }
+
+  function runBulkArchive() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    startTransition(async () => {
+      const res = await setLeadsArchived(ids, !archivedView);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      toast.success(
+        archivedView
+          ? `${res.updated} lead(s) desarchivados`
+          : `${res.updated} lead(s) archivados`,
+      );
+      setSelected(new Set());
       router.refresh();
     });
   }
@@ -417,6 +442,14 @@ export function LeadsTable({
             onClick={() => runBulkReassign(null)}
           >
             Desasignar
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            onClick={runBulkArchive}
+          >
+            {archivedView ? "Desarchivar" : "Archivar"}
           </Button>
           <Button
             size="sm"

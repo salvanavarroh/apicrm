@@ -33,6 +33,7 @@ export default async function DataProviderLeadsPage() {
       .from("leads")
       .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
       .eq("created_by", profile.id)
+      .is("archived_at", null)
       .order("created_at", { ascending: false }),
   );
 
