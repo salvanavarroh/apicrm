@@ -5,33 +5,12 @@ import {
   KanbanBoard,
   type KanbanLead,
 } from "@/components/leads/kanban-board";
-import { LeadsTable, type LeadsTableRow } from "@/components/leads/leads-table";
+import { LeadsTable } from "@/components/leads/leads-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
-import { fetchPaged } from "@/lib/leads-fetch";
-import {
-  LEAD_STATUS_LABELS,
-  type LeadStatus,
-} from "@/lib/leads";
+import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
-
-const TABLE_SELECT = `
-  id,
-  first_name,
-  last_name,
-  phone,
-  email,
-  city,
-  vehicle_model,
-  vehicle_version,
-  status,
-  temperature,
-  created_at,
-  branches:branch_id (name),
-  product_types:product_type_id (name),
-  campaigns:campaign_id (name)
-`;
 
 const STATUSES = Object.keys(LEAD_STATUS_LABELS) as LeadStatus[];
 
@@ -42,7 +21,7 @@ export default async function SalesLeadsPage({
 }: {
   searchParams: Promise<Search>;
 }) {
-  const profile = await requireRole(["sales"]);
+  await requireRole(["sales"]);
   const supabase = await createClient();
   const { tab } = await searchParams;
   const activeTab = tab === "table" ? "table" : "kanban";
@@ -75,7 +54,11 @@ export default async function SalesLeadsPage({
       {activeTab === "kanban" ? (
         <SalesKanban supabase={supabase} />
       ) : (
-        <SalesTable supabase={supabase} userId={profile.id} />
+        <LeadsTable
+          scope={{}}
+          detailHrefPrefix="/sales/leads"
+          showAssignee={false}
+        />
       )}
     </div>
   );
@@ -103,47 +86,3 @@ async function SalesKanban({
   );
 }
 
-async function SalesTable({
-  supabase,
-  userId,
-}: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
-  userId: string;
-}) {
-  const leadsPage = await fetchPaged((withCount) =>
-    supabase
-      .from("leads")
-      .select(TABLE_SELECT, withCount ? { count: "exact" } : {})
-      .eq("assigned_user_id", userId)
-      .is("archived_at", null)
-      .order("created_at", { ascending: false }),
-  );
-
-  const tableRows: LeadsTableRow[] = leadsPage.rows.map((l) => ({
-    id: l.id,
-    first_name: l.first_name,
-    last_name: l.last_name,
-    phone: l.phone,
-    email: l.email,
-    status: l.status,
-    temperature: l.temperature,
-    city: l.city,
-    vehicle_model: l.vehicle_model,
-    vehicle_version: l.vehicle_version,
-    branch_name: l.branches?.name ?? null,
-    product_type_name: l.product_types?.name ?? null,
-    campaign_name: l.campaigns?.name ?? null,
-    assignee_name: null,
-    created_at: l.created_at,
-  }));
-
-  return (
-    <LeadsTable
-      rows={tableRows}
-      detailHrefPrefix="/sales/leads"
-      showAssignee={false}
-      total={leadsPage.total}
-      capped={leadsPage.capped}
-    />
-  );
-}

@@ -1,34 +1,11 @@
 import { Archive, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 
-import { LeadsTable, type LeadsTableRow } from "@/components/leads/leads-table";
+import { LeadsTable } from "@/components/leads/leads-table";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
-import { fetchPaged } from "@/lib/leads-fetch";
-import { fullName, normalizePhone } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
-
-const LEADS_SELECT = `
-  id,
-  first_name,
-  last_name,
-  phone,
-  email,
-  status,
-  temperature,
-  city,
-  vehicle_model,
-  vehicle_version,
-  created_at,
-  last_contacted_at,
-  branch_id,
-  product_type_id,
-  branches:branch_id (name),
-  product_types:product_type_id (name),
-  campaigns:campaign_id (name),
-  assignee:profiles!assigned_user_id (first_name, last_name)
-`;
 
 export default async function AdminLeadsPage({
   searchParams,
@@ -39,20 +16,9 @@ export default async function AdminLeadsPage({
   const supabase = await createClient();
   const archived = (await searchParams).archived === "1";
 
-  const [leadsPage, assignableUsers, poolRes] = await Promise.all([
-    fetchPaged((withCount) => {
-      const q = supabase
-        .from("leads")
-        .select(LEADS_SELECT, withCount ? { count: "exact" } : {})
-        .eq("company_id", profile.company_id!)
-        .order("created_at", { ascending: false });
-      return archived
-        ? q.not("archived_at", "is", null)
-        : q.is("archived_at", null);
-    }),
+  const [assignableUsers, poolRes] = await Promise.all([
     getAssignableSalesUsers({ companyId: profile.company_id! }),
-    // Conteo exacto del pool (sin sucursal o sin tipo). No se calcula sobre el
-    // array de arriba porque PostgREST topa en 1000 filas.
+    // Conteo exacto del pool (sin sucursal o sin tipo).
     supabase
       .from("leads")
       .select("id", { count: "exact", head: true })
@@ -61,41 +27,7 @@ export default async function AdminLeadsPage({
       .or("branch_id.is.null,product_type_id.is.null"),
   ]);
 
-  // Alerta de duplicados: teléfonos (normalizados) que aparecen en >1 lead.
-  const phoneCounts = new Map<string, number>();
-  for (const l of leadsPage.rows) {
-    const p = normalizePhone(l.phone);
-    if (p) phoneCounts.set(p, (phoneCounts.get(p) ?? 0) + 1);
-  }
-
-  const rows: LeadsTableRow[] = leadsPage.rows.map((l) => {
-    const p = normalizePhone(l.phone);
-    return {
-      id: l.id,
-      first_name: l.first_name,
-      last_name: l.last_name,
-      phone: l.phone,
-      email: l.email,
-      status: l.status,
-      temperature: l.temperature,
-      city: l.city,
-      vehicle_model: l.vehicle_model,
-      vehicle_version: l.vehicle_version,
-      branch_name: l.branches?.name ?? null,
-      product_type_name: l.product_types?.name ?? null,
-      campaign_name: l.campaigns?.name ?? null,
-      assignee_name: l.assignee
-        ? fullName(l.assignee.first_name, l.assignee.last_name)
-        : null,
-      created_at: l.created_at,
-      last_contacted_at: l.last_contacted_at,
-      is_duplicate: p ? (phoneCounts.get(p) ?? 0) > 1 : false,
-    };
-  });
-
-  const poolCount =
-    poolRes.count ??
-    rows.filter((r) => !r.branch_name || !r.product_type_name).length;
+  const poolCount = poolRes.count ?? 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,13 +84,10 @@ export default async function AdminLeadsPage({
       </header>
 
       <LeadsTable
-        rows={rows}
+        scope={{ archived }}
         detailHrefPrefix="/admin/leads"
         assignableUsers={assignableUsers}
         canExport
-        archivedView={archived}
-        total={leadsPage.total}
-        capped={leadsPage.capped}
       />
     </div>
   );

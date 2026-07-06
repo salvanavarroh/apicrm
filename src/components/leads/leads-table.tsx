@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertTriangle, Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -34,10 +34,19 @@ import {
   type LeadStatus,
   type LeadTemperature,
 } from "@/lib/leads";
+import {
+  exportLeadsTable,
+  fetchLeadsTable,
+  type LeadsTableFilters,
+  type LeadsTableScope,
+} from "@/lib/leads-table-actions";
 
 import { LeadStatusBadge } from "./lead-status-badge";
 import type { AssignableUser } from "./reassign-dialog";
 import { TemperatureBadge, TemperatureChanger } from "./temperature-control";
+
+// Debe coincidir con LEADS_TABLE_PAGE en leads-table-actions.ts.
+const LEADS_TABLE_PAGE = 50;
 
 export type LeadsTableRow = {
   id: string;
@@ -53,34 +62,20 @@ export type LeadsTableRow = {
   assignee_name: string | null;
   created_at: string;
   last_contacted_at?: string | null;
-  // Alerta de duplicado: el teléfono aparece en >1 lead de la empresa.
-  is_duplicate?: boolean;
-  // Opcionales: solo enriquecen el export (no se muestran como columna).
   vehicle_model?: string | null;
   vehicle_version?: string | null;
   city?: string | null;
 };
 
 type Props = {
-  rows: LeadsTableRow[];
+  scope: LeadsTableScope;
   detailHrefPrefix: string;
   showAssignee?: boolean;
-  // El proveedor de datos no puede cambiar la temperatura: la mostramos como
-  // badge de solo lectura.
   editableTemperature?: boolean;
-  // Si se pasan, se habilita la selección múltiple + reasignación masiva
-  // (Admin / Gerente).
+  // Si se pasan, se habilita la selección + reasignación/archivado masivos.
   assignableUsers?: AssignableUser[];
-  // Descarga de base: solo admin/superadmin, o gerente con permiso. Default off.
   canExport?: boolean;
-  // Total real en la base (puede superar rows.length si se topó la carga).
-  total?: number;
-  capped?: boolean;
-  // Vista de archivados: el bulk ofrece "Desarchivar" en vez de "Archivar".
-  archivedView?: boolean;
 };
-
-const PAGE_SIZE = 50;
 
 const STATUS_FILTER: { value: LeadStatus | "all"; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -117,7 +112,6 @@ function exportRows(rows: LeadsTableRow[]) {
       ? new Date(r.last_contacted_at).toLocaleDateString("es-AR")
       : "",
   }));
-  // BOM para que Excel respete acentos.
   const csv = "﻿" + Papa.unparse(data);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -134,105 +128,103 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 export function LeadsTable({
-  rows,
+  scope,
   detailHrefPrefix,
   showAssignee = true,
   editableTemperature = true,
   assignableUsers,
   canExport = false,
-  total,
-  capped = false,
-  archivedView = false,
 }: Props) {
   const router = useRouter();
+  const [rows, setRows] = useState<LeadsTableRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [status, setStatus] = useState<LeadStatus | "all">("all");
   const [temperature, setTemperature] = useState<LeadTemperature | "all">("all");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [contactFrom, setContactFrom] = useState("");
   const [contactTo, setContactTo] = useState("");
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState<string>("");
-  const [page, setPage] = useState(1);
   const [pending, startTransition] = useTransition();
 
   const selectable = Array.isArray(assignableUsers);
+  const archived = Boolean(scope.archived);
 
-  function openDetail(rowId: string, e: React.MouseEvent) {
-    // cmd/ctrl/middle-click → no interferir (deja que el browser abra tab nueva
-    // si el target tiene href; igual aprovechamos prefetch del onMouseEnter).
-    if (e.metaKey || e.ctrlKey || e.button === 1) return;
-    router.push(`${detailHrefPrefix}/${rowId}`);
-  }
+  // Debounce del buscador (350ms) para no pegar al server en cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 350);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      if (status !== "all" && r.status !== status) return false;
-      if (temperature !== "all" && r.temperature !== temperature) return false;
-      const createdDay = r.created_at.slice(0, 10);
-      if (createdFrom && createdDay < createdFrom) return false;
-      if (createdTo && createdDay > createdTo) return false;
-      if (contactFrom || contactTo) {
-        const contactDay = r.last_contacted_at?.slice(0, 10) ?? "";
-        if (!contactDay) return false;
-        if (contactFrom && contactDay < contactFrom) return false;
-        if (contactTo && contactDay > contactTo) return false;
-      }
-      if (!q) return true;
-      const hay = [
-        r.first_name,
-        r.last_name,
-        r.phone,
-        r.email,
-        r.branch_name,
-        r.product_type_name,
-        r.assignee_name,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }, [
-    rows,
-    query,
+  const filters: LeadsTableFilters = {
+    q: debouncedQuery,
     status,
     temperature,
     createdFrom,
     createdTo,
     contactFrom,
     contactTo,
-  ]);
+  };
 
-  // Volver a la página 1 cuando cambia el filtrado (ajuste de estado en render,
-  // el patrón recomendado por React en vez de un useEffect con setState).
-  const filterKey = [
-    query,
-    status,
-    temperature,
-    createdFrom,
-    createdTo,
-    contactFrom,
-    contactTo,
-  ].join("|");
+  // Reset a la página 1 cuando cambia cualquier filtro (ajuste en render).
+  const filterKey = JSON.stringify(filters);
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
     setPage(1);
   }
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount);
-  const paged = useMemo(
-    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filtered, safePage],
-  );
+  // Carga server-side de la página actual.
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      try {
+        const res = await fetchLeadsTable(scope, filters, page);
+        if (!cancelled) {
+          setRows(res.rows);
+          setTotal(res.total);
+        }
+      } catch {
+        if (!cancelled) toast.error("No pude cargar los leads");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // filters se captura vía sus primitivas; scope vía scope.archived.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    debouncedQuery,
+    status,
+    temperature,
+    createdFrom,
+    createdTo,
+    contactFrom,
+    contactTo,
+    page,
+    archived,
+  ]);
 
-  const filteredIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
-  const allFilteredSelected =
-    filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+  const pageCount = Math.max(1, Math.ceil(total / LEADS_TABLE_PAGE));
+  const allSelected =
+    rows.length > 0 && rows.every((r) => selected.has(r.id));
+
+  function openDetail(rowId: string, e: React.MouseEvent) {
+    if (e.metaKey || e.ctrlKey || e.button === 1) return;
+    router.push(`${detailHrefPrefix}/${rowId}`);
+  }
 
   function toggleRow(id: string) {
     setSelected((prev) => {
@@ -245,13 +237,24 @@ export function LeadsTable({
 
   function toggleAll() {
     setSelected((prev) => {
-      if (allFilteredSelected) {
+      const ids = rows.map((r) => r.id);
+      if (allSelected) {
         const next = new Set(prev);
-        filteredIds.forEach((id) => next.delete(id));
+        ids.forEach((id) => next.delete(id));
         return next;
       }
-      return new Set([...prev, ...filteredIds]);
+      return new Set([...prev, ...ids]);
     });
+  }
+
+  function refresh() {
+    // Fuerza recarga de la página actual re-pidiendo al server.
+    startTransition(async () => {
+      const res = await fetchLeadsTable(scope, filters, page);
+      setRows(res.rows);
+      setTotal(res.total);
+    });
+    router.refresh();
   }
 
   function runBulkReassign(assigneeId: string | null) {
@@ -270,7 +273,7 @@ export function LeadsTable({
       );
       setSelected(new Set());
       setBulkAssignee("");
-      router.refresh();
+      refresh();
     });
   }
 
@@ -278,19 +281,33 @@ export function LeadsTable({
     const ids = [...selected];
     if (ids.length === 0) return;
     startTransition(async () => {
-      const res = await setLeadsArchived(ids, !archivedView);
+      const res = await setLeadsArchived(ids, !archived);
       if (!res.ok) {
         toast.error(res.message);
         return;
       }
       toast.success(
-        archivedView
+        archived
           ? `${res.updated} lead(s) desarchivados`
           : `${res.updated} lead(s) archivados`,
       );
       setSelected(new Set());
-      router.refresh();
+      refresh();
     });
+  }
+
+  function runExport() {
+    setExporting(true);
+    exportLeadsTable(scope, filters)
+      .then((all) => {
+        if (all.length === 0) {
+          toast.info("No hay leads para exportar");
+          return;
+        }
+        exportRows(all);
+      })
+      .catch(() => toast.error("No pude exportar"))
+      .finally(() => setExporting(false));
   }
 
   const baseCols = showAssignee ? 9 : 8;
@@ -339,19 +356,20 @@ export function LeadsTable({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => exportRows(filtered)}
-            disabled={filtered.length === 0}
+            onClick={runExport}
+            disabled={exporting || total === 0}
           >
-            <Download className="mr-2 size-4" /> Exportar
+            {exporting ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 size-4" />
+            )}
+            Exportar
           </Button>
         )}
-        <span className="ml-auto text-sm text-muted-foreground">
-          {filtered.length} de {(total ?? rows.length).toLocaleString("es-AR")}
-          {capped && total && total > rows.length && (
-            <span className="ml-1 text-xs">
-              (cargados {rows.length.toLocaleString("es-AR")})
-            </span>
-          )}
+        <span className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
+          {loading && <Loader2 className="size-4 animate-spin" />}
+          {total.toLocaleString("es-AR")} resultado(s)
         </span>
       </div>
 
@@ -449,7 +467,7 @@ export function LeadsTable({
             disabled={pending}
             onClick={runBulkArchive}
           >
-            {archivedView ? "Desarchivar" : "Archivar"}
+            {archived ? "Desarchivar" : "Archivar"}
           </Button>
           <Button
             size="sm"
@@ -470,7 +488,7 @@ export function LeadsTable({
                   <input
                     type="checkbox"
                     aria-label="Seleccionar todos"
-                    checked={allFilteredSelected}
+                    checked={allSelected}
                     onChange={toggleAll}
                     className="size-4 rounded border-input"
                   />
@@ -488,17 +506,17 @@ export function LeadsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 && (
+            {rows.length === 0 && (
               <TableRow>
                 <TableCell
                   colSpan={colSpan}
                   className="py-10 text-center text-muted-foreground"
                 >
-                  Sin resultados
+                  {loading ? "Cargando…" : "Sin resultados"}
                 </TableCell>
               </TableRow>
             )}
-            {paged.map((row) => (
+            {rows.map((row) => (
               <TableRow
                 key={row.id}
                 role="link"
@@ -531,17 +549,7 @@ export function LeadsTable({
                   </TableCell>
                 )}
                 <TableCell className="font-medium">
-                  <span className="inline-flex items-center gap-1.5">
-                    {fullName(row.first_name, row.last_name)}
-                    {row.is_duplicate && (
-                      <span
-                        title="Teléfono duplicado en la base"
-                        className="inline-flex items-center"
-                      >
-                        <AlertTriangle className="size-4 text-amber-500" />
-                      </span>
-                    )}
-                  </span>
+                  {fullName(row.first_name, row.last_name)}
                 </TableCell>
                 <TableCell className="text-sm">
                   <div className="text-foreground">{row.phone ?? "—"}</div>
@@ -573,7 +581,6 @@ export function LeadsTable({
                 <TableCell className="text-sm text-muted-foreground">
                   {fmtDate(row.last_contacted_at)}
                 </TableCell>
-                {/* Selector inline — stopPropagation para no navegar al detalle. */}
                 <TableCell
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
@@ -594,29 +601,29 @@ export function LeadsTable({
         </Table>
       </div>
 
-      {filtered.length > PAGE_SIZE && (
+      {total > LEADS_TABLE_PAGE && (
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground">
-            Mostrando {(safePage - 1) * PAGE_SIZE + 1}–
-            {Math.min(safePage * PAGE_SIZE, filtered.length)} de{" "}
-            {filtered.length.toLocaleString("es-AR")}
+            Mostrando {(page - 1) * LEADS_TABLE_PAGE + 1}–
+            {Math.min(page * LEADS_TABLE_PAGE, total)} de{" "}
+            {total.toLocaleString("es-AR")}
           </span>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
-              disabled={safePage <= 1}
+              disabled={page <= 1 || loading}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
               Anterior
             </Button>
             <span className="text-xs text-muted-foreground">
-              Página {safePage} de {pageCount}
+              Página {page} de {pageCount}
             </span>
             <Button
               variant="outline"
               size="sm"
-              disabled={safePage >= pageCount}
+              disabled={page >= pageCount || loading}
               onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
             >
               Siguiente

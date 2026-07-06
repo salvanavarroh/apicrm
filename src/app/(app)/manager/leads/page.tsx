@@ -6,42 +6,15 @@ import {
   type KanbanLead,
 } from "@/components/leads/kanban-board";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
-import { LeadsTable, type LeadsTableRow } from "@/components/leads/leads-table";
+import { LeadsTable } from "@/components/leads/leads-table";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { actingManagerId, requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
-import { fetchPaged } from "@/lib/leads-fetch";
-import {
-  LEAD_STATUS_LABELS,
-  fullName,
-  normalizePhone,
-  type LeadStatus,
-} from "@/lib/leads";
+import { LEAD_STATUS_LABELS, fullName, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
-
-const TABLE_SELECT = `
-  id,
-  first_name,
-  last_name,
-  phone,
-  email,
-  city,
-  vehicle_model,
-  vehicle_version,
-  status,
-  temperature,
-  created_at,
-  last_contacted_at,
-  branch_id,
-  product_type_id,
-  branches:branch_id (name),
-  product_types:product_type_id (name),
-  campaigns:campaign_id (name),
-  assignee:profiles!assigned_user_id (first_name, last_name)
-`;
 
 const STATUSES = Object.keys(LEAD_STATUS_LABELS) as LeadStatus[];
 
@@ -131,7 +104,6 @@ export default async function ManagerLeadsPage({
       )}
       {activeTab === "table" && (
         <ManagerTable
-          supabase={supabase}
           cid={cid}
           canExport={profile.can_export_leads}
           managerId={actingManagerId(profile)}
@@ -139,7 +111,6 @@ export default async function ManagerLeadsPage({
       )}
       {activeTab === "archived" && (
         <ManagerTable
-          supabase={supabase}
           cid={cid}
           canExport={profile.can_export_leads}
           managerId={actingManagerId(profile)}
@@ -191,72 +162,23 @@ async function ManagerKanban({
 // Tabla: se pagina del lado del cliente; se trae en tandas hasta el cap.
 // ----------------------------------------------------------------------------
 async function ManagerTable({
-  supabase,
   cid,
   canExport,
   managerId,
   archived = false,
 }: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
   cid: string;
   canExport: boolean;
   managerId: string;
   archived?: boolean;
 }) {
-  const [leadsPage, team] = await Promise.all([
-    fetchPaged((withCount) => {
-      const q = supabase
-        .from("leads")
-        .select(TABLE_SELECT, withCount ? { count: "exact" } : {})
-        .eq("company_id", cid)
-        .order("created_at", { ascending: false });
-      return archived
-        ? q.not("archived_at", "is", null)
-        : q.is("archived_at", null);
-    }),
-    getAssignableSalesUsers({ companyId: cid, managerId }),
-  ]);
-
-  const phoneCounts = new Map<string, number>();
-  for (const l of leadsPage.rows) {
-    const p = normalizePhone(l.phone);
-    if (p) phoneCounts.set(p, (phoneCounts.get(p) ?? 0) + 1);
-  }
-
-  const tableRows: LeadsTableRow[] = leadsPage.rows.map((l) => {
-    const p = normalizePhone(l.phone);
-    return {
-      id: l.id,
-      first_name: l.first_name,
-      last_name: l.last_name,
-      phone: l.phone,
-      email: l.email,
-      status: l.status,
-      temperature: l.temperature,
-      city: l.city,
-      vehicle_model: l.vehicle_model,
-      vehicle_version: l.vehicle_version,
-      branch_name: l.branches?.name ?? null,
-      product_type_name: l.product_types?.name ?? null,
-      campaign_name: l.campaigns?.name ?? null,
-      assignee_name: l.assignee
-        ? fullName(l.assignee.first_name, l.assignee.last_name)
-        : null,
-      created_at: l.created_at,
-      last_contacted_at: l.last_contacted_at,
-      is_duplicate: p ? (phoneCounts.get(p) ?? 0) > 1 : false,
-    };
-  });
-
+  const team = await getAssignableSalesUsers({ companyId: cid, managerId });
   return (
     <LeadsTable
-      rows={tableRows}
+      scope={{ archived }}
       detailHrefPrefix="/manager/leads"
       assignableUsers={team}
       canExport={canExport}
-      total={leadsPage.total}
-      capped={leadsPage.capped}
-      archivedView={archived}
     />
   );
 }
