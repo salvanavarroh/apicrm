@@ -1,10 +1,12 @@
 import { LayoutGrid, List } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import {
   KanbanBoard,
   type KanbanLead,
 } from "@/components/leads/kanban-board";
+import { LeadsSectionSkeleton } from "@/components/leads/leads-skeletons";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
@@ -52,11 +54,16 @@ export default async function SalesLeadsPage({
         </TabsList>
       </Tabs>
 
-      {activeTab === "kanban" ? (
-        <SalesKanban supabase={supabase} />
-      ) : (
-        <SalesTable />
-      )}
+      <Suspense
+        key={activeTab}
+        fallback={<LeadsSectionSkeleton view={activeTab} />}
+      >
+        {activeTab === "kanban" ? (
+          <SalesKanban supabase={supabase} />
+        ) : (
+          <SalesTable />
+        )}
+      </Suspense>
     </div>
   );
 }

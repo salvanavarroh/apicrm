@@ -1,11 +1,13 @@
 import { Archive, LayoutGrid, List, Plus, Upload, UserPlus } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import {
   KanbanBoard,
   type KanbanLead,
 } from "@/components/leads/kanban-board";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { LeadsSectionSkeleton } from "@/components/leads/leads-skeletons";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
 import { Button } from "@/components/ui/button";
@@ -34,17 +36,6 @@ export default async function ManagerLeadsPage({
     tab === "table" || tab === "unassigned" || tab === "archived"
       ? tab
       : "kanban";
-
-  // Conteo de "No asignados" para el badge (barato, siempre). RLS scopea a sus
-  // gerencias. Excluye archivados.
-  const { count: unassignedCount } = await supabase
-    .from("leads")
-    .select("id", { count: "exact", head: true })
-    .eq("company_id", cid)
-    .is("assigned_user_id", null)
-    .is("archived_at", null)
-    .not("branch_id", "is", null)
-    .not("product_type_id", "is", null);
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,11 +76,9 @@ export default async function ManagerLeadsPage({
           <TabsTrigger value="unassigned" asChild>
             <Link href="/manager/leads?tab=unassigned">
               <UserPlus className="mr-2 size-4" /> No asignados
-              {(unassignedCount ?? 0) > 0 && (
-                <span className="ml-2 rounded-full bg-warning/20 px-2 text-[10px] font-semibold text-warning-foreground">
-                  {(unassignedCount ?? 0) > 999 ? "999+" : unassignedCount}
-                </span>
-              )}
+              <Suspense fallback={null}>
+                <UnassignedBadge cid={cid} />
+              </Suspense>
             </Link>
           </TabsTrigger>
           <TabsTrigger value="archived" asChild>
@@ -100,33 +89,57 @@ export default async function ManagerLeadsPage({
         </TabsList>
       </Tabs>
 
-      {activeTab === "kanban" && (
-        <ManagerKanban supabase={supabase} cid={cid} />
-      )}
-      {activeTab === "table" && (
-        <ManagerTable
-          cid={cid}
-          canExport={profile.can_export_leads}
-          managerId={actingManagerId(profile)}
-        />
-      )}
-      {activeTab === "archived" && (
-        <ManagerTable
-          cid={cid}
-          canExport={profile.can_export_leads}
-          managerId={actingManagerId(profile)}
-          archived
-        />
-      )}
-      {activeTab === "unassigned" && (
-        <ManagerUnassigned
-          supabase={supabase}
-          cid={cid}
-          managerId={actingManagerId(profile)}
-          count={unassignedCount ?? 0}
-        />
-      )}
+      <Suspense
+        key={activeTab}
+        fallback={<LeadsSectionSkeleton view={activeTab} />}
+      >
+        {activeTab === "kanban" && (
+          <ManagerKanban supabase={supabase} cid={cid} />
+        )}
+        {activeTab === "table" && (
+          <ManagerTable
+            cid={cid}
+            canExport={profile.can_export_leads}
+            managerId={actingManagerId(profile)}
+          />
+        )}
+        {activeTab === "archived" && (
+          <ManagerTable
+            cid={cid}
+            canExport={profile.can_export_leads}
+            managerId={actingManagerId(profile)}
+            archived
+          />
+        )}
+        {activeTab === "unassigned" && (
+          <ManagerUnassigned
+            supabase={supabase}
+            cid={cid}
+            managerId={actingManagerId(profile)}
+          />
+        )}
+      </Suspense>
     </div>
+  );
+}
+
+// Badge de "No asignados" — cuenta exacta, en su propio Suspense para no frenar
+// la barra de pestañas.
+async function UnassignedBadge({ cid }: { cid: string }) {
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from("leads")
+    .select("id", { count: "exact", head: true })
+    .eq("company_id", cid)
+    .is("assigned_user_id", null)
+    .is("archived_at", null)
+    .not("branch_id", "is", null)
+    .not("product_type_id", "is", null);
+  if (!count) return null;
+  return (
+    <span className="ml-2 rounded-full bg-warning/20 px-2 text-[10px] font-semibold text-warning-foreground">
+      {count > 999 ? "999+" : count}
+    </span>
   );
 }
 
@@ -196,15 +209,13 @@ async function ManagerUnassigned({
   supabase,
   cid,
   managerId,
-  count,
 }: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   cid: string;
   managerId: string;
-  count: number;
 }) {
   const LIMIT = 500;
-  const [{ data: unassigned }, team] = await Promise.all([
+  const [{ data: unassigned, count }, team] = await Promise.all([
     supabase
       .from("leads")
       .select(
@@ -218,6 +229,7 @@ async function ManagerUnassigned({
           branches:branch_id (name),
           product_types:product_type_id (name)
         `,
+        { count: "exact" },
       )
       .eq("company_id", cid)
       .is("assigned_user_id", null)
@@ -230,6 +242,7 @@ async function ManagerUnassigned({
   ]);
 
   const list = unassigned ?? [];
+  const total = count ?? list.length;
   if (list.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center text-sm text-muted-foreground">
@@ -240,9 +253,9 @@ async function ManagerUnassigned({
 
   return (
     <div className="flex flex-col gap-2">
-      {count > list.length && (
+      {total > list.length && (
         <p className="text-xs text-muted-foreground">
-          Mostrando {list.length} de {count} sin asignar. Usá la asignación
+          Mostrando {list.length} de {total} sin asignar. Usá la asignación
           automática o reasigná por tandas.
         </p>
       )}
