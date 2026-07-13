@@ -1,8 +1,8 @@
 "use client";
 
-import { Loader2, Sparkles, Upload, Wand2 } from "lucide-react";
+import { CheckCircle2, Loader2, RefreshCw, Sparkles, Upload, Wand2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -38,11 +38,14 @@ import {
 import type { ImportFileType } from "@/lib/lead-import-parse";
 import {
   analyzeImport,
-  commitImport,
+  enqueueImport,
+  getImportJob,
   reapplyMapping,
   regenerateMapping,
+  resumeImport,
   type AnalyzeResult,
   type ImportContext,
+  type ImportJob,
 } from "@/lib/lead-ai-import-actions";
 import { createClient } from "@/lib/supabase/client";
 
@@ -61,7 +64,7 @@ type Props = {
   showDistribution?: boolean;
 };
 
-type Step = "setup" | "analyzing" | "review";
+type Step = "setup" | "analyzing" | "review" | "processing";
 
 const TARGET_OPTIONS = [
   { value: "full_name", label: TARGET_LABELS.full_name },
@@ -103,6 +106,9 @@ export function AiLeadImporter({
 
   const [step, setStep] = useState<Step>("setup");
   const [file, setFile] = useState<File | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [job, setJob] = useState<ImportJob | null>(null);
+  const [resuming, setResuming] = useState(false);
 
   const [context, setContext] = useState<ImportContext>({
     branch_id: "",
@@ -192,7 +198,7 @@ export function AiLeadImporter({
     });
   }
 
-  function handleCommit() {
+  function handleConfirm() {
     if (!mapping) return;
     if (context.distribution === "fixed" && !context.assignee_id) {
       toast.error("Elegí el vendedor para la asignación fija");
@@ -200,30 +206,177 @@ export function AiLeadImporter({
     }
     setCommitting(true);
     startTransition(async () => {
-      let res: Awaited<ReturnType<typeof commitImport>>;
-      try {
-        res = await commitImport(filePath, fileType, mapping, context);
-      } catch {
-        setCommitting(false);
-        toast.error(
-          "La carga tardó demasiado o se cortó. Puede que se hayan cargado algunos leads; revisá la lista antes de reintentar.",
-        );
-        return;
-      }
+      const res = await enqueueImport(filePath, fileType, mapping, context);
       setCommitting(false);
       if (!res.ok) {
         toast.error(res.message);
         return;
       }
-      const parts = [`${res.inserted} lead(s) importados`];
-      if (res.skippedDuplicates) parts.push(`${res.skippedDuplicates} duplicado(s)`);
-      if (res.skippedErrors) parts.push(`${res.skippedErrors} con error`);
-      toast.success(parts.join(" · "));
-      setTimeout(() => {
-        router.push(redirectTo);
-        router.refresh();
-      }, 1000);
+      setJobId(res.jobId);
+      setJob(null);
+      setStep("processing");
     });
+  }
+
+  // Polling del progreso mientras la importación corre en segundo plano.
+  useEffect(() => {
+    if (step !== "processing" || !jobId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      const j = await getImportJob(jobId).catch(() => null);
+      if (cancelled) return;
+      if (j) setJob(j);
+      if (j && (j.status === "done" || j.status === "error")) return; // frenar
+      timer = setTimeout(poll, 2500);
+    };
+    poll();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [step, jobId]);
+
+  // Cuando termina OK, refrescamos la lista de leads por detrás.
+  const doneRefreshed = useRef(false);
+  useEffect(() => {
+    if (job?.status === "done" && !doneRefreshed.current) {
+      doneRefreshed.current = true;
+      router.refresh();
+    }
+  }, [job?.status, router]);
+
+  function handleResume() {
+    if (!jobId) return;
+    setResuming(true);
+    startTransition(async () => {
+      const res = await resumeImport(jobId);
+      setResuming(false);
+      if (!res.ok) {
+        toast.error(res.message ?? "No pude reanudar");
+        return;
+      }
+      // Volver a poner en "processing" reactiva el polling.
+      setJob((j) => (j ? { ...j, stale: false } : j));
+      toast.success("Reanudando importación…");
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // Paso 3: procesando en segundo plano (con polling)
+  // --------------------------------------------------------------------------
+  if (step === "processing") {
+    const total = job?.total ?? 0;
+    const processed = job?.processed ?? 0;
+    const pct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
+    const done = job?.status === "done";
+    const errored = job?.status === "error";
+    const stuck = job?.stale && !done && !errored;
+
+    return (
+      <div className="mx-auto flex max-w-xl flex-col gap-5">
+        <Card className="flex flex-col gap-4 p-6">
+          <div className="flex items-center gap-3">
+            {done ? (
+              <CheckCircle2 className="size-6 text-success" />
+            ) : errored ? (
+              <Sparkles className="size-6 text-destructive" />
+            ) : (
+              <Loader2 className="size-6 animate-spin text-primary" />
+            )}
+            <div>
+              <p className="text-base font-semibold">
+                {done
+                  ? "Importación completada"
+                  : errored
+                    ? "La importación se detuvo"
+                    : "Importando leads…"}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {done
+                  ? `${job?.inserted ?? 0} lead(s) cargados${
+                      job?.skippedDuplicates
+                        ? ` · ${job.skippedDuplicates} duplicado(s)`
+                        : ""
+                    }${job?.skippedErrors ? ` · ${job.skippedErrors} con error` : ""}`
+                  : errored
+                    ? (job?.error ?? "Ocurrió un error")
+                    : total > 0
+                      ? `${processed.toLocaleString("es-AR")} de ${total.toLocaleString("es-AR")} procesados`
+                      : "En cola, arrancando…"}
+              </p>
+            </div>
+          </div>
+
+          {!errored && (
+            <div className="flex flex-col gap-1">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    done ? "bg-success" : "bg-primary",
+                  )}
+                  style={{ width: `${done ? 100 : pct}%` }}
+                />
+              </div>
+              {!done && (
+                <p className="text-xs text-muted-foreground">
+                  Podés cerrar esta ventana o seguir trabajando: la carga
+                  continúa en segundo plano.
+                </p>
+              )}
+            </div>
+          )}
+
+          {stuck && (
+            <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+              <p className="font-medium text-warning-foreground">
+                Parece que la importación se pausó.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                No avanza hace un rato. Podés reanudarla desde donde quedó.
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2">
+            {done ? (
+              <Button
+                onClick={() => {
+                  router.push(redirectTo);
+                  router.refresh();
+                }}
+                className="ml-auto"
+              >
+                Ir a leads
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    router.push(redirectTo);
+                    router.refresh();
+                  }}
+                >
+                  Ir a leads
+                </Button>
+                {(stuck || errored) && (
+                  <Button onClick={handleResume} disabled={resuming}>
+                    {resuming ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="size-4" />
+                    )}
+                    Reanudar
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
   }
 
   // --------------------------------------------------------------------------
@@ -558,12 +711,12 @@ export function AiLeadImporter({
           Volver
         </Button>
         <Button
-          onClick={handleCommit}
+          onClick={handleConfirm}
           disabled={committing || !s || s.ok + s.warning === 0}
         >
           {committing ? (
             <>
-              <Loader2 className="size-4 animate-spin" /> Importando…
+              <Loader2 className="size-4 animate-spin" /> Iniciando…
             </>
           ) : (
             `Confirmar y subir ${s ? s.ok + s.warning : 0} lead(s)`

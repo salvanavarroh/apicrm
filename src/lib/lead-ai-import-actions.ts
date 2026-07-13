@@ -6,20 +6,22 @@
 // Flujo (stateless): el cliente sube el archivo al bucket `lead-imports`. Luego:
 //  - analyzeImport  → baja + parsea + muestra a la IA → mapeo + preview + stats
 //  - regenerateMapping → re-corre el mapeo con una instrucción NL
-//  - commitImport   → re-parsea, aplica el mapeo (posiblemente editado), inserta
-//                     en batches, crea submissions/consultas y distribuye.
+//  - enqueueImport  → crea un job y dispara el procesamiento en segundo plano
+//                     (/api/leads-import/process). getImportJob/resumeImport
+//                     para hacer polling del progreso y reanudar si se traba.
 //
 // No usamos staging tables: el archivo queda en Storage como fuente de verdad y
 // se re-parsea en cada paso (barato). Ver docs/carga-leads-ia.md.
 // ============================================================================
 
-import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { requireRole } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   applyMapping,
   type ApplyResult,
+  type ImportContext,
   type LeadMapping,
   type MappedRow,
 } from "@/lib/lead-import";
@@ -28,21 +30,14 @@ import { createOpenAiMapper } from "@/lib/lead-mapper";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
 
-type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
+export type { ImportContext };
 
 const IMPORT_ROLES = ["admin", "manager", "supervisor", "data_provider"] as const;
 const BUCKET = "lead-imports";
 const PREVIEW_LIMIT = 200;
-const INSERT_BATCH = 500;
-
-export type ImportContext = {
-  branch_id?: string;
-  product_type_id?: string;
-  campaign_id?: string;
-  source?: string;
-  distribution: "round_robin" | "fixed" | "unassigned";
-  assignee_id?: string;
-};
+// Un job se considera "trabado" si sigue pending/processing pero no avanza hace
+// más de este tiempo (el procesador toca updated_at en cada tanda).
+const STALE_MS = 30_000;
 
 export type AnalyzeResult =
   | {
@@ -164,181 +159,133 @@ export async function reapplyMapping(
 }
 
 // ----------------------------------------------------------------------------
-// Commit: inserta los leads mapeados en batches.
+// Commit en segundo plano: se crea un job y la route /api/leads-import/process
+// lo procesa por tandas (re-invocándose). El cliente hace polling del progreso;
+// si se traba, puede reanudar.
 // ----------------------------------------------------------------------------
 
-export type CommitResult =
-  | {
-      ok: true;
-      inserted: number;
-      skippedErrors: number;
-      skippedDuplicates: number;
-    }
-  | { ok: false; message: string };
+export type ImportJob = {
+  id: string;
+  status: "pending" | "processing" | "done" | "error";
+  total: number;
+  processed: number;
+  inserted: number;
+  skippedDuplicates: number;
+  skippedErrors: number;
+  error: string | null;
+  // Sigue pending/processing pero no avanza hace rato → ofrecer "Reanudar".
+  stale: boolean;
+};
 
-export async function commitImport(
+type JobInsert = Database["public"]["Tables"]["lead_import_jobs"]["Insert"];
+type JobRow = Database["public"]["Tables"]["lead_import_jobs"]["Row"];
+
+// Dispara (o re-dispara) el procesamiento. /process responde al toque (el
+// trabajo pesado corre en su after()), así que este await es rápido.
+async function kickProcess(jobId: string): Promise<void> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return;
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  if (!host) return;
+  const proto =
+    h.get("x-forwarded-proto") ??
+    (host.startsWith("localhost") ? "http" : "https");
+  try {
+    await fetch(`${proto}://${host}/api/leads-import/process`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${secret}`,
+      },
+      body: JSON.stringify({ jobId }),
+    });
+  } catch {
+    // Si falla el disparo, el job queda pending → el usuario puede reanudar.
+  }
+}
+
+export async function enqueueImport(
   filePath: string,
   fileType: ImportFileType,
   mapping: LeadMapping,
   context: ImportContext,
-): Promise<CommitResult> {
+): Promise<{ ok: true; jobId: string } | { ok: false; message: string }> {
   const profile = await requireRole([...IMPORT_ROLES]);
   if (!profile.company_id) {
     return { ok: false, message: "No tenés empresa asignada" };
   }
-  const companyId = profile.company_id;
-
-  const loaded = await loadFile(filePath, fileType, companyId);
-  if (!loaded.ok) return { ok: false, message: loaded.message };
-
-  const applied = applyMapping(loaded.rows, mapping);
-
-  // Solo insertamos filas OK / con avisos. Errores y duplicados en archivo se
-  // descartan (el usuario los vio en la revisión).
-  const insertable = applied.rows.filter(
-    (r) => r.status === "ok" || r.status === "warning",
-  );
-  const skippedErrors = applied.stats.error;
-  let skippedDuplicates = applied.stats.duplicate;
-
-  if (insertable.length === 0) {
-    return { ok: false, message: "No hay filas válidas para importar" };
+  if (!filePath.startsWith(`${profile.company_id}/`)) {
+    return { ok: false, message: "Archivo fuera de tu empresa" };
   }
 
-  const supabase = await createClient();
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("lead_import_jobs")
+    .insert({
+      company_id: profile.company_id,
+      created_by: profile.id,
+      file_path: filePath,
+      file_type: fileType,
+      mapping: mapping as unknown as JobInsert["mapping"],
+      context: context as unknown as JobInsert["context"],
+      status: "pending",
+    })
+    .select("id")
+    .single();
 
-  // Dedup contra la base por external_id (índice parcial company_id+external_id).
-  const externalIds = Array.from(
-    new Set(
-      insertable
-        .map((r) => r.data.external_id)
-        .filter((v): v is string => Boolean(v)),
-    ),
-  );
-  const existingExternal = new Set<string>();
-  for (let i = 0; i < externalIds.length; i += INSERT_BATCH) {
-    const chunk = externalIds.slice(i, i + INSERT_BATCH);
-    const { data } = await supabase
-      .from("leads")
-      .select("external_id")
-      .eq("company_id", companyId)
-      .in("external_id", chunk);
-    for (const row of data ?? []) {
-      if (row.external_id) existingExternal.add(row.external_id);
-    }
-  }
-
-  const toInsert = insertable.filter((r) => {
-    if (r.data.external_id && existingExternal.has(r.data.external_id)) {
-      skippedDuplicates++;
-      return false;
-    }
-    return true;
-  });
-
-  if (toInsert.length === 0) {
+  if (error || !data) {
     return {
-      ok: true,
-      inserted: 0,
-      skippedErrors,
-      skippedDuplicates,
+      ok: false,
+      message: error?.message ?? "No pude crear la importación",
     };
   }
 
-  const assignedUserId =
-    context.distribution === "fixed" ? context.assignee_id ?? null : null;
-  const nowIso = new Date().toISOString();
+  await kickProcess(data.id);
+  return { ok: true, jobId: data.id };
+}
 
-  let inserted = 0;
-  const insertedIds: string[] = [];
+function toImportJob(row: JobRow): ImportJob {
+  const active = row.status === "pending" || row.status === "processing";
+  const stale =
+    active && Date.now() - new Date(row.updated_at).getTime() > STALE_MS;
+  return {
+    id: row.id,
+    status: row.status as ImportJob["status"],
+    total: row.total,
+    processed: row.processed,
+    inserted: row.inserted,
+    skippedDuplicates: row.skipped_duplicates,
+    skippedErrors: row.skipped_errors,
+    error: row.error,
+    stale,
+  };
+}
 
-  for (let i = 0; i < toInsert.length; i += INSERT_BATCH) {
-    const batch = toInsert.slice(i, i + INSERT_BATCH);
-    const inserts: LeadInsert[] = batch.map((r) => ({
-      company_id: companyId,
-      first_name: r.data.first_name,
-      last_name: r.data.last_name,
-      email: r.data.email,
-      phone: r.data.phone,
-      city: r.data.city,
-      locality: r.data.locality,
-      province: r.data.province,
-      national_id: r.data.national_id,
-      birth_date: r.data.birth_date,
-      preferred_contact_time: r.data.preferred_contact_time,
-      vehicle_brand: r.data.vehicle_brand,
-      vehicle_model: r.data.vehicle_model,
-      vehicle_version: r.data.vehicle_version,
-      preferred_color: r.data.preferred_color,
-      budget_min: r.data.budget_min,
-      budget_max: r.data.budget_max,
-      has_used_car: r.data.has_used_car,
-      used_car_description: r.data.used_car_description,
-      declared_payment_method: r.data.declared_payment_method,
-      initial_notes: r.data.initial_notes,
-      source: context.source || r.data.source,
-      external_id: r.data.external_id,
-      source_created_at: r.data.source_created_at,
-      utm_source: r.data.utm_source,
-      utm_medium: r.data.utm_medium,
-      utm_campaign: r.data.utm_campaign,
-      utm_term: r.data.utm_term,
-      utm_content: r.data.utm_content,
-      landing_url: r.data.landing_url,
-      referrer: r.data.referrer,
-      metadata: r.data.metadata,
-      branch_id: context.branch_id || null,
-      product_type_id: context.product_type_id || null,
-      campaign_id: context.campaign_id || null,
-      created_by: profile.id,
-      assigned_user_id: assignedUserId,
-      assigned_at: assignedUserId ? nowIso : null,
-    }));
+export async function getImportJob(jobId: string): Promise<ImportJob | null> {
+  await requireRole([...IMPORT_ROLES]);
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("lead_import_jobs")
+    .select("*")
+    .eq("id", jobId)
+    .maybeSingle();
+  return data ? toImportJob(data) : null;
+}
 
-    const { data, error } = await supabase
-      .from("leads")
-      .insert(inserts)
-      .select("id");
-    if (error) {
-      return {
-        ok: false,
-        message: `Error insertando (van ${inserted}): ${error.message}`,
-      };
-    }
-    inserted += data?.length ?? 0;
-    for (const row of data ?? []) insertedIds.push(row.id);
-  }
-
-  // Distribución round-robin: asignación MASIVA balanceada en una sola query
-  // (antes se llamaba auto_assign_lead por lead → timeout con miles + desbalance).
-  // Se hace en tandas para no mandar un array gigante en un solo RPC.
-  if (
-    context.distribution === "round_robin" &&
-    context.branch_id &&
-    context.product_type_id &&
-    insertedIds.length > 0
-  ) {
-    const ASSIGN_BATCH = 2000;
-    for (let i = 0; i < insertedIds.length; i += ASSIGN_BATCH) {
-      const chunk = insertedIds.slice(i, i + ASSIGN_BATCH);
-      const { error } = await supabase.rpc("bulk_assign_leads", {
-        p_lead_ids: chunk,
-      });
-      if (error) {
-        // No abortamos el commit: los leads ya están cargados, sólo quedan sin
-        // asignar y el gerente los puede repartir a mano.
-        break;
-      }
-    }
-  }
-
-  // Borramos el archivo crudo tras el commit exitoso (no lo retenemos).
-  const admin = createAdminClient();
-  await admin.storage.from(BUCKET).remove([filePath]);
-
-  revalidatePath("/admin/leads");
-  revalidatePath("/manager/leads");
-  revalidatePath("/data-provider/leads");
-
-  return { ok: true, inserted, skippedErrors, skippedDuplicates };
+export async function resumeImport(
+  jobId: string,
+): Promise<{ ok: boolean; message?: string }> {
+  await requireRole([...IMPORT_ROLES]);
+  const supabase = await createClient();
+  // La RLS asegura que sólo se ve/reanuda un job de la propia empresa.
+  const { data } = await supabase
+    .from("lead_import_jobs")
+    .select("id, status")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (!data) return { ok: false, message: "No encontré la importación" };
+  if (data.status === "done") return { ok: true };
+  await kickProcess(jobId);
+  return { ok: true };
 }

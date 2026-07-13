@@ -573,6 +573,81 @@ export type Database = {
           },
         ]
       }
+      lead_import_jobs: {
+        Row: {
+          company_id: string
+          context: Json
+          created_at: string
+          created_by: string
+          error: string | null
+          file_path: string
+          file_type: string
+          id: string
+          inserted: number
+          locked_at: string | null
+          mapping: Json
+          processed: number
+          skipped_duplicates: number
+          skipped_errors: number
+          status: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          context: Json
+          created_at?: string
+          created_by: string
+          error?: string | null
+          file_path: string
+          file_type: string
+          id?: string
+          inserted?: number
+          locked_at?: string | null
+          mapping: Json
+          processed?: number
+          skipped_duplicates?: number
+          skipped_errors?: number
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          context?: Json
+          created_at?: string
+          created_by?: string
+          error?: string | null
+          file_path?: string
+          file_type?: string
+          id?: string
+          inserted?: number
+          locked_at?: string | null
+          mapping?: Json
+          processed?: number
+          skipped_duplicates?: number
+          skipped_errors?: number
+          status?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_import_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_import_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_notes: {
         Row: {
           activity_type: Database["public"]["Enums"]["note_activity"] | null

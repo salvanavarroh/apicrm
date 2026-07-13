@@ -431,6 +431,16 @@ export function applyMapping(
   return { rows, stats };
 }
 
+// Contexto por archivo elegido en las pre-preguntas del importador.
+export type ImportContext = {
+  branch_id?: string;
+  product_type_id?: string;
+  campaign_id?: string;
+  source?: string;
+  distribution: "round_robin" | "fixed" | "unassigned";
+  assignee_id?: string;
+};
+
 export const MAPPED_STATUS_META: Record<
   MappedRowStatus,
   { label: string; tone: "success" | "warning" | "danger" | "muted" }

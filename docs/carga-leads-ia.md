@@ -163,11 +163,30 @@ horario_de_contacto, email, full_name, phone_number, province, retailer_item_id`
   `admin/leads/import-ai` y `manager/leads/import-ai`, con banner de acceso
   desde los importadores CSV existentes.
 
+### Commit en segundo plano (jul-2026)
+El commit dejó de ser una server action bloqueante (se "tildaba" el front y podía
+hacer timeout con miles). Ahora:
+- **`lead_import_jobs`** (tabla): guarda file_path, mapping, context, status,
+  total/processed/inserted/skipped, locked_at, updated_at. RLS: el creador +
+  admin/manager/supervisor de la empresa la leen. Migración `20260713120000`.
+- **`enqueueImport`** crea el job (pending) y **vuelve al toque**; dispara
+  `POST /api/leads-import/process` (auth `CRON_SECRET`, mismo secreto interno que
+  el cron de pagos — NO agendado como cron).
+- **`/api/leads-import/process`** (`maxDuration=60`): claim atómico (lock por
+  `locked_at`, vencimiento 25s → evita doble proceso), y en su `after()` procesa
+  tandas de 500 (tope 6 tandas / 30s por invocación) **re-invocándose** hasta
+  terminar. Asigna cada tanda con `bulk_assign_leads`. Al final borra el archivo.
+- **Polling**: el cliente llama `getImportJob(jobId)` cada 2.5s y muestra barra de
+  progreso. Se puede cerrar la ventana / navegar: sigue en segundo plano.
+- **Reanudar (sin cron)**: si `updated_at` no avanza >30s (job trabado), el
+  cliente marca `stale` y ofrece **"Reanudar"** → `resumeImport` re-dispara
+  `/process`. Idempotente: dedup por `external_id` + cursor `processed`.
+
 ### Decisiones vs. el diseño original
-- **Sin staging tables** (`lead_import_jobs` / `lead_import_rows`): el archivo en
-  Storage es la fuente de verdad y se re-parsea en cada paso (stateless, barato).
-  Evita el límite de body de server actions con miles de filas. Si en Fase 2 se
-  necesita resumabilidad/edición fila-a-fila persistida, se agregan.
+- **Sí hay staging job** (`lead_import_jobs`) para el progreso/reanudación, pero
+  **sin `lead_import_rows`**: el archivo en Storage es la fuente de verdad y se
+  re-parsea en cada invocación (barato y determinístico). El cursor `processed`
+  permite reanudar sin persistir las filas.
 - **Edición en revisión**: se puede cambiar el destino de cada columna y
   regenerar el mapeo con IA. La edición fila-por-fila queda para Fase 2.
 - **PII**: a OpenAI va sólo headers + ~30 filas de muestra. El archivo original
