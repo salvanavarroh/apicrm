@@ -15,6 +15,11 @@ import {
   TemperatureChanger,
 } from "@/components/leads/temperature-control";
 import { StartSaleButton } from "./start-sale-button";
+import { ResubmitSaleButton } from "./resubmit-sale-button";
+import {
+  SaleDocuments,
+  type SaleDoc,
+} from "@/components/sales/sale-documents";
 import {
   TasksSection,
   type LeadTask,
@@ -34,6 +39,7 @@ import {
   type LeadPaymentMethod,
 } from "@/lib/leads";
 import { formatARS } from "@/lib/format";
+import { loadSaleDocs } from "@/lib/sale-docs";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function SalesLeadDetailPage({
@@ -174,6 +180,14 @@ export default async function SalesLeadDetailPage({
   const saleRows = sales ?? [];
   const activeSale = saleRows.find((s) => s.status === "evaluating") ?? null;
   const hasQuotedAvailable = lead.status === "quoted";
+
+  // Documentación por venta (con signed URLs).
+  const saleDocs = new Map<string, SaleDoc[]>();
+  await Promise.all(
+    saleRows.map(async (s) => {
+      saleDocs.set(s.id, await loadSaleDocs(supabase, s.id));
+    }),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -380,7 +394,7 @@ export default async function SalesLeadDetailPage({
                     </p>
                     {s.status === "evaluating" && (
                       <p className="mt-2 rounded bg-warning/10 px-2 py-1 text-xs text-warning-foreground">
-                        Esperando aprobación del Admin. No podés iniciar otra
+                        Esperando aprobación del gerente. No podés iniciar otra
                         venta hasta que esta se resuelva.
                       </p>
                     )}
@@ -388,6 +402,23 @@ export default async function SalesLeadDetailPage({
                       <p className="mt-2 rounded bg-destructive/10 px-2 py-1 text-xs text-destructive">
                         <strong>Motivo:</strong> {s.rejection_reason}
                       </p>
+                    )}
+
+                    {/* Documentación de la venta (subir/ver/borrar). */}
+                    <div className="mt-3">
+                      <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Documentación
+                      </p>
+                      <SaleDocuments
+                        saleId={s.id}
+                        companyId={profile.company_id!}
+                        docs={saleDocs.get(s.id) ?? []}
+                        canEdit={s.status !== "accepted"}
+                      />
+                    </div>
+
+                    {s.status === "rejected" && (
+                      <ResubmitSaleButton saleId={s.id} />
                     )}
                     {s.status === "accepted" && (
                       <p className="mt-2 rounded bg-success/10 px-2 py-1 text-xs text-success">

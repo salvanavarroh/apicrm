@@ -58,6 +58,10 @@ export type LeadsTableFilters = {
   createdTo?: string;
   contactFrom?: string;
   contactTo?: string;
+  branch_id?: string;
+  product_type_id?: string;
+  campaign_id?: string;
+  assigned_user_id?: string; // uuid | "unassigned"
 };
 
 type TableRow = {
@@ -139,6 +143,14 @@ function applyFilters(query: Query, f: LeadsTableFilters): Query {
   if (f.status && f.status !== "all") q = q.eq("status", f.status);
   if (f.temperature && f.temperature !== "all")
     q = q.eq("temperature", f.temperature);
+  if (f.branch_id) q = q.eq("branch_id", f.branch_id);
+  if (f.product_type_id) q = q.eq("product_type_id", f.product_type_id);
+  if (f.campaign_id) q = q.eq("campaign_id", f.campaign_id);
+  if (f.assigned_user_id === "unassigned") {
+    q = q.is("assigned_user_id", null);
+  } else if (f.assigned_user_id) {
+    q = q.eq("assigned_user_id", f.assigned_user_id);
+  }
   if (f.createdFrom) q = q.gte("created_at", f.createdFrom);
   if (f.createdTo) q = q.lte("created_at", `${f.createdTo}T23:59:59`);
   if (f.contactFrom) q = q.gte("last_contacted_at", f.contactFrom);
@@ -161,7 +173,10 @@ export async function fetchLeadsTable(
   let q = supabase.from("leads").select(TABLE_SELECT, { count: "exact" });
   q = scopeQuery(q, profile, Boolean(scope.archived));
   q = applyFilters(q, filters);
+  // No asignados primero, luego por fecha (para admin/gerente). En vendedor no
+  // afecta (todo es suyo).
   q = q
+    .order("assigned_user_id", { ascending: true, nullsFirst: true })
     .order("created_at", { ascending: false })
     .range((p - 1) * LEADS_TABLE_PAGE, p * LEADS_TABLE_PAGE - 1);
 

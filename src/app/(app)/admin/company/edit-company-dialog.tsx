@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -16,14 +17,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
-import { saveCompanyOperational } from "./actions";
+import { saveCompanyOperational, uploadCompanyLogo } from "./actions";
 
 const schema = z.object({
   name: z.string().min(2, "Nombre obligatorio"),
   address: z.string().optional(),
   phone: z.string().optional(),
   logo_url: z.string().url("URL inválida").optional().or(z.literal("")),
+  quote_legal_text: z.string().optional(),
 });
 
 type Initial = {
@@ -31,6 +34,7 @@ type Initial = {
   phone: string | null;
   address: string | null;
   logo_url: string | null;
+  quote_legal_text: string | null;
 };
 
 export function EditCompanyDialog({
@@ -46,8 +50,11 @@ export function EditCompanyDialog({
   const [address, setAddress] = useState(initial.address ?? "");
   const [phone, setPhone] = useState(initial.phone ?? "");
   const [logoUrl, setLogoUrl] = useState(initial.logo_url ?? "");
+  const [legalText, setLegalText] = useState(initial.quote_legal_text ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function handleOpenChange(next: boolean) {
     if (next) {
@@ -55,13 +62,44 @@ export function EditCompanyDialog({
       setAddress(initial.address ?? "");
       setPhone(initial.phone ?? "");
       setLogoUrl(initial.logo_url ?? "");
+      setLegalText(initial.quote_legal_text ?? "");
       setError(null);
     }
     setOpen(next);
   }
 
+  async function handleLogo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as string);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      const res = await uploadCompanyLogo(dataUrl);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      setLogoUrl(res.url);
+      toast.success("Logo subido");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function submit() {
-    const parsed = schema.safeParse({ name, address, phone, logo_url: logoUrl });
+    const parsed = schema.safeParse({
+      name,
+      address,
+      phone,
+      logo_url: logoUrl,
+      quote_legal_text: legalText,
+    });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Datos inválidos");
       return;
@@ -81,11 +119,11 @@ export function EditCompanyDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar concesionaria</DialogTitle>
           <DialogDescription>
-            Puedes modificar cada detalle de tu empresa.
+            Estos datos se usan también en el membrete de los presupuestos.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,14 +154,61 @@ export function EditCompanyDialog({
               onChange={(e) => setPhone(e.target.value)}
             />
           </div>
+
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ec-logo">URL del logo</Label>
-            <Input
-              id="ec-logo"
-              type="url"
-              placeholder="https://…"
-              value={logoUrl}
-              onChange={(e) => setLogoUrl(e.target.value)}
+            <Label>Logo (aparece en el presupuesto)</Label>
+            <div className="flex items-center gap-3">
+              {logoUrl ? (
+                <Image
+                  src={logoUrl}
+                  alt="Logo"
+                  width={56}
+                  height={56}
+                  unoptimized
+                  className="size-14 rounded-md border object-contain"
+                />
+              ) : (
+                <div className="flex size-14 items-center justify-center rounded-md border bg-muted text-[10px] text-muted-foreground">
+                  Sin logo
+                </div>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleLogo}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploading ? "Subiendo…" : "Subir logo"}
+              </Button>
+              {logoUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLogoUrl("")}
+                >
+                  Quitar
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ec-legal">Texto legal del presupuesto</Label>
+            <Textarea
+              id="ec-legal"
+              rows={4}
+              value={legalText}
+              onChange={(e) => setLegalText(e.target.value)}
+              placeholder="Ej: Precios sujetos a modificación sin previo aviso. Presupuesto no vinculante…"
             />
           </div>
 

@@ -4,11 +4,29 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { notify } from "@/lib/notifications";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type Result<T = unknown> =
   | ({ ok: true } & T)
   | { ok: false; message: string };
+
+const APPROVER_ROLES = ["admin", "manager", "supervisor"] as const;
+
+// Revalida las vistas donde impacta una resolución de venta.
+function revalidateSalePaths(saleId: string, leadId: string) {
+  for (const base of ["/admin", "/manager"]) {
+    revalidatePath(`${base}/sales`);
+    revalidatePath(`${base}/sales/${saleId}`);
+    revalidatePath(`${base}/leads`);
+    revalidatePath(`${base}/leads/${leadId}`);
+    revalidatePath(base);
+  }
+  revalidatePath("/sales/leads");
+  revalidatePath(`/sales/leads/${leadId}`);
+  revalidatePath("/sales");
+}
 
 const approveSchema = z.object({
   scoring_check: z.literal(true, {
@@ -30,7 +48,7 @@ export async function approveSale(
   saleId: string,
   raw: z.input<typeof approveSchema>,
 ): Promise<Result<{ saleId: string }>> {
-  const profile = await requireRole(["admin"]);
+  const profile = await requireRole([...APPROVER_ROLES]);
   const parsed = approveSchema.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -44,7 +62,7 @@ export async function approveSale(
   // Buscar el vendor para snapshot de comisión actual.
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, vendor_id, status, lead_id")
+    .select("id, vendor_id, status, lead_id, company_id, final_price")
     .eq("id", saleId)
     .maybeSingle();
   if (!sale) return { ok: false, message: "Venta no encontrada" };
@@ -87,14 +105,36 @@ export async function approveSale(
     .update({ status: "accepted" })
     .eq("id", sale.lead_id);
 
-  revalidatePath("/admin/sales");
-  revalidatePath(`/admin/sales/${saleId}`);
-  revalidatePath("/admin");
-  revalidatePath("/admin/leads");
-  revalidatePath(`/admin/leads/${sale.lead_id}`);
-  revalidatePath("/sales/leads");
-  revalidatePath(`/sales/leads/${sale.lead_id}`);
-  revalidatePath("/manager/leads");
+  // Historial + notificación al vendedor (admin client: bypass RLS de escritura).
+  const admin = createAdminClient();
+  await admin.from("sale_reviews").insert({
+    sale_id: saleId,
+    company_id: sale.company_id,
+    action: "approved",
+    scoring_check: true,
+    payment_check: true,
+    documentation_check: true,
+    general_comment: parsed.data.general_comment || null,
+    reviewer_id: profile.id,
+  });
+  if (sale.vendor_id) {
+    await notify(
+      {
+        companyId: sale.company_id,
+        userId: sale.vendor_id,
+        category: "sales",
+        type: "sale_approved",
+        title: "Venta aprobada ✅",
+        body: `Se aprobó tu venta por ${new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(sale.final_price)}.`,
+        link: `/sales/leads/${sale.lead_id}`,
+        entityType: "sale",
+        entityId: saleId,
+      },
+      admin,
+    );
+  }
+
+  revalidateSalePaths(saleId, sale.lead_id);
   return { ok: true, saleId };
 }
 
@@ -114,7 +154,7 @@ export async function rejectSale(
   saleId: string,
   raw: z.input<typeof rejectSchema>,
 ): Promise<Result<{ saleId: string }>> {
-  const profile = await requireRole(["admin"]);
+  const profile = await requireRole([...APPROVER_ROLES]);
   const parsed = rejectSchema.safeParse(raw);
   if (!parsed.success) {
     return {
@@ -126,7 +166,7 @@ export async function rejectSale(
   const supabase = await createClient();
   const { data: sale } = await supabase
     .from("sales")
-    .select("id, status, lead_id")
+    .select("id, status, lead_id, company_id, vendor_id")
     .eq("id", saleId)
     .maybeSingle();
   if (!sale) return { ok: false, message: "Venta no encontrada" };
@@ -152,19 +192,41 @@ export async function rejectSale(
 
   if (error) return { ok: false, message: error.message };
 
-  // El lead pasa a "Rechazado" cuando se rechaza la venta.
+  // El lead queda "Rechazado". El vendedor puede REABRIR esta misma venta
+  // (resubmitSale) tras subir la documentación → vuelve a evaluación.
   await supabase
     .from("leads")
     .update({ status: "rejected" })
     .eq("id", sale.lead_id);
 
-  revalidatePath("/admin/sales");
-  revalidatePath(`/admin/sales/${saleId}`);
-  revalidatePath("/admin");
-  revalidatePath("/admin/leads");
-  revalidatePath(`/admin/leads/${sale.lead_id}`);
-  revalidatePath("/sales/leads");
-  revalidatePath(`/sales/leads/${sale.lead_id}`);
-  revalidatePath("/manager/leads");
+  const admin = createAdminClient();
+  await admin.from("sale_reviews").insert({
+    sale_id: saleId,
+    company_id: sale.company_id,
+    action: "rejected",
+    reason: parsed.data.rejection_reason,
+    scoring_check: parsed.data.scoring_check ?? false,
+    payment_check: parsed.data.payment_check ?? false,
+    documentation_check: parsed.data.documentation_check ?? false,
+    reviewer_id: profile.id,
+  });
+  if (sale.vendor_id) {
+    await notify(
+      {
+        companyId: sale.company_id,
+        userId: sale.vendor_id,
+        category: "sales",
+        type: "sale_rejected",
+        title: "Venta rechazada ❌",
+        body: `Motivo: ${parsed.data.rejection_reason}`,
+        link: `/sales/leads/${sale.lead_id}`,
+        entityType: "sale",
+        entityId: saleId,
+      },
+      admin,
+    );
+  }
+
+  revalidateSalePaths(saleId, sale.lead_id);
   return { ok: true, saleId };
 }

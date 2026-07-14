@@ -6,13 +6,13 @@ import { loadSaleDetail } from "@/lib/sale-detail";
 import { loadSaleDocs } from "@/lib/sale-docs";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function AdminSaleDetailPage({
+export default async function ManagerSaleDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const profile = await requireRole(["admin"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   const detail = await loadSaleDetail(supabase, id);
@@ -25,7 +25,7 @@ export default async function AdminSaleDetailPage({
       reviews={detail.reviews}
       docs={docs}
       companyId={profile.company_id!}
-      backHref="/admin/sales"
+      backHref="/manager/sales"
     />
   );
 }

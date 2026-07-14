@@ -70,6 +70,7 @@ const ADMIN_NAV: Item[] = [
 const MANAGER_NAV: Item[] = [
   { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
   { href: "/manager/leads", label: "Leads", icon: Inbox },
+  { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
   { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
   { href: "/manager/forms", label: "Formularios", icon: FileInput },
   { href: "/manager/team", label: "Equipo", icon: Users },
@@ -81,6 +82,7 @@ const MANAGER_NAV: Item[] = [
 const SUPERVISOR_NAV: Item[] = [
   { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
   { href: "/manager/leads", label: "Leads", icon: Inbox },
+  { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
   { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
   { href: "/manager/forms", label: "Formularios", icon: FileInput },
   { href: "/manager/team", label: "Equipo", icon: Users },

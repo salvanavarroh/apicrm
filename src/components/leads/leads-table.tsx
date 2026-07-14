@@ -80,7 +80,14 @@ type Props = {
   // Si se pasan, se habilita la selección + reasignación/archivado masivos.
   assignableUsers?: AssignableUser[];
   canExport?: boolean;
+  // Opciones para los filtros por columna (si se pasan, se muestra el filtro).
+  branchOptions?: FilterOption[];
+  productTypeOptions?: FilterOption[];
+  vendorOptions?: FilterOption[];
+  campaignOptions?: FilterOption[];
 };
+
+export type FilterOption = { id: string; label: string };
 
 const STATUS_FILTER: { value: LeadStatus | "all"; label: string }[] = [
   { value: "all", label: "Todos" },
@@ -141,6 +148,10 @@ export function LeadsTable({
   editableTemperature = true,
   assignableUsers,
   canExport = false,
+  branchOptions,
+  productTypeOptions,
+  vendorOptions,
+  campaignOptions,
 }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<LeadsTableRow[]>(initialRows);
@@ -157,6 +168,10 @@ export function LeadsTable({
   const [createdTo, setCreatedTo] = useState("");
   const [contactFrom, setContactFrom] = useState("");
   const [contactTo, setContactTo] = useState("");
+  const [branchId, setBranchId] = useState("all");
+  const [productTypeId, setProductTypeId] = useState("all");
+  const [vendorId, setVendorId] = useState("all");
+  const [campaignId, setCampaignId] = useState("all");
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState<string>("");
@@ -179,6 +194,10 @@ export function LeadsTable({
     createdTo,
     contactFrom,
     contactTo,
+    branch_id: branchId === "all" ? undefined : branchId,
+    product_type_id: productTypeId === "all" ? undefined : productTypeId,
+    campaign_id: campaignId === "all" ? undefined : campaignId,
+    assigned_user_id: vendorId === "all" ? undefined : vendorId,
   };
 
   // Reset a la página 1 cuando cambia cualquier filtro (ajuste en render).
@@ -228,6 +247,10 @@ export function LeadsTable({
     createdTo,
     contactFrom,
     contactTo,
+    branchId,
+    productTypeId,
+    vendorId,
+    campaignId,
     page,
     archived,
   ]);
@@ -367,6 +390,38 @@ export function LeadsTable({
             ))}
           </SelectContent>
         </Select>
+        {branchOptions && branchOptions.length > 0 && (
+          <ColumnFilter
+            value={branchId}
+            onChange={setBranchId}
+            allLabel="Toda sucursal"
+            options={branchOptions}
+          />
+        )}
+        {productTypeOptions && productTypeOptions.length > 0 && (
+          <ColumnFilter
+            value={productTypeId}
+            onChange={setProductTypeId}
+            allLabel="Todo tipo"
+            options={productTypeOptions}
+          />
+        )}
+        {vendorOptions && vendorOptions.length > 0 && (
+          <ColumnFilter
+            value={vendorId}
+            onChange={setVendorId}
+            allLabel="Todo vendedor"
+            options={[{ id: "unassigned", label: "Sin asignar" }, ...vendorOptions]}
+          />
+        )}
+        {campaignOptions && campaignOptions.length > 0 && (
+          <ColumnFilter
+            value={campaignId}
+            onChange={setCampaignId}
+            allLabel="Toda campaña"
+            options={campaignOptions}
+          />
+        )}
         {canExport && (
           <Button
             variant="outline"
@@ -655,5 +710,33 @@ function PoolBadge() {
     <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
       Sin clasificar
     </span>
+  );
+}
+
+function ColumnFilter({
+  value,
+  onChange,
+  allLabel,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  allLabel: string;
+  options: FilterOption[];
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-9 w-40">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="all">{allLabel}</SelectItem>
+        {options.map((o) => (
+          <SelectItem key={o.id} value={o.id}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

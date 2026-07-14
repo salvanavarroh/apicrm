@@ -2,15 +2,11 @@
 
 import { renderToBuffer } from "@react-pdf/renderer";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
-import { sendEmail } from "@/lib/email/client";
-import {
-  QUOTE_MODALITY_LABEL,
-  QuotePdf,
-  type QuoteData,
-} from "@/lib/quote-pdf";
+import { QuotePdf, type QuoteData } from "@/lib/quote-pdf";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -141,7 +137,7 @@ async function buildPdfBuffer(opts: {
   const [{ data: company }, { data: vendor }] = await Promise.all([
     admin
       .from("companies")
-      .select("name, legal_name, cuit, address, phone, logo_url")
+      .select("name, legal_name, cuit, address, phone, logo_url, quote_legal_text")
       .eq("id", opts.companyId)
       .maybeSingle(),
     admin
@@ -263,6 +259,7 @@ export async function createQuote(
       modality_data: parsed.data.modality_data,
       valid_until: parsed.data.valid_until || null,
       notes: parsed.data.notes || null,
+      share_token: crypto.randomUUID().replace(/-/g, ""),
     })
     .select("id, created_at")
     .single();
@@ -370,61 +367,52 @@ export async function refreshQuotePdfUrl(
   return { ok: true, url: data.signedUrl };
 }
 
-// Enviar por email vía Resend. El PDF se envía como link (signed URL).
-const sendSchema = z.object({
-  to: z.string().email(),
-  subject: z.string().min(1),
-  message: z.string().min(1),
-});
-
-export async function sendQuoteByEmail(
+// Devuelve el link público y estable del presupuesto (/q/{token}). Crea el
+// token si la cotización no lo tenía (cotizaciones previas a la feature).
+export async function getQuoteShareUrl(
   quoteId: string,
-  raw: { to: string; subject: string; message: string },
-): Promise<Result<{ messageId: string }>> {
-  const profile = await requireRole(["sales"]);
-  const parsed = sendSchema.safeParse(raw);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
-    };
-  }
-
+): Promise<Result<{ url: string }>> {
+  const profile = await requireRole(["sales", "admin", "manager", "supervisor"]);
   const admin = createAdminClient();
   const { data: quote } = await admin
     .from("quotes")
-    .select("id, pdf_path, modality, lead_id, company:companies!company_id(name)")
+    .select("id, share_token, company_id")
+    .eq("id", quoteId)
+    .eq("company_id", profile.company_id ?? "")
+    .maybeSingle();
+  if (!quote) return { ok: false, message: "Cotización no encontrada" };
+
+  let token = quote.share_token;
+  if (!token) {
+    token = crypto.randomUUID().replace(/-/g, "");
+    await admin.from("quotes").update({ share_token: token }).eq("id", quoteId);
+  }
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto =
+    h.get("x-forwarded-proto") ??
+    (host?.startsWith("localhost") ? "http" : "https");
+  return { ok: true, url: `${proto}://${host}/q/${token}` };
+}
+
+// Marca la cotización como enviada (cuando el vendedor comparte el link).
+export async function markQuoteSent(
+  quoteId: string,
+): Promise<Result<{ id: string }>> {
+  const profile = await requireRole(["sales"]);
+  const admin = createAdminClient();
+  const { data: quote } = await admin
+    .from("quotes")
+    .select("id, lead_id")
     .eq("id", quoteId)
     .eq("vendor_id", profile.id)
     .maybeSingle();
-  if (!quote) {
-    return { ok: false, message: "Cotización no encontrada" };
-  }
-
-  const { data: signed } = await admin.storage
-    .from("quotes")
-    .createSignedUrl(quote.pdf_path ?? "", 60 * 60 * 24 * 7);
-  const pdfUrl = signed?.signedUrl;
-
-  const result = await sendEmail({
-    to: parsed.data.to,
-    subject: parsed.data.subject,
-    html: `
-      <div style="font-family: system-ui, sans-serif; max-width: 560px;">
-        <p>Hola!</p>
-        <p>${parsed.data.message.replace(/\n/g, "<br/>")}</p>
-        ${pdfUrl ? `<p><a href="${pdfUrl}" style="background:#FF5906;color:white;padding:10px 16px;border-radius:6px;text-decoration:none;display:inline-block;">Ver presupuesto (${QUOTE_MODALITY_LABEL[quote.modality]})</a></p>` : ""}
-        <p style="color:#888;font-size:12px;">El link es válido por 7 días.</p>
-      </div>
-    `,
-  });
-  if (!result.ok) return { ok: false, message: result.message };
-
+  if (!quote) return { ok: false, message: "Cotización no encontrada" };
   await admin
     .from("quotes")
     .update({ sent_at: new Date().toISOString() })
     .eq("id", quoteId);
-
   revalidatePath(`/sales/leads/${quote.lead_id}`);
-  return { ok: true, messageId: result.id };
+  return { ok: true, id: quoteId };
 }

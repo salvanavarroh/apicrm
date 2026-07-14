@@ -11,6 +11,7 @@ import { LeadsTable } from "@/components/leads/leads-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
+import { loadLeadFilterOptions } from "@/lib/lead-filter-options";
 import { fetchLeadsTable } from "@/lib/leads-table-actions";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
@@ -24,7 +25,7 @@ export default async function SalesLeadsPage({
 }: {
   searchParams: Promise<Search>;
 }) {
-  await requireRole(["sales"]);
+  const profile = await requireRole(["sales"]);
   const supabase = await createClient();
   const { tab } = await searchParams;
   const activeTab = tab === "table" ? "table" : "kanban";
@@ -61,15 +62,19 @@ export default async function SalesLeadsPage({
         {activeTab === "kanban" ? (
           <SalesKanban supabase={supabase} />
         ) : (
-          <SalesTable />
+          <SalesTable companyId={profile.company_id!} />
         )}
       </Suspense>
     </div>
   );
 }
 
-async function SalesTable() {
-  const initial = await fetchLeadsTable({}, {}, 1);
+async function SalesTable({ companyId }: { companyId: string }) {
+  const supabase = await createClient();
+  const [initial, options] = await Promise.all([
+    fetchLeadsTable({}, {}, 1),
+    loadLeadFilterOptions(supabase, companyId),
+  ]);
   return (
     <LeadsTable
       scope={{}}
@@ -77,6 +82,8 @@ async function SalesTable() {
       initialRows={initial.rows}
       initialTotal={initial.total}
       showAssignee={false}
+      branchOptions={options.branches}
+      productTypeOptions={options.productTypes}
     />
   );
 }

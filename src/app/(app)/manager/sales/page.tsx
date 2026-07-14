@@ -8,8 +8,9 @@ const SALES_SELECT = `
   lead:leads (first_name, last_name, vehicle_model)
 `;
 
-export default async function AdminSalesPage() {
-  const profile = await requireRole(["admin"]);
+// La RLS scopea las ventas a las gerencias del gerente / supervisor.
+export default async function ManagerSalesPage() {
+  const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
 
   const { data: sales } = await supabase
@@ -23,13 +24,12 @@ export default async function AdminSalesPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Ventas</h1>
         <p className="text-sm text-muted-foreground">
-          Ventas iniciadas por los vendedores. La aprobación la hace el gerente
-          de cada gerencia; como admin podés validarlas también.
+          Validá las ventas que inician tus vendedores con el triple check.
         </p>
       </header>
       <SalesLists
         sales={(sales ?? []) as unknown as SaleListRow[]}
-        basePath="/admin/sales"
+        basePath="/manager/sales"
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const schema = z.object({
@@ -15,6 +16,7 @@ const schema = z.object({
     .url("URL inválida")
     .optional()
     .or(z.literal("")),
+  quote_legal_text: z.string().max(2000).optional().or(z.literal("")),
 });
 
 export type UpdateCompanyState = {
@@ -51,6 +53,7 @@ export async function saveCompanyOperational(
       phone: parsed.data.phone || null,
       address: parsed.data.address || null,
       logo_url: parsed.data.logo_url || null,
+      quote_legal_text: parsed.data.quote_legal_text || null,
     })
     .eq("id", profile.company_id);
 
@@ -58,6 +61,41 @@ export async function saveCompanyOperational(
 
   revalidatePath("/admin/company");
   return { ok: true };
+}
+
+// Sube el logo de la empresa (dataURL base64) a un bucket público y devuelve la
+// URL. Se usa desde el modal de edición para setear logo_url.
+const LOGO_RE = /^data:(image\/(png|jpe?g|webp|svg\+xml));base64,/;
+const EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/webp": "webp",
+  "image/svg+xml": "svg",
+};
+
+export async function uploadCompanyLogo(
+  dataUrl: string,
+): Promise<{ ok: true; url: string } | { ok: false; message: string }> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) return { ok: false, message: "Sin empresa" };
+  const m = dataUrl.match(LOGO_RE);
+  if (!m) return { ok: false, message: "Formato no soportado (usá PNG/JPG/WEBP/SVG)" };
+  const mime = m[1];
+  const base64 = dataUrl.slice(m[0].length);
+  const buffer = Buffer.from(base64, "base64");
+  if (buffer.byteLength > 2 * 1024 * 1024) {
+    return { ok: false, message: "El logo no puede superar 2MB" };
+  }
+  const ext = EXT[mime] ?? "png";
+  const admin = createAdminClient();
+  const path = `${profile.company_id}/logo-${Date.now()}.${ext}`;
+  const { error } = await admin.storage
+    .from("form-assets")
+    .upload(path, buffer, { contentType: mime, upsert: false });
+  if (error) return { ok: false, message: error.message };
+  const { data: pub } = admin.storage.from("form-assets").getPublicUrl(path);
+  return { ok: true, url: pub.publicUrl };
 }
 
 /** Compat: server action con useActionState — la dejo por si la necesitamos. */

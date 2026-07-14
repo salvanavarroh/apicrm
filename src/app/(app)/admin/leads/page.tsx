@@ -4,6 +4,7 @@ import Link from "next/link";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
+import { loadLeadFilterOptions } from "@/lib/lead-filter-options";
 import { fetchLeadsTable } from "@/lib/leads-table-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
@@ -29,6 +30,10 @@ export default async function AdminLeadsPage({
     fetchLeadsTable({ archived }, {}, 1),
   ]);
 
+  const filterOptions = await loadLeadFilterOptions(
+    supabase,
+    profile.company_id!,
+  );
   const poolCount = poolRes.count ?? 0;
 
   return (
@@ -92,6 +97,10 @@ export default async function AdminLeadsPage({
         initialTotal={initial.total}
         assignableUsers={assignableUsers}
         canExport
+        branchOptions={filterOptions.branches}
+        productTypeOptions={filterOptions.productTypes}
+        vendorOptions={filterOptions.vendors}
+        campaignOptions={filterOptions.campaigns}
       />
     </div>
   );

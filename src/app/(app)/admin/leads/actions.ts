@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth";
 import {
   CSV_HEADERS,
+  fullName,
   leadInputSchema,
   normalizeEmail,
   normalizePhone,
@@ -14,6 +15,7 @@ import {
   type LeadRow,
 } from "@/lib/leads";
 import { appendLeadVehicle } from "@/lib/lead-reentry";
+import { notify } from "@/lib/notifications";
 import { maybeAdvanceStatus, type PresaleStatus } from "@/lib/lead-status";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/database";
@@ -664,6 +666,26 @@ export async function reassignLead(
 
   if (error) return { ok: false, message: error.message };
 
+  // Notificar al nuevo vendedor.
+  if (newAssigneeId) {
+    const { data: lead } = await supabase
+      .from("leads")
+      .select("first_name, last_name")
+      .eq("id", leadId)
+      .maybeSingle();
+    await notify({
+      companyId: profile.company_id,
+      userId: newAssigneeId,
+      category: "leads",
+      type: "lead_assigned",
+      title: "Nuevo lead asignado",
+      body: lead ? fullName(lead.first_name, lead.last_name) : null,
+      link: `/sales/leads/${leadId}`,
+      entityType: "lead",
+      entityId: leadId,
+    });
+  }
+
   revalidateLeadsPaths();
   revalidatePath(`/admin/leads/${leadId}`);
   revalidatePath(`/manager/leads/${leadId}`);
@@ -696,8 +718,23 @@ export async function reassignLeadsBulk(
 
   if (error) return { ok: false, message: error.message };
 
+  // Notificar al nuevo vendedor (una notificación con el total).
+  const updated = data?.length ?? 0;
+  if (newAssigneeId && updated > 0) {
+    await notify({
+      companyId: profile.company_id,
+      userId: newAssigneeId,
+      category: "leads",
+      type: "lead_assigned",
+      title: updated === 1 ? "Nuevo lead asignado" : `${updated} leads asignados`,
+      body: updated === 1 ? undefined : `Se te asignaron ${updated} leads.`,
+      link: "/sales/leads",
+      entityType: "lead",
+    });
+  }
+
   revalidateLeadsPaths();
-  return { ok: true, updated: data?.length ?? 0 };
+  return { ok: true, updated };
 }
 
 // ----------------------------------------------------------------------------

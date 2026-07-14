@@ -1,5 +1,6 @@
 import {
   Document,
+  Image,
   Page,
   StyleSheet,
   Text,
@@ -63,6 +64,7 @@ export type QuoteCompany = {
   address: string | null;
   phone: string | null;
   logo_url: string | null;
+  quote_legal_text?: string | null;
 };
 
 export type QuoteVendor = {
@@ -201,6 +203,14 @@ export function QuotePdf({
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.brand}>
+            {company.logo_url &&
+              !company.logo_url.toLowerCase().endsWith(".svg") && (
+                // eslint-disable-next-line jsx-a11y/alt-text
+                <Image
+                  src={company.logo_url}
+                  style={{ height: 40, marginBottom: 6, objectFit: "contain" }}
+                />
+              )}
             <Text style={styles.brandName}>{company.name}</Text>
             {company.legal_name && (
               <Text style={styles.brandMeta}>{company.legal_name}</Text>
@@ -342,6 +352,14 @@ export function QuotePdf({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Observaciones</Text>
             <Text style={{ fontSize: 10 }}>{data.notes}</Text>
+          </View>
+        )}
+
+        {company.quote_legal_text && (
+          <View style={{ marginTop: 16 }}>
+            <Text style={{ fontSize: 7, color: "#999", lineHeight: 1.4 }}>
+              {company.quote_legal_text}
+            </Text>
           </View>
         )}
 

@@ -392,6 +392,7 @@ export type Database = {
           monthly_price: number | null
           name: string
           phone: string | null
+          quote_legal_text: string | null
           status: Database["public"]["Enums"]["company_status"]
           subscription_ends_at: string | null
           subscription_starts_at: string | null
@@ -407,6 +408,7 @@ export type Database = {
           monthly_price?: number | null
           name: string
           phone?: string | null
+          quote_legal_text?: string | null
           status?: Database["public"]["Enums"]["company_status"]
           subscription_ends_at?: string | null
           subscription_starts_at?: string | null
@@ -422,6 +424,7 @@ export type Database = {
           monthly_price?: number | null
           name?: string
           phone?: string | null
+          quote_legal_text?: string | null
           status?: Database["public"]["Enums"]["company_status"]
           subscription_ends_at?: string | null
           subscription_starts_at?: string | null
@@ -1202,6 +1205,66 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          body: string | null
+          category: string
+          company_id: string
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          link: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          category: string
+          company_id: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          company_id?: string
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prices: {
         Row: {
           brand: string
@@ -1398,6 +1461,7 @@ export type Database = {
           pdf_path: string | null
           pdf_url: string | null
           sent_at: string | null
+          share_token: string | null
           total: number
           total_interest: number | null
           total_to_pay: number | null
@@ -1429,6 +1493,7 @@ export type Database = {
           pdf_path?: string | null
           pdf_url?: string | null
           sent_at?: string | null
+          share_token?: string | null
           total: number
           total_interest?: number | null
           total_to_pay?: number | null
@@ -1460,6 +1525,7 @@ export type Database = {
           pdf_path?: string | null
           pdf_url?: string | null
           sent_at?: string | null
+          share_token?: string | null
           total?: number
           total_interest?: number | null
           total_to_pay?: number | null
@@ -1493,6 +1559,128 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_documents: {
+        Row: {
+          company_id: string
+          created_at: string
+          file_path: string
+          id: string
+          kind: string
+          mime_type: string | null
+          sale_id: string
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          file_path: string
+          id?: string
+          kind?: string
+          mime_type?: string | null
+          sale_id: string
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          file_path?: string
+          id?: string
+          kind?: string
+          mime_type?: string | null
+          sale_id?: string
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_documents_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sale_reviews: {
+        Row: {
+          action: string
+          company_id: string
+          created_at: string
+          documentation_check: boolean | null
+          general_comment: string | null
+          id: string
+          payment_check: boolean | null
+          reason: string | null
+          reviewer_id: string | null
+          sale_id: string
+          scoring_check: boolean | null
+        }
+        Insert: {
+          action: string
+          company_id: string
+          created_at?: string
+          documentation_check?: boolean | null
+          general_comment?: string | null
+          id?: string
+          payment_check?: boolean | null
+          reason?: string | null
+          reviewer_id?: string | null
+          sale_id: string
+          scoring_check?: boolean | null
+        }
+        Update: {
+          action?: string
+          company_id?: string
+          created_at?: string
+          documentation_check?: boolean | null
+          general_comment?: string | null
+          id?: string
+          payment_check?: boolean | null
+          reason?: string | null
+          reviewer_id?: string | null
+          sale_id?: string
+          scoring_check?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_reviews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_reviews_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
             referencedColumns: ["id"]
           },
         ]

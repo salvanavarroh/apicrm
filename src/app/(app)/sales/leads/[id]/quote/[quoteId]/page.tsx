@@ -1,5 +1,6 @@
 import { ChevronLeft, Download } from "lucide-react";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,22 @@ export default async function QuoteViewPage({
       .from("quotes")
       .createSignedUrl(quote.pdf_path, 60 * 60);
     signedUrl = signed?.signedUrl ?? null;
+  }
+
+  // Link público estable para compartir (/q/{token}).
+  let shareUrl: string | null = null;
+  {
+    let token = quote.share_token;
+    if (!token) {
+      token = crypto.randomUUID().replace(/-/g, "");
+      await admin.from("quotes").update({ share_token: token }).eq("id", quote.id);
+    }
+    const h = await headers();
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    const proto =
+      h.get("x-forwarded-proto") ??
+      (host?.startsWith("localhost") ? "http" : "https");
+    if (host) shareUrl = `${proto}://${host}/q/${token}`;
   }
 
   const backHref =
@@ -93,7 +110,7 @@ export default async function QuoteViewPage({
               quoteId={quote.id}
               clientEmail={quote.client_email}
               clientPhone={quote.client_phone}
-              pdfUrl={signedUrl}
+              shareUrl={shareUrl}
               companyName={quote.company?.name ?? ""}
             />
           )}

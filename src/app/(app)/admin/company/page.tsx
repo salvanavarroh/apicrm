@@ -59,7 +59,7 @@ export default async function AdminCompanyPage() {
     supabase
       .from("companies")
       .select(
-        "id, name, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
+        "id, name, legal_name, cuit, phone, address, logo_url, quote_legal_text, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
       )
       .eq("id", profile.company_id)
       .maybeSingle(),
@@ -194,6 +194,7 @@ export default async function AdminCompanyPage() {
               phone: company.phone,
               address: company.address,
               logo_url: company.logo_url,
+              quote_legal_text: company.quote_legal_text,
             }}
             trigger={
               <Button variant="outline" size="icon" aria-label="Editar empresa">

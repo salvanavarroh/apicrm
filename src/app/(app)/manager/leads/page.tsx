@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { actingManagerId, requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
+import { loadLeadFilterOptions } from "@/lib/lead-filter-options";
 import { fetchLeadsTable } from "@/lib/leads-table-actions";
 import { LEAD_STATUS_LABELS, fullName, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
@@ -186,9 +187,11 @@ async function ManagerTable({
   managerId: string;
   archived?: boolean;
 }) {
-  const [team, initial] = await Promise.all([
+  const supabase = await createClient();
+  const [team, initial, options] = await Promise.all([
     getAssignableSalesUsers({ companyId: cid, managerId }),
     fetchLeadsTable({ archived }, {}, 1),
+    loadLeadFilterOptions(supabase, cid, managerId),
   ]);
   return (
     <LeadsTable
@@ -198,6 +201,10 @@ async function ManagerTable({
       initialTotal={initial.total}
       assignableUsers={team}
       canExport={canExport}
+      branchOptions={options.branches}
+      productTypeOptions={options.productTypes}
+      vendorOptions={options.vendors}
+      campaignOptions={options.campaigns}
     />
   );
 }
