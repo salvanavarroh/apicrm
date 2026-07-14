@@ -2,26 +2,18 @@ import { ChevronLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { ActivitySection } from "@/components/leads/activity-section";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
-import {
-  NotesSection,
-  type LeadNote,
-} from "@/components/leads/notes-section";
+import type { LeadNote } from "@/components/leads/notes-section";
 import {
   LeadVehiclesSection,
   type LeadVehicleItem,
 } from "@/components/leads/lead-vehicles-section";
 import { ArchiveLeadButton } from "@/components/leads/archive-lead-button";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
-import {
-  TasksSection,
-  type LeadTask,
-} from "@/components/leads/tasks-section";
+import type { LeadTask } from "@/components/leads/tasks-section";
 import { TrackingCard } from "@/components/leads/tracking-card";
-import {
-  VisitsSection,
-  type LeadVisit,
-} from "@/components/leads/visits-section";
+import type { LeadVisit } from "@/components/leads/visits-section";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
@@ -209,7 +201,7 @@ export default async function AdminLeadDetailPage({
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
@@ -297,15 +289,10 @@ export default async function AdminLeadDetailPage({
             }}
           />
 
-          <TasksSection
+          <ActivitySection
             leadId={lead.id}
+            notes={noteRows}
             tasks={taskRows}
-            currentUserId={profile.id}
-            currentRole="admin"
-            assigneeOptions={assigneeOptions}
-          />
-          <VisitsSection
-            leadId={lead.id}
             visits={visitRows}
             currentUserId={profile.id}
             currentRole="admin"
@@ -313,10 +300,6 @@ export default async function AdminLeadDetailPage({
             defaultAssigneeId={lead.assigned_user_id}
             defaultAssigneeName={leadAssigneeName}
           />
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <NotesSection leadId={lead.id} notes={noteRows} />
         </div>
       </div>
     </div>
