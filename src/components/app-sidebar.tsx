@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 
 import { Logo } from "@/components/logo";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -153,16 +154,19 @@ export function AppSidebar({
   const activeItemHref = activeHref(pathname, items);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center px-6 pt-7 pb-5">
+    <aside className="flex h-full w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex items-center justify-between px-6 pt-7 pb-5">
         <Link href="/" aria-label="Ir al inicio">
           <Logo size={44} />
         </Link>
+        {profile.role !== "super_admin" && (
+          <NotificationBell className="text-sidebar-muted hover:bg-white/10 hover:text-sidebar-foreground" />
+        )}
       </div>
 
       <Separator className="bg-sidebar-border" />
 
-      <nav className="flex-1 flex-col gap-1 px-3 py-4">
+      <nav className="flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
         {items.map((item) => {
           const active = item.href === activeItemHref;
           const Icon = item.icon;

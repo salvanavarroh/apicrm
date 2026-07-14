@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { FlashToast } from "@/components/flash-toast";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OverdueBanner } from "@/components/overdue-banner";
 import { getOverdueInfo } from "@/lib/billing";
 import { requireProfile } from "@/lib/auth";
@@ -75,18 +74,12 @@ export default async function AppLayout({
     }
   }
 
-  const showBell = profile.role !== "super_admin";
-
   return (
-    <div className="flex h-full min-h-screen w-full">
+    <div className="flex h-screen w-full overflow-hidden">
       <AppSidebar profile={profile} badges={sidebarBadges} />
 
+      {/* Sólo esta sección scrollea; el menú queda fijo al 100% del alto. */}
       <main className="flex flex-1 flex-col overflow-y-auto bg-background">
-        {showBell && (
-          <div className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-end border-b bg-background/80 px-8 backdrop-blur">
-            <NotificationBell />
-          </div>
-        )}
         {impersonating && (
           <ImpersonationBanner
             name={fullName(profile.first_name, profile.last_name)}

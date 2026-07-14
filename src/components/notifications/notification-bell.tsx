@@ -22,7 +22,7 @@ function timeAgo(iso: string) {
   return `${Math.floor(h / 24)} d`;
 }
 
-export function NotificationBell() {
+export function NotificationBell({ className }: { className?: string }) {
   const router = useRouter();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
@@ -85,7 +85,10 @@ export function NotificationBell() {
     <Popover.Root open={open} onOpenChange={handleOpenChange}>
       <Popover.Trigger asChild>
         <button
-          className="relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(
+            "relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground",
+            className,
+          )}
           aria-label="Notificaciones"
         >
           <Bell className="size-5" />

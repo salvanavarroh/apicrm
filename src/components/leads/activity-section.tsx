@@ -354,6 +354,14 @@ export function ActivitySection({
               <ModeTab active={mode === "task"} onClick={() => setMode("task")} icon={<ClipboardList className="size-3.5" />} label="Tarea" />
               <ModeTab active={mode === "visit"} onClick={openVisitTab} icon={<CalendarClock className="size-3.5" />} label="Visita" />
             </div>
+            <p className="text-xs text-muted-foreground">
+              {mode === "note" &&
+                "Dejá una nota o registrá algo que ya pasó (llamada, WhatsApp, reunión…)."}
+              {mode === "task" &&
+                "Agendá algo para hacer más adelante, con vencimiento y responsable."}
+              {mode === "visit" &&
+                "Agendá la visita del cliente a la concesionaria."}
+            </p>
 
             {mode === "note" && (
               <div className="flex flex-col gap-2">
@@ -676,7 +684,7 @@ function PendingVisit({
 
 function NoteRow({ note }: { note: LeadNote }) {
   return (
-    <div className="flex flex-col gap-1 rounded-md bg-muted px-3 py-2.5 text-sm">
+    <div className="flex flex-col gap-1 rounded-md border bg-card px-3 py-2.5 text-sm">
       <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <div className="flex items-center gap-2">
           {note.activity_type ? (
