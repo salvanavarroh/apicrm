@@ -156,17 +156,40 @@ async function notifyApprovers(
   admin?: ReturnType<typeof createAdminClient>,
 ) {
   const client = admin ?? createAdminClient();
-  const ids = await approverIdsForVendor(vendorId, client);
-  if (ids.length === 0) return;
-  await notify(
-    ids.map((userId) => ({
-      companyId,
+
+  // Aprobadores del vendedor (gerente + supervisores) → /manager/sales.
+  // El admin también recibe el aviso (puede validar como respaldo) → /admin/sales.
+  const [approverIds, { data: admins }] = await Promise.all([
+    approverIdsForVendor(vendorId, client),
+    client
+      .from("profiles")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("role", "admin")
+      .eq("status", "active"),
+  ]);
+
+  const recipients = [
+    ...approverIds.map((userId) => ({
       userId,
+      link: `/manager/sales/${saleId}`,
+    })),
+    ...(admins ?? []).map((a) => ({
+      userId: a.id,
+      link: `/admin/sales/${saleId}`,
+    })),
+  ];
+  if (recipients.length === 0) return;
+
+  await notify(
+    recipients.map((r) => ({
+      companyId,
+      userId: r.userId,
       category: "sales" as const,
       type: "sale_submitted",
       title: "Venta para aprobar",
       body,
-      link: `/manager/sales/${saleId}`,
+      link: r.link,
       entityType: "sale",
       entityId: saleId,
     })),

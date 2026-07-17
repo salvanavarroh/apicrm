@@ -52,14 +52,37 @@ export default async function AdminHomePage() {
     companyId: profile.company_id,
   });
 
+  // Semáforo de leads activos por antigüedad de gestión (status_changed_at).
+  const now = new Date();
+  const cut3 = new Date(now.getTime() - 3 * 86_400_000).toISOString();
+  const cut7 = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+  const cid = profile.company_id;
+
+  // Contamos en la BASE (count exact), no sobre un array: PostgREST corta los
+  // arrays en 1000 filas y contar sobre eso subestima con muchos leads.
+  const baseLeadCount = () =>
+    supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", cid)
+      .is("archived_at", null);
+  type LeadCountQuery = ReturnType<typeof baseLeadCount>;
+  const leadCount = (build: (q: LeadCountQuery) => LeadCountQuery) =>
+    build(baseLeadCount());
+
   const [
     branchesRes,
     ptsRes,
     campaignsRes,
     usersRes,
-    leadsRes,
     salesMonthRes,
     pendingSalesRes,
+    activeLeadsRes,
+    unassignedRes,
+    leadsMonthRes,
+    semGreenRes,
+    semYellowRes,
+    semRedRes,
   ] = await Promise.all([
     supabase.from("branches").select("status"),
     supabase.from("product_types").select("status"),
@@ -70,13 +93,9 @@ export default async function AdminHomePage() {
       .neq("status", "deleted")
       .neq("role", "super_admin"),
     supabase
-      .from("leads")
-      .select("id, status, status_changed_at, assigned_user_id, created_at")
-      .eq("company_id", profile.company_id),
-    supabase
       .from("sales")
       .select("id, status, final_price, started_at")
-      .eq("company_id", profile.company_id)
+      .eq("company_id", cid)
       .gte("started_at", monthStart.toISOString()),
     supabase
       .from("sales")
@@ -87,19 +106,48 @@ export default async function AdminHomePage() {
           vendor:profiles!vendor_id (first_name, last_name)
         `,
       )
-      .eq("company_id", profile.company_id)
+      .eq("company_id", cid)
       .eq("status", "evaluating")
       .order("started_at", { ascending: true })
       .limit(5),
+    leadCount((q) => q.in("status", ACTIVE_LEAD_STATUSES)),
+    leadCount((q) => q.is("assigned_user_id", null)),
+    // Nota: conteo del mes sin filtro de archivados para el denominador de
+    // conversión (mantiene la fórmula existente).
+    supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("company_id", cid)
+      .gte("created_at", monthStart.toISOString()),
+    leadCount((q) =>
+      q.in("status", ACTIVE_LEAD_STATUSES).gte("status_changed_at", cut3),
+    ),
+    leadCount((q) =>
+      q
+        .in("status", ACTIVE_LEAD_STATUSES)
+        .lt("status_changed_at", cut3)
+        .gte("status_changed_at", cut7),
+    ),
+    leadCount((q) =>
+      q.in("status", ACTIVE_LEAD_STATUSES).lt("status_changed_at", cut7),
+    ),
   ]);
 
   const branches = branchesRes.data ?? [];
   const productTypes = ptsRes.data ?? [];
   const campaigns = campaignsRes.data ?? [];
   const users = usersRes.data ?? [];
-  const leads = leadsRes.data ?? [];
   const salesMonth = salesMonthRes.data ?? [];
   const pendingSales = pendingSalesRes.data ?? [];
+
+  const activeLeadsCount = activeLeadsRes.count ?? 0;
+  const unassigned = unassignedRes.count ?? 0;
+  const leadsMonth = leadsMonthRes.count ?? 0;
+  const semaforo = {
+    green: semGreenRes.count ?? 0,
+    yellow: semYellowRes.count ?? 0,
+    red: semRedRes.count ?? 0,
+  };
 
   const branchesActive = branches.filter((b) => b.status === "active").length;
   const ptsActive = productTypes.filter((p) => p.status === "active").length;
@@ -111,11 +159,6 @@ export default async function AdminHomePage() {
   const sellers = users.filter((u) => u.role === "sales").length;
   const providers = users.filter((u) => u.role === "data_provider").length;
 
-  const activeLeads = leads.filter((l) =>
-    ACTIVE_LEAD_STATUSES.includes(l.status as LeadStatus),
-  );
-  const unassigned = leads.filter((l) => !l.assigned_user_id).length;
-
   const acceptedMonth = salesMonth.filter((s) => s.status === "accepted");
   const ventasMonto = acceptedMonth.reduce(
     (acc, s) => acc + Number(s.final_price),
@@ -125,9 +168,6 @@ export default async function AdminHomePage() {
   // Tasa conversión del mes: ventas aceptadas / leads creados en el mes.
   // Con cargas masivas grandes el denominador se infla, así que mostramos un
   // decimal cuando el valor es menor a 1% (para no leer "0%" habiendo ventas).
-  const leadsMonth = leads.filter(
-    (l) => new Date(l.created_at) >= monthStart,
-  ).length;
   const conversionPct =
     leadsMonth > 0 ? (acceptedMonth.length / leadsMonth) * 100 : 0;
   const conversionLabel =
@@ -136,18 +176,6 @@ export default async function AdminHomePage() {
       : conversionPct < 1
         ? `${conversionPct.toFixed(1)}%`
         : `${Math.round(conversionPct)}%`;
-
-  // Semáforo de leads: verde <3d, amarillo 3-7d, rojo >7d sin gestión
-  const now = new Date();
-  const semaforo = { green: 0, yellow: 0, red: 0 };
-  for (const l of activeLeads) {
-    const days =
-      (now.getTime() - new Date(l.status_changed_at).getTime()) /
-      (1000 * 60 * 60 * 24);
-    if (days < 3) semaforo.green++;
-    else if (days < 7) semaforo.yellow++;
-    else semaforo.red++;
-  }
 
   // Empty state si todavía no hay nada configurado
   if (branches.length === 0 && totalUsers <= 1) {
@@ -207,7 +235,7 @@ export default async function AdminHomePage() {
         <KpiCard
           icon={Inbox}
           label="Leads activos"
-          value={activeLeads.length}
+          value={activeLeadsCount}
           caption={`${unassigned} sin asignar`}
         />
         <KpiCard
@@ -371,7 +399,7 @@ export default async function AdminHomePage() {
         </Card>
       )}
 
-      {activeLeads.length === 0 && (
+      {activeLeadsCount === 0 && (
         <Card className="p-6 text-center text-sm text-muted-foreground">
           Sin leads activos. Cargá tu primer lead o pediles a los vendedores
           que empiecen a gestionar.
