@@ -27,6 +27,7 @@ const schema = z.object({
   phone: z.string().optional(),
   logo_url: z.string().url("URL inválida").optional().or(z.literal("")),
   quote_legal_text: z.string().optional(),
+  quote_hide_name: z.boolean().optional(),
 });
 
 type Initial = {
@@ -35,6 +36,7 @@ type Initial = {
   address: string | null;
   logo_url: string | null;
   quote_legal_text: string | null;
+  quote_hide_name: boolean | null;
 };
 
 export function EditCompanyDialog({
@@ -51,6 +53,7 @@ export function EditCompanyDialog({
   const [phone, setPhone] = useState(initial.phone ?? "");
   const [logoUrl, setLogoUrl] = useState(initial.logo_url ?? "");
   const [legalText, setLegalText] = useState(initial.quote_legal_text ?? "");
+  const [hideName, setHideName] = useState(initial.quote_hide_name ?? false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
@@ -63,6 +66,7 @@ export function EditCompanyDialog({
       setPhone(initial.phone ?? "");
       setLogoUrl(initial.logo_url ?? "");
       setLegalText(initial.quote_legal_text ?? "");
+      setHideName(initial.quote_hide_name ?? false);
       setError(null);
     }
     setOpen(next);
@@ -99,6 +103,7 @@ export function EditCompanyDialog({
       phone,
       logo_url: logoUrl,
       quote_legal_text: legalText,
+      quote_hide_name: hideName,
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Datos inválidos");
@@ -157,6 +162,10 @@ export function EditCompanyDialog({
 
           <div className="flex flex-col gap-1.5">
             <Label>Logo (aparece en el presupuesto)</Label>
+            <p className="text-xs text-muted-foreground">
+              PNG o JPG con fondo transparente, horizontal. Medida óptima
+              ~400×160&nbsp;px (máx. 2&nbsp;MB). Los SVG no se muestran en el PDF.
+            </p>
             <div className="flex items-center gap-3">
               {logoUrl ? (
                 <Image
@@ -200,6 +209,25 @@ export function EditCompanyDialog({
               )}
             </div>
           </div>
+
+          <label
+            className="flex cursor-pointer items-start gap-2.5 rounded-md border p-3 text-sm data-[on=true]:border-accent/60 data-[on=true]:bg-accent/5"
+            data-on={hideName}
+          >
+            <input
+              type="checkbox"
+              checked={hideName}
+              onChange={(e) => setHideName(e.target.checked)}
+              className="mt-0.5 size-4 accent-accent"
+            />
+            <span className="flex flex-col">
+              <span className="font-medium">El logo ya incluye el nombre</span>
+              <span className="text-xs text-muted-foreground">
+                No mostrar el nombre de la concesionaria debajo del logo en el
+                presupuesto.
+              </span>
+            </span>
+          </label>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ec-legal">Texto legal del presupuesto</Label>

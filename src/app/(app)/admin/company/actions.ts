@@ -17,6 +17,7 @@ const schema = z.object({
     .optional()
     .or(z.literal("")),
   quote_legal_text: z.string().max(2000).optional().or(z.literal("")),
+  quote_hide_name: z.boolean().optional(),
 });
 
 export type UpdateCompanyState = {
@@ -54,6 +55,7 @@ export async function saveCompanyOperational(
       address: parsed.data.address || null,
       logo_url: parsed.data.logo_url || null,
       quote_legal_text: parsed.data.quote_legal_text || null,
+      quote_hide_name: parsed.data.quote_hide_name ?? false,
     })
     .eq("id", profile.company_id);
 

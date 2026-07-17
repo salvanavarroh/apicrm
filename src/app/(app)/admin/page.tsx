@@ -122,12 +122,20 @@ export default async function AdminHomePage() {
     0,
   );
 
-  // Tasa conversión del mes: ventas aceptadas / leads creados en el mes
+  // Tasa conversión del mes: ventas aceptadas / leads creados en el mes.
+  // Con cargas masivas grandes el denominador se infla, así que mostramos un
+  // decimal cuando el valor es menor a 1% (para no leer "0%" habiendo ventas).
   const leadsMonth = leads.filter(
     (l) => new Date(l.created_at) >= monthStart,
   ).length;
-  const conversionRate =
-    leadsMonth > 0 ? Math.round((acceptedMonth.length / leadsMonth) * 100) : 0;
+  const conversionPct =
+    leadsMonth > 0 ? (acceptedMonth.length / leadsMonth) * 100 : 0;
+  const conversionLabel =
+    conversionPct === 0
+      ? "0%"
+      : conversionPct < 1
+        ? `${conversionPct.toFixed(1)}%`
+        : `${Math.round(conversionPct)}%`;
 
   // Semáforo de leads: verde <3d, amarillo 3-7d, rojo >7d sin gestión
   const now = new Date();
@@ -211,7 +219,7 @@ export default async function AdminHomePage() {
         <KpiCard
           icon={ShoppingBag}
           label="Conversión del mes"
-          value={`${conversionRate}%`}
+          value={conversionLabel}
           caption={`${acceptedMonth.length} de ${leadsMonth} leads`}
         />
         <KpiCard

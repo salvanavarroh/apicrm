@@ -137,7 +137,7 @@ async function buildPdfBuffer(opts: {
   const [{ data: company }, { data: vendor }] = await Promise.all([
     admin
       .from("companies")
-      .select("name, legal_name, cuit, address, phone, logo_url, quote_legal_text")
+      .select("name, legal_name, cuit, address, phone, logo_url, quote_legal_text, quote_hide_name")
       .eq("id", opts.companyId)
       .maybeSingle(),
     admin

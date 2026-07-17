@@ -392,6 +392,7 @@ export type Database = {
           monthly_price: number | null
           name: string
           phone: string | null
+          quote_hide_name: boolean
           quote_legal_text: string | null
           status: Database["public"]["Enums"]["company_status"]
           subscription_ends_at: string | null
@@ -408,6 +409,7 @@ export type Database = {
           monthly_price?: number | null
           name: string
           phone?: string | null
+          quote_hide_name?: boolean
           quote_legal_text?: string | null
           status?: Database["public"]["Enums"]["company_status"]
           subscription_ends_at?: string | null
@@ -424,6 +426,7 @@ export type Database = {
           monthly_price?: number | null
           name?: string
           phone?: string | null
+          quote_hide_name?: boolean
           quote_legal_text?: string | null
           status?: Database["public"]["Enums"]["company_status"]
           subscription_ends_at?: string | null

@@ -45,43 +45,48 @@ export async function notify(
 }
 
 /**
- * Usuarios que aprueban una venta de un lead: los gerentes de la(s) gerencia(s)
- * (sucursal + tipo de producto del lead) y sus supervisores. Activos.
+ * Usuarios que aprueban la venta de un vendedor: su GERENTE (el jefe al que
+ * reporta, profiles.manager_id) y los supervisores bajo ese gerente. Activos.
+ *
+ * Basado en la jerarquía real vendedor→gerente (no en la gerencia sucursal×tipo
+ * del lead, que puede no existir y dejaba al vendedor sin aprobador). Es la
+ * misma relación que usan las policies RLS de `sales` para el gerente.
  */
-export async function approverIdsForLead(
-  leadId: string,
+export async function approverIdsForVendor(
+  vendorId: string,
   admin?: Admin,
 ): Promise<string[]> {
   const client = admin ?? createAdminClient();
-  const { data: lead } = await client
-    .from("leads")
-    .select("branch_id, product_type_id, company_id")
-    .eq("id", leadId)
-    .maybeSingle();
-  if (!lead?.branch_id || !lead.product_type_id) return [];
-
-  const { data: mgmts } = await client
-    .from("managements")
+  const { data: vendor } = await client
+    .from("profiles")
     .select("manager_id")
-    .eq("branch_id", lead.branch_id)
-    .eq("product_type_id", lead.product_type_id);
-  const managerIds = Array.from(
-    new Set((mgmts ?? []).map((m) => m.manager_id).filter(Boolean)),
-  ) as string[];
-  if (managerIds.length === 0) return [];
+    .eq("id", vendorId)
+    .maybeSingle();
+  const directManagerId = vendor?.manager_id;
+  if (!directManagerId) return [];
 
-  // Gerentes + supervisores (bajo esos gerentes), activos.
+  // El manager_id del vendedor puede apuntar al gerente o (en teoría) a un
+  // supervisor; resolvemos el gerente "tope" para juntar a todos los aprobadores.
+  const { data: boss } = await client
+    .from("profiles")
+    .select("id, role, manager_id, status")
+    .eq("id", directManagerId)
+    .maybeSingle();
+  if (!boss) return [];
+  const topManagerId =
+    boss.role === "supervisor" && boss.manager_id ? boss.manager_id : boss.id;
+
   const [{ data: managers }, { data: supervisors }] = await Promise.all([
     client
       .from("profiles")
       .select("id")
-      .in("id", managerIds)
+      .eq("id", topManagerId)
       .eq("role", "manager")
       .eq("status", "active"),
     client
       .from("profiles")
       .select("id")
-      .in("manager_id", managerIds)
+      .eq("manager_id", topManagerId)
       .eq("role", "supervisor")
       .eq("status", "active"),
   ]);

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
 import { fullName } from "@/lib/leads";
-import { approverIdsForLead, notify } from "@/lib/notifications";
+import { approverIdsForVendor, notify } from "@/lib/notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -83,7 +83,7 @@ export async function initiateSale(
     .eq("id", parsed.data.lead_id);
 
   await notifyApprovers(
-    parsed.data.lead_id,
+    profile.id,
     profile.company_id,
     sale.id,
     `${fullName(profile.first_name, profile.last_name)} inició una venta para aprobar.`,
@@ -137,7 +137,7 @@ export async function resubmitSale(
   });
 
   await notifyApprovers(
-    sale.lead_id,
+    profile.id,
     sale.company_id,
     saleId,
     `${fullName(profile.first_name, profile.last_name)} reenvió una venta para aprobar.`,
@@ -149,14 +149,14 @@ export async function resubmitSale(
 }
 
 async function notifyApprovers(
-  leadId: string,
+  vendorId: string,
   companyId: string,
   saleId: string,
   body: string,
   admin?: ReturnType<typeof createAdminClient>,
 ) {
   const client = admin ?? createAdminClient();
-  const ids = await approverIdsForLead(leadId, client);
+  const ids = await approverIdsForVendor(vendorId, client);
   if (ids.length === 0) return;
   await notify(
     ids.map((userId) => ({

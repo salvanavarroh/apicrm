@@ -65,6 +65,8 @@ export type QuoteCompany = {
   phone: string | null;
   logo_url: string | null;
   quote_legal_text?: string | null;
+  // Cuando el logo ya incluye el nombre de la concesionaria, no repetirlo debajo.
+  quote_hide_name?: boolean | null;
 };
 
 export type QuoteVendor = {
@@ -197,21 +199,30 @@ export function QuotePdf({
   createdAt: string;
 }) {
   const modRows = modalityRows(data.modality, data.modality_data);
+  const hasLogo =
+    !!company.logo_url && !company.logo_url.toLowerCase().endsWith(".svg");
+  // Si el logo ya incluye el nombre, no lo repetimos como texto debajo.
+  const showName = !(company.quote_hide_name && hasLogo);
 
   return (
     <Document title={`Presupuesto ${number}`}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View style={styles.brand}>
-            {company.logo_url &&
-              !company.logo_url.toLowerCase().endsWith(".svg") && (
-                // eslint-disable-next-line jsx-a11y/alt-text
-                <Image
-                  src={company.logo_url}
-                  style={{ height: 40, marginBottom: 6, objectFit: "contain" }}
-                />
-              )}
-            <Text style={styles.brandName}>{company.name}</Text>
+            {hasLogo && (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image
+                src={company.logo_url as string}
+                style={{
+                  height: 52,
+                  maxWidth: 200,
+                  marginBottom: 8,
+                  objectFit: "contain",
+                  alignSelf: "flex-start",
+                }}
+              />
+            )}
+            {showName && <Text style={styles.brandName}>{company.name}</Text>}
             {company.legal_name && (
               <Text style={styles.brandMeta}>{company.legal_name}</Text>
             )}
