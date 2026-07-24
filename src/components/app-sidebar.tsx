@@ -213,8 +213,15 @@ export function AppSidebar({
   const activeItemHref = activeHref(pathname, allHrefItems(items, integrations));
 
   // Menú acoplado (solo íconos + logo). Auto en el inbox; con botón para togglear.
+  // El override manual se resetea al cruzar el borde del inbox (entrar/salir),
+  // así CADA vez que se abre el inbox el menú vuelve a colapsarse solo.
   const onInbox = pathname.includes("/inbox");
   const [override, setOverride] = useState<boolean | null>(null);
+  const [prevOnInbox, setPrevOnInbox] = useState(onInbox);
+  if (prevOnInbox !== onInbox) {
+    setPrevOnInbox(onInbox);
+    setOverride(null);
+  }
   const collapsed = override ?? onInbox;
 
   // Grupos desplegables (WhatsApp, Meta Ads). Se abren solos si el activo está dentro.
