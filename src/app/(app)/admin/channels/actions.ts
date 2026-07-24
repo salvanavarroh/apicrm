@@ -8,6 +8,7 @@ import {
   createProfile,
   getConnectUrl,
   getNumberInfo,
+  purchasePhoneNumber,
   type ZernioPlatform,
 } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -50,6 +51,36 @@ export async function startConnect(
     return { ok: true, authUrl };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Error conectando" };
+  }
+}
+
+/**
+ * Compra/provisiona un número de WhatsApp vía Zernio para la empresa.
+ * En países regulados (AR) devuelve un link de KYC en vez de cobrar de una.
+ */
+export async function startBuyNumber(): Promise<
+  Result<{ kycUrl?: string; status?: string; message?: string }>
+> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) return { ok: false, message: "Sin empresa" };
+  const admin = createAdminClient();
+  const { data: company } = await admin
+    .from("companies")
+    .select("country")
+    .eq("id", profile.company_id)
+    .maybeSingle();
+  const country = (company?.country ?? "AR").toUpperCase();
+  try {
+    const profileId = await ensureProfile(profile.company_id);
+    const res = await purchasePhoneNumber({
+      profileId,
+      country,
+      connectWhatsapp: true,
+    });
+    return { ok: true, kycUrl: res.kycUrl, status: res.status, message: res.message };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Error comprando número";
+    return { ok: false, message: msg };
   }
 }
 

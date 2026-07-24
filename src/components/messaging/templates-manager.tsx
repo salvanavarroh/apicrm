@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -50,7 +51,11 @@ export function TemplatesManager({
   if (channels.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Conectá un WhatsApp en <a className="underline" href="/admin/channels">Canales</a> para
+        Conectá un WhatsApp en{" "}
+        <Link className="underline" href="/admin/channels/whatsapp">
+          Conexión
+        </Link>{" "}
+        para
         gestionar plantillas.
       </div>
     );

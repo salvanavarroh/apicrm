@@ -164,6 +164,29 @@ export async function getLeadForm(formId: string): Promise<LeadFormDefinition> {
   return request("GET", `/ads/lead-forms/${formId}`);
 }
 
+// Lista los formularios de Lead Ads ya cargados en la cuenta (Page) conectada.
+export async function listLeadForms(
+  accountId: string,
+): Promise<{ forms?: LeadFormDefinition[]; data?: LeadFormDefinition[] }> {
+  return request("GET", `/ads/lead-forms?accountId=${encodeURIComponent(accountId)}`);
+}
+
+// --- Phone numbers (comprar número) ----------------------------------------
+export type PurchaseResult = {
+  status?: string; // "kyc_required" | "active" | ...
+  kycUrl?: string;
+  phoneNumber?: string;
+  message?: string;
+};
+export async function purchasePhoneNumber(payload: {
+  profileId: string;
+  country: string;
+  connectWhatsapp?: boolean;
+  wantsSms?: boolean;
+}): Promise<PurchaseResult> {
+  return request("POST", `/phone-numbers/purchase`, payload);
+}
+
 // --- Webhooks ---------------------------------------------------------------
 export async function registerWebhook(payload: {
   name: string;

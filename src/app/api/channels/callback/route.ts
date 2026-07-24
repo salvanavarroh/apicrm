@@ -26,7 +26,7 @@ export async function GET(req: Request) {
   const username = url.searchParams.get("username");
 
   if (!platform || !VALID.includes(platform) || !accountId) {
-    return NextResponse.redirect(`${base}/admin/channels?error=connect_failed`);
+    return NextResponse.redirect(`${base}/admin/channels/whatsapp?error=connect_failed`);
   }
 
   const admin = createAdminClient();
@@ -62,5 +62,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.redirect(`${base}/admin/channels?connected=1`);
+  return NextResponse.redirect(`${base}/admin/channels/${platform}?connected=1`);
 }

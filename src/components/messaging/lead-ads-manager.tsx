@@ -6,7 +6,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { deleteLeadAdForm, upsertLeadAdForm } from "@/app/(app)/admin/lead-ads/actions";
+import {
+  deleteLeadAdForm,
+  pullLeadForms,
+  upsertLeadAdForm,
+  type PulledForm,
+} from "@/app/(app)/admin/lead-ads/actions";
 
 type Opt = { id: string; name: string };
 export type LeadAdFormRow = {
@@ -36,9 +41,29 @@ export function LeadAdsManager({
   const [branchId, setBranchId] = useState("");
   const [productTypeId, setProductTypeId] = useState("");
   const [campaignId, setCampaignId] = useState("");
+  const [pulled, setPulled] = useState<PulledForm[] | null>(null);
 
   const nameOf = (opts: Opt[], id: string | null) =>
     opts.find((o) => o.id === id)?.name ?? "—";
+  const mappedIds = new Set(forms.map((f) => f.meta_form_id));
+
+  function pull() {
+    start(async () => {
+      const res = await pullLeadForms();
+      if (res.ok) {
+        setPulled(res.forms);
+        if (res.forms.length === 0) toast.info("La cuenta no tiene formularios de Lead Ads");
+      } else {
+        toast.error(res.message);
+      }
+    });
+  }
+
+  function use(f: PulledForm) {
+    setMetaFormId(f.id);
+    setFormName(f.name);
+    toast.info("Completá sucursal/tipo y guardá el mapeo");
+  }
 
   function add() {
     if (!metaFormId.trim()) {
@@ -72,6 +97,44 @@ export function LeadAdsManager({
 
   return (
     <div className="space-y-6">
+      <Card className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Formularios en tu Página de Facebook</p>
+          <Button size="sm" variant="outline" onClick={pull} disabled={pending}>
+            Traer de Facebook
+          </Button>
+        </div>
+        {pulled && pulled.length > 0 && (
+          <div className="space-y-1">
+            {pulled.map((f) => {
+              const already = mappedIds.has(f.id);
+              return (
+                <div
+                  key={f.id}
+                  className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 truncate">
+                    {f.name}{" "}
+                    <span className="text-xs text-muted-foreground">({f.id})</span>
+                  </span>
+                  {already ? (
+                    <span className="text-xs text-emerald-600">ya mapeado</span>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={() => use(f)}>
+                      Usar
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p className="text-xs text-muted-foreground">
+          Necesitás una Página de Facebook conectada (Meta Ads → Conexión). Elegí
+          un formulario, completá el routing abajo y guardá.
+        </p>
+      </Card>
+
       <Card className="grid gap-2 p-4 sm:grid-cols-2">
         <input
           value={metaFormId}

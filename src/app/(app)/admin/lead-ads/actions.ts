@@ -3,9 +3,40 @@
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
+import { listLeadForms } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type Result = { ok: true } | { ok: false; message: string };
+
+export type PulledForm = { id: string; name: string };
+
+/** Trae los formularios de Lead Ads ya cargados en la Página de Facebook conectada. */
+export async function pullLeadForms(): Promise<
+  { ok: true; forms: PulledForm[] } | { ok: false; message: string }
+> {
+  const profile = await requireRole(["admin", "manager"]);
+  const admin = createAdminClient();
+  const { data: channel } = await admin
+    .from("messaging_channels")
+    .select("zernio_account_id")
+    .eq("company_id", profile.company_id!)
+    .eq("platform", "facebook")
+    .eq("status", "active")
+    .maybeSingle();
+  if (!channel) {
+    return {
+      ok: false,
+      message: "Conectá primero una Página de Facebook (Meta Ads → Conexión).",
+    };
+  }
+  try {
+    const res = await listLeadForms(channel.zernio_account_id);
+    const list = res.forms ?? res.data ?? [];
+    return { ok: true, forms: list.map((f) => ({ id: f.id, name: f.name ?? f.id })) };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Error trayendo formularios" };
+  }
+}
 
 /** Crea/actualiza el mapeo de un formulario de Meta Lead Ads → routing. */
 export async function upsertLeadAdForm(input: {

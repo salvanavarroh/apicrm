@@ -13,6 +13,7 @@ import {
   FileText,
   GitMerge,
   HelpCircle,
+  Camera,
   Home,
   Inbox,
   Layers,
@@ -129,22 +130,30 @@ type NavGroup = { label: string; icon: LucideIcon; items: Item[] };
 type Integrations = { items: Item[]; groups: NavGroup[] };
 
 const INBOX_ITEM: Item = { href: "/admin/inbox", label: "Inbox", icon: MessageSquare };
+const INSTAGRAM_ITEM: Item = {
+  href: "/admin/channels/instagram",
+  label: "Instagram",
+  icon: Camera,
+};
 
 const ADMIN_INTEGRATIONS: Integrations = {
-  items: [INBOX_ITEM],
+  items: [INBOX_ITEM, INSTAGRAM_ITEM],
   groups: [
     {
       label: "WhatsApp",
       icon: MessageCircle,
       items: [
-        { href: "/admin/channels", label: "Canales", icon: Smartphone },
+        { href: "/admin/channels/whatsapp", label: "Conexión", icon: Smartphone },
         { href: "/admin/whatsapp-templates", label: "Plantillas", icon: FileText },
       ],
     },
     {
       label: "Meta Ads",
       icon: Target,
-      items: [{ href: "/admin/lead-ads", label: "Lead Ads", icon: Target }],
+      items: [
+        { href: "/admin/channels/facebook", label: "Conexión", icon: Smartphone },
+        { href: "/admin/lead-ads", label: "Formularios", icon: Target },
+      ],
     },
   ],
 };
