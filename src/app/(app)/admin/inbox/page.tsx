@@ -1,5 +1,10 @@
 import { requireRole } from "@/lib/auth";
-import { InboxView, type ConversationListItem } from "@/components/inbox/inbox-view";
+import { fullName } from "@/lib/leads";
+import {
+  InboxView,
+  type ConversationListItem,
+  type VendorOption,
+} from "@/components/inbox/inbox-view";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminInboxPage() {
@@ -9,23 +14,50 @@ export default async function AdminInboxPage() {
   const { data } = await supabase
     .from("conversations")
     .select(
-      "id, platform, participant_name, participant_phone_e164, assigned_user_id, status, unread_count, last_message_preview, last_inbound_at, window_expires_at, lead_id, updated_at",
+      "id, platform, participant_name, participant_phone_e164, participant_handle, assigned_user_id, status, unread_count, last_message_preview, last_inbound_at, last_outbound_at, window_expires_at, lead_id, updated_at",
     )
     .order("updated_at", { ascending: false })
-    .limit(100);
+    .limit(200);
 
-  const conversations = (data ?? []) as ConversationListItem[];
+  const rows = data ?? [];
+
+  // Nombres de vendedores asignados + lista para el filtro.
+  const assignedIds = Array.from(
+    new Set(rows.map((r) => r.assigned_user_id).filter(Boolean)),
+  ) as string[];
+  const nameMap = new Map<string, string>();
+  if (assignedIds.length) {
+    const { data: vs } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", assignedIds);
+    for (const v of vs ?? []) nameMap.set(v.id, fullName(v.first_name, v.last_name));
+  }
+
+  const { data: vendorProfiles } = await supabase
+    .from("profiles")
+    .select("id, first_name, last_name")
+    .eq("company_id", profile.company_id!)
+    .in("role", ["sales", "manager", "supervisor"])
+    .eq("status", "active");
+  const vendors: VendorOption[] = (vendorProfiles ?? []).map((v) => ({
+    id: v.id,
+    name: fullName(v.first_name, v.last_name),
+  }));
+
+  const conversations: ConversationListItem[] = rows.map((c) => ({
+    ...c,
+    assigned_name: c.assigned_user_id ? (nameMap.get(c.assigned_user_id) ?? null) : null,
+  }));
+
+  const isPriv = ["admin", "manager", "supervisor"].includes(profile.role);
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
-        <p className="text-sm text-muted-foreground">
-          Conversaciones de WhatsApp, Instagram y Facebook. Tomá una del pool y
-          respondé desde acá.
-        </p>
-      </header>
-      <InboxView conversations={conversations} currentUserId={profile.id} />
-    </div>
+    <InboxView
+      conversations={conversations}
+      currentUserId={profile.id}
+      isPriv={isPriv}
+      vendors={vendors}
+    />
   );
 }

@@ -24,6 +24,12 @@ export type WaTemplate = {
   body_preview: string | null;
   rejection_reason: string | null;
 };
+export type StandardTemplateView = {
+  name: string;
+  category: string;
+  body: string;
+  status: string | null; // null = todavía no creada en Meta
+};
 
 const STATUS_TONE: Record<string, string> = {
   APPROVED: "bg-emerald-100 text-emerald-700",
@@ -36,9 +42,11 @@ const STATUS_TONE: Record<string, string> = {
 export function TemplatesManager({
   channels,
   templates,
+  standardSet,
 }: {
   channels: WaChannel[];
   templates: WaTemplate[];
+  standardSet: StandardTemplateView[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -150,11 +158,37 @@ export function TemplatesManager({
         </div>
       </Card>
 
+      {/* Set estándar (pre-creadas): se ven acá con su texto y estado. */}
+      <div>
+        <h2 className="mb-2 text-sm font-semibold">Set estándar (recomendado)</h2>
+        <div className="space-y-2">
+          {standardSet.map((t) => (
+            <Card key={t.name} className="p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm">{t.name}</span>
+                <Badge variant="secondary" className="text-[10px]">
+                  {t.category}
+                </Badge>
+                {t.status ? (
+                  <Badge className={STATUS_TONE[t.status] ?? ""}>{t.status}</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px]">
+                    pendiente de crear
+                  </Badge>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{t.body}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+
       <div className="space-y-2">
-        {templates.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Todavía no hay plantillas.</p>
+        <h2 className="text-sm font-semibold">Plantillas propias</h2>
+        {templates.filter((t) => !t.is_standard).length === 0 ? (
+          <p className="text-sm text-muted-foreground">Todavía no hay plantillas propias.</p>
         ) : (
-          templates.map((t) => (
+          templates.filter((t) => !t.is_standard).map((t) => (
             <Card key={t.id} className="p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm">{t.zernio_template_name}</span>

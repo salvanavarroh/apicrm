@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
+import { fullName } from "@/lib/leads";
 import { maybeAdvanceStatus } from "@/lib/lead-status";
 import { sendInboxMessage, startConversation } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,6 +12,221 @@ import { createClient } from "@/lib/supabase/server";
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; message: string };
 
 const ROLES = ["admin", "manager", "supervisor", "sales"] as const;
+const PRIV_ROLES = ["admin", "manager", "supervisor"] as const;
+
+// --- Panel de info del lead ------------------------------------------------
+export type LeadInfo = {
+  id: string;
+  name: string;
+  phone: string | null;
+  phone_e164: string | null;
+  email: string | null;
+  city: string | null;
+  vehicle: string | null;
+  status: string;
+  temperature: string | null;
+  source: string | null;
+  budget_min: number | null;
+  budget_max: number | null;
+  assigned_name: string | null;
+  campaign_name: string | null;
+  created_at: string;
+};
+
+export async function getLeadInfo(leadId: string): Promise<LeadInfo | null> {
+  await requireRole([...ROLES]);
+  const supabase = await createClient();
+  const { data: l } = await supabase
+    .from("leads")
+    .select(
+      "id, first_name, last_name, phone, phone_e164, email, city, vehicle_brand, vehicle_model, vehicle_version, status, temperature, source, budget_min, budget_max, created_at, assigned_user_id, campaign:campaigns!campaign_id (name)",
+    )
+    .eq("id", leadId)
+    .maybeSingle();
+  if (!l) return null;
+
+  let assignedName: string | null = null;
+  if (l.assigned_user_id) {
+    const { data: v } = await supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("id", l.assigned_user_id)
+      .maybeSingle();
+    if (v) assignedName = fullName(v.first_name, v.last_name);
+  }
+
+  const vehicle =
+    [l.vehicle_brand, l.vehicle_model, l.vehicle_version].filter(Boolean).join(" ") ||
+    null;
+
+  return {
+    id: l.id,
+    name: fullName(l.first_name, l.last_name),
+    phone: l.phone,
+    phone_e164: l.phone_e164,
+    email: l.email,
+    city: l.city,
+    vehicle,
+    status: l.status,
+    temperature: l.temperature,
+    source: l.source,
+    budget_min: l.budget_min,
+    budget_max: l.budget_max,
+    assigned_name: assignedName,
+    campaign_name: (l.campaign as { name: string } | null)?.name ?? null,
+    created_at: l.created_at,
+  };
+}
+
+// --- Quick actions sobre el lead -------------------------------------------
+export async function quickUpdateLead(
+  leadId: string,
+  patch: { status?: string; temperature?: string | null },
+): Promise<Result> {
+  const profile = await requireRole([...ROLES]);
+  const admin = createAdminClient();
+  const { data: lead } = await admin
+    .from("leads")
+    .select("company_id")
+    .eq("id", leadId)
+    .maybeSingle();
+  if (!lead || lead.company_id !== profile.company_id) {
+    return { ok: false, message: "Lead no encontrado" };
+  }
+  const upd: Record<string, unknown> = {};
+  if (patch.status) upd.status = patch.status;
+  if (patch.temperature !== undefined) {
+    upd.temperature = patch.temperature;
+    upd.temperature_set_at = new Date().toISOString();
+  }
+  await admin.from("leads").update(upd as never).eq("id", leadId);
+  revalidatePath("/admin/inbox");
+  return { ok: true };
+}
+
+export async function quickAddNote(leadId: string, content: string): Promise<Result> {
+  const profile = await requireRole([...ROLES]);
+  const body = content.trim();
+  if (!body) return { ok: false, message: "Nota vacía" };
+  const admin = createAdminClient();
+  const { data: lead } = await admin
+    .from("leads")
+    .select("company_id")
+    .eq("id", leadId)
+    .maybeSingle();
+  if (!lead || lead.company_id !== profile.company_id) {
+    return { ok: false, message: "Lead no encontrado" };
+  }
+  await admin.from("lead_notes").insert({
+    lead_id: leadId,
+    company_id: profile.company_id!,
+    author_id: profile.id,
+    content: body,
+    activity_type: "other",
+  });
+  revalidatePath("/admin/inbox");
+  return { ok: true };
+}
+
+// --- Plantillas aprobadas (para enviar desde el header) --------------------
+export type ApprovedTemplate = {
+  name: string;
+  language: string;
+  body_preview: string | null;
+};
+export async function listApprovedTemplates(): Promise<ApprovedTemplate[]> {
+  const profile = await requireRole([...ROLES]);
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("whatsapp_templates")
+    .select("zernio_template_name, language, body_preview")
+    .eq("company_id", profile.company_id!)
+    .eq("status", "APPROVED")
+    .order("zernio_template_name");
+  return (data ?? []).map((t) => ({
+    name: t.zernio_template_name,
+    language: t.language,
+    body_preview: t.body_preview,
+  }));
+}
+
+// --- Insights del inbox (admin/manager) ------------------------------------
+export type InboxInsights = {
+  total: number;
+  pool: number;
+  assigned: number;
+  unanswered: number;
+  windowClosing: number;
+  byPlatform: { platform: string; count: number }[];
+  byVendor: { name: string; assigned: number; unanswered: number }[];
+};
+
+export async function getInboxInsights(): Promise<InboxInsights | null> {
+  await requireRole([...PRIV_ROLES]);
+  const supabase = await createClient();
+  const { data: convs } = await supabase
+    .from("conversations")
+    .select("assigned_user_id, platform, unread_count, window_expires_at, status")
+    .neq("status", "closed")
+    .limit(2000);
+  const rows = convs ?? [];
+
+  // Nombres de vendedores.
+  const vendorIds = Array.from(
+    new Set(rows.map((r) => r.assigned_user_id).filter(Boolean)),
+  ) as string[];
+  const names = new Map<string, string>();
+  if (vendorIds.length) {
+    const { data: vs } = await supabase
+      .from("profiles")
+      .select("id, first_name, last_name")
+      .in("id", vendorIds);
+    for (const v of vs ?? []) names.set(v.id, fullName(v.first_name, v.last_name));
+  }
+
+  const now = Date.now();
+  const soon = now + 60 * 60 * 1000;
+  let pool = 0;
+  let assigned = 0;
+  let unanswered = 0;
+  let windowClosing = 0;
+  const byPlat = new Map<string, number>();
+  const byVend = new Map<string, { assigned: number; unanswered: number }>();
+
+  for (const r of rows) {
+    byPlat.set(r.platform, (byPlat.get(r.platform) ?? 0) + 1);
+    const unread = (r.unread_count ?? 0) > 0;
+    if (unread) unanswered++;
+    const exp = r.window_expires_at ? new Date(r.window_expires_at).getTime() : 0;
+    if (exp > now && exp < soon) windowClosing++;
+    if (!r.assigned_user_id) {
+      pool++;
+    } else {
+      assigned++;
+      const key = r.assigned_user_id;
+      const cur = byVend.get(key) ?? { assigned: 0, unanswered: 0 };
+      cur.assigned++;
+      if (unread) cur.unanswered++;
+      byVend.set(key, cur);
+    }
+  }
+
+  return {
+    total: rows.length,
+    pool,
+    assigned,
+    unanswered,
+    windowClosing,
+    byPlatform: Array.from(byPlat, ([platform, count]) => ({ platform, count })).sort(
+      (a, b) => b.count - a.count,
+    ),
+    byVendor: Array.from(byVend, ([id, v]) => ({
+      name: names.get(id) ?? "—",
+      assigned: v.assigned,
+      unanswered: v.unanswered,
+    })).sort((a, b) => b.assigned - a.assigned),
+  };
+}
 
 export type InboxMessage = {
   id: string;

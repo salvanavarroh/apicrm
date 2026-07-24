@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Suspense } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
@@ -37,6 +37,9 @@ export default async function AppLayout({
   const profile = await requireProfile();
   const overdue = await getOverdueInfo(profile.company_id);
   const impersonating = (await cookies()).get("impersonation_origin") != null;
+  // El inbox usa todo el ancho/alto (sin el contenedor centrado max-w-7xl).
+  const pathname = (await headers()).get("x-pathname") ?? "";
+  const fullBleed = pathname.includes("/inbox");
 
   // Contadores del sidebar del superadmin: leads nuevos + solicitudes de
   // sucursal pendientes (a nivel plataforma).
@@ -86,14 +89,25 @@ export default async function AppLayout({
             role={profile.role}
           />
         )}
-        <div className="mx-auto w-full max-w-7xl flex-1 px-8 py-8">
-          {overdue && (
-            <div className="mb-6">
-              <OverdueBanner role={profile.role} info={overdue} />
-            </div>
-          )}
-          {children}
-        </div>
+        {fullBleed ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            {overdue && (
+              <div className="px-4 pt-4">
+                <OverdueBanner role={profile.role} info={overdue} />
+              </div>
+            )}
+            {children}
+          </div>
+        ) : (
+          <div className="mx-auto w-full max-w-7xl flex-1 px-8 py-8">
+            {overdue && (
+              <div className="mb-6">
+                <OverdueBanner role={profile.role} info={overdue} />
+              </div>
+            )}
+            {children}
+          </div>
+        )}
       </main>
 
       <Suspense fallback={null}>
