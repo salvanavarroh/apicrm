@@ -2,6 +2,7 @@ import { Archive, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 
 import { LeadsTable } from "@/components/leads/leads-table";
+import { LeadsTabs } from "@/components/leads/leads-tabs";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
 import { loadLeadFilterOptions } from "@/lib/lead-filter-options";
@@ -38,6 +39,7 @@ export default async function AdminLeadsPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <LeadsTabs />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">

@@ -1,6 +1,13 @@
 "use client";
 
-import { Phone, Mail, X, ExternalLink } from "lucide-react";
+import {
+  CalendarPlus,
+  ExternalLink,
+  Mail,
+  MessageSquarePlus,
+  Phone,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -14,13 +21,20 @@ import {
   type LeadStatus,
   type LeadTemperature,
 } from "@/lib/leads";
+import {
+  NOTE_ACTIVITIES,
+  NOTE_ACTIVITY_LABEL,
+  TASK_PRIORITY_LABEL,
+  TASK_TYPES,
+  TASK_TYPE_LABEL,
+} from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 import {
   getLeadInfo,
-  quickAddNote,
   quickUpdateLead,
   type LeadInfo,
 } from "@/app/(app)/admin/inbox/actions";
+import { addLeadNote, addLeadTask } from "@/app/(app)/admin/leads/actions";
 
 const STATUS_FLOW: LeadStatus[] = ["new", "contacted", "interested", "quoted"];
 
@@ -32,8 +46,18 @@ export function LeadInfoPanel({
   onClose: () => void;
 }) {
   const [info, setInfo] = useState<LeadInfo | null>(null);
-  const [note, setNote] = useState("");
   const [pending, start] = useTransition();
+  const [tab, setTab] = useState<null | "activity" | "task">(null);
+
+  // Actividad
+  const [actType, setActType] = useState<string>("other");
+  const [actText, setActText] = useState("");
+  // Tarea
+  const [tType, setTType] = useState<string>("call");
+  const [tDesc, setTDesc] = useState("");
+  const [tDate, setTDate] = useState("");
+  const [tTime, setTTime] = useState("");
+  const [tPrio, setTPrio] = useState<string>("medium");
 
   useEffect(() => {
     getLeadInfo(leadId).then(setInfo);
@@ -42,28 +66,47 @@ export function LeadInfoPanel({
   function setStatus(status: string) {
     start(async () => {
       const res = await quickUpdateLead(leadId, { status });
-      if (res.ok) {
-        setInfo((p) => (p ? { ...p, status } : p));
-        toast.success("Estado actualizado");
-      } else toast.error(res.message);
+      if (res.ok) setInfo((p) => (p ? { ...p, status } : p));
+      else toast.error(res.message);
     });
   }
   function setTemp(temperature: string) {
     start(async () => {
       const res = await quickUpdateLead(leadId, { temperature });
+      if (res.ok) setInfo((p) => (p ? { ...p, temperature } : p));
+      else toast.error(res.message);
+    });
+  }
+  function saveActivity() {
+    if (!actText.trim()) return;
+    start(async () => {
+      const res = await addLeadNote(
+        leadId,
+        actText.trim(),
+        actType === "other" ? null : (actType as never),
+      );
       if (res.ok) {
-        setInfo((p) => (p ? { ...p, temperature } : p));
+        toast.success("Actividad registrada");
+        setActText("");
+        setTab(null);
       } else toast.error(res.message);
     });
   }
-  function addNote() {
-    const body = note.trim();
-    if (!body) return;
+  function saveTask() {
     start(async () => {
-      const res = await quickAddNote(leadId, body);
+      const res = await addLeadTask(leadId, {
+        task_type: tType as never,
+        description: tDesc,
+        priority: tPrio as never,
+        due_date: tDate,
+        due_time: tTime,
+      });
       if (res.ok) {
-        setNote("");
-        toast.success("Nota agregada");
+        toast.success("Tarea agendada");
+        setTDesc("");
+        setTDate("");
+        setTTime("");
+        setTab(null);
       } else toast.error(res.message);
     });
   }
@@ -93,7 +136,7 @@ export function LeadInfoPanel({
             </div>
           </div>
 
-          {/* Quick actions */}
+          {/* Contacto rápido */}
           <div className="grid grid-cols-2 gap-2">
             {info.phone_e164 && (
               <Button asChild size="sm" variant="outline">
@@ -110,6 +153,101 @@ export function LeadInfoPanel({
               </Button>
             )}
           </div>
+
+          {/* Actividad / Tarea */}
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              size="sm"
+              variant={tab === "activity" ? "default" : "outline"}
+              onClick={() => setTab(tab === "activity" ? null : "activity")}
+            >
+              <MessageSquarePlus className="mr-1 size-3.5" /> Actividad
+            </Button>
+            <Button
+              size="sm"
+              variant={tab === "task" ? "default" : "outline"}
+              onClick={() => setTab(tab === "task" ? null : "task")}
+            >
+              <CalendarPlus className="mr-1 size-3.5" /> Tarea
+            </Button>
+          </div>
+
+          {tab === "activity" && (
+            <div className="space-y-2 rounded-md border p-2">
+              <select
+                value={actType}
+                onChange={(e) => setActType(e.target.value)}
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+              >
+                {NOTE_ACTIVITIES.map((a) => (
+                  <option key={a} value={a}>
+                    {NOTE_ACTIVITY_LABEL[a]}
+                  </option>
+                ))}
+              </select>
+              <textarea
+                value={actText}
+                onChange={(e) => setActText(e.target.value)}
+                rows={2}
+                placeholder="Detalle de la actividad…"
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+              />
+              <Button size="sm" className="w-full" onClick={saveActivity} disabled={pending || !actText.trim()}>
+                Registrar
+              </Button>
+            </div>
+          )}
+
+          {tab === "task" && (
+            <div className="space-y-2 rounded-md border p-2">
+              <select
+                value={tType}
+                onChange={(e) => setTType(e.target.value)}
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+              >
+                {TASK_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {TASK_TYPE_LABEL[t]}
+                  </option>
+                ))}
+              </select>
+              <textarea
+                value={tDesc}
+                onChange={(e) => setTDesc(e.target.value)}
+                rows={2}
+                placeholder="Descripción (opcional)…"
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+              />
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={tDate}
+                  onChange={(e) => setTDate(e.target.value)}
+                  className="flex-1 rounded-md border px-2 py-1.5 text-sm"
+                />
+                <input
+                  type="time"
+                  value={tTime}
+                  onChange={(e) => setTTime(e.target.value)}
+                  className="w-24 rounded-md border px-2 py-1.5 text-sm"
+                />
+              </div>
+              <select
+                value={tPrio}
+                onChange={(e) => setTPrio(e.target.value)}
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+              >
+                {Object.entries(TASK_PRIORITY_LABEL).map(([v, l]) => (
+                  <option key={v} value={v}>
+                    Prioridad: {l}
+                  </option>
+                ))}
+              </select>
+              <Button size="sm" className="w-full" onClick={saveTask} disabled={pending}>
+                Agendar tarea
+              </Button>
+            </div>
+          )}
 
           {/* Estado */}
           <div>
@@ -174,21 +312,6 @@ export function LeadInfoPanel({
             <Row label="Fuente" value={info.source} />
             <Row label="Campaña" value={info.campaign_name} />
           </dl>
-
-          {/* Nota rápida */}
-          <div className="border-t pt-3">
-            <div className="mb-1 text-xs font-medium text-muted-foreground">Nota interna</div>
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={2}
-              placeholder="Agregar una nota…"
-              className="w-full rounded-md border px-2 py-1.5 text-sm"
-            />
-            <Button size="sm" variant="outline" className="mt-1 w-full" onClick={addNote} disabled={pending || !note.trim()}>
-              Guardar nota
-            </Button>
-          </div>
         </div>
       )}
 

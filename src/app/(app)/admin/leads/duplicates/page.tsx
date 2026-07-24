@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth";
 import { DuplicatesReview } from "@/components/leads/duplicates-review";
+import { LeadsTabs } from "@/components/leads/leads-tabs";
 
 import { getDuplicateGroups } from "./actions";
 
@@ -9,6 +10,7 @@ export default async function AdminLeadsDuplicatesPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <LeadsTabs />
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">
           Leads duplicados
