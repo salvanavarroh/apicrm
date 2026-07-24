@@ -61,10 +61,6 @@ const ADMIN_NAV: Item[] = [
   { href: "/admin/company", label: "Mi empresa", icon: Building2 },
   { href: "/admin/leads", label: "Leads", icon: Inbox },
   { href: "/admin/leads/duplicates", label: "Duplicados", icon: GitMerge },
-  { href: "/admin/inbox", label: "Inbox", icon: MessageSquare },
-  { href: "/admin/channels", label: "Canales", icon: Smartphone },
-  { href: "/admin/lead-ads", label: "Lead Ads", icon: Target },
-  { href: "/admin/whatsapp-templates", label: "Plantillas WA", icon: FileText },
   { href: "/admin/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
   { href: "/admin/forms", label: "Formularios", icon: FileInput },
   { href: "/admin/sales", label: "Ventas", icon: ShoppingBag },
@@ -81,7 +77,6 @@ const ADMIN_NAV: Item[] = [
 const MANAGER_NAV: Item[] = [
   { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
   { href: "/manager/leads", label: "Leads", icon: Inbox },
-  { href: "/admin/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
   { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
   { href: "/manager/forms", label: "Formularios", icon: FileInput },
@@ -94,7 +89,6 @@ const MANAGER_NAV: Item[] = [
 const SUPERVISOR_NAV: Item[] = [
   { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
   { href: "/manager/leads", label: "Leads", icon: Inbox },
-  { href: "/admin/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
   { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
   { href: "/manager/forms", label: "Formularios", icon: FileInput },
@@ -115,7 +109,6 @@ const PROVIDER_NAV: Item[] = [
 const SALES_NAV: Item[] = [
   { href: "/sales", label: "Inicio", icon: Home, match: "exact" },
   { href: "/sales/leads", label: "Mis leads", icon: Inbox },
-  { href: "/admin/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/sales/leads/new", label: "Nuevo lead", icon: UserPlus },
   {
     href: "/sales/tasks-visits",
@@ -128,6 +121,45 @@ const SALES_NAV: Item[] = [
 const APP_NAV: Item[] = [
   { href: "/dashboard", label: "Inicio", icon: Home, match: "exact" },
 ];
+
+// --- Integraciones: subtítulo con Inbox + sub-grupos WhatsApp / Meta Ads ---
+type NavGroup = { label: string; items: Item[] };
+type Integrations = { items: Item[]; groups: NavGroup[] };
+
+const INBOX_ITEM: Item = { href: "/admin/inbox", label: "Inbox", icon: MessageSquare };
+
+const ADMIN_INTEGRATIONS: Integrations = {
+  items: [INBOX_ITEM],
+  groups: [
+    {
+      label: "WhatsApp",
+      items: [
+        { href: "/admin/channels", label: "Canales", icon: Smartphone },
+        { href: "/admin/whatsapp-templates", label: "Plantillas", icon: FileText },
+      ],
+    },
+    {
+      label: "Meta Ads",
+      items: [{ href: "/admin/lead-ads", label: "Lead Ads", icon: Target }],
+    },
+  ],
+};
+
+// Gerente/Supervisor/Vendedor: sólo Inbox (las pantallas de config son de admin).
+const INBOX_ONLY_INTEGRATIONS: Integrations = { items: [INBOX_ITEM], groups: [] };
+
+function integrationsForRole(role: UserRole): Integrations | null {
+  if (role === "admin") return ADMIN_INTEGRATIONS;
+  if (role === "manager" || role === "supervisor" || role === "sales")
+    return INBOX_ONLY_INTEGRATIONS;
+  return null;
+}
+
+// Todos los hrefs (menú + integraciones) para calcular el ítem activo.
+function allHrefItems(items: Item[], integ: Integrations | null): Item[] {
+  if (!integ) return items;
+  return [...items, ...integ.items, ...integ.groups.flatMap((g) => g.items)];
+}
 
 function navForRole(role: UserRole): Item[] {
   if (role === "super_admin") return SUPER_ADMIN_NAV;
@@ -164,7 +196,41 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const items = navForRole(profile.role);
-  const activeItemHref = activeHref(pathname, items);
+  const integrations = integrationsForRole(profile.role);
+  const activeItemHref = activeHref(pathname, allHrefItems(items, integrations));
+
+  const renderLink = (item: Item, indent = false) => {
+    const active = item.href === activeItemHref;
+    const Icon = item.icon;
+    const count = badges[item.href] ?? 0;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={cn(
+          "relative flex items-center gap-3 rounded-md py-2.5 text-sm font-medium transition-colors",
+          indent ? "pr-3 pl-9" : "px-3",
+          active
+            ? "text-sidebar-accent"
+            : "text-sidebar-foreground hover:bg-white/5",
+        )}
+      >
+        <Icon className="size-5 shrink-0" />
+        <span>{item.label}</span>
+        {count > 0 && (
+          <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-accent-foreground">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+        {active && (
+          <span
+            aria-hidden
+            className="absolute top-1.5 right-0 bottom-1.5 w-[3px] rounded-l-full bg-sidebar-accent"
+          />
+        )}
+      </Link>
+    );
+  };
 
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
@@ -179,38 +245,25 @@ export function AppSidebar({
 
       <Separator className="bg-sidebar-border" />
 
-      <nav className="flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-        {items.map((item) => {
-          const active = item.href === activeItemHref;
-          const Icon = item.icon;
-          const count = badges[item.href] ?? 0;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
-                active
-                  ? "text-sidebar-accent"
-                  : "text-sidebar-foreground hover:bg-white/5",
-              )}
-            >
-              <Icon className="size-5 shrink-0" />
-              <span>{item.label}</span>
-              {count > 0 && (
-                <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-accent-foreground">
-                  {count > 99 ? "99+" : count}
-                </span>
-              )}
-              {active && (
-                <span
-                  aria-hidden
-                  className="absolute top-1.5 right-0 bottom-1.5 w-[3px] rounded-l-full bg-sidebar-accent"
-                />
-              )}
-            </Link>
-          );
-        })}
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+        {items.map((item) => renderLink(item))}
+
+        {integrations && (
+          <>
+            <div className="mt-5 mb-1 px-3 text-[10px] font-semibold tracking-wider text-sidebar-muted uppercase">
+              Integraciones
+            </div>
+            {integrations.items.map((item) => renderLink(item))}
+            {integrations.groups.map((group) => (
+              <div key={group.label} className="mt-1.5">
+                <div className="px-3 pb-0.5 text-[11px] font-medium text-sidebar-muted/70">
+                  {group.label}
+                </div>
+                {group.items.map((item) => renderLink(item, true))}
+              </div>
+            ))}
+          </>
+        )}
       </nav>
 
       <div className="flex flex-col gap-1 px-3 pb-5">
