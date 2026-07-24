@@ -1,9 +1,34 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { normalizeEmail, normalizePhone } from "@/lib/leads";
+import { normalizeEmail } from "@/lib/leads";
+import { toE164 } from "@/lib/phone";
 import type { Database } from "@/types/database";
 
 type Client = SupabaseClient<Database>;
+
+/** País (ISO-2) de la empresa, para normalizar teléfonos locales a E.164. */
+export async function companyCountry(
+  supabase: Client,
+  companyId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("companies")
+    .select("country")
+    .eq("id", companyId)
+    .maybeSingle();
+  return data?.country ?? null;
+}
+
+/** Resuelve el teléfono canónico E.164 de un lead con el país de su empresa. */
+export async function resolveCompanyE164(
+  supabase: Client,
+  companyId: string,
+  rawPhone: string | null | undefined,
+): Promise<string | null> {
+  if (!rawPhone) return null;
+  const country = await companyCountry(supabase, companyId);
+  return toE164(rawPhone, country);
+}
 
 // Ventana de identidad del lead. Dentro de esta ventana, un nuevo ingreso del
 // mismo cliente (teléfono/email) se considera el MISMO lead: se le agrega la
@@ -27,12 +52,15 @@ export async function findReentryLead(
   phone: string | null,
   email: string | null,
 ): Promise<ReentryMatch | null> {
-  const cleanPhone = normalizePhone(phone);
   const cleanEmail = normalizeEmail(email);
-  if (!cleanPhone && !cleanEmail) return null;
+  // Match por teléfono CANÓNICO E.164 (multi-país) para que colapsen las
+  // distintas formas del mismo número (form web, WhatsApp, Lead Ads).
+  const country = await companyCountry(supabase, companyId);
+  const e164 = toE164(phone, country);
+  if (!e164 && !cleanEmail) return null;
 
   const filters: string[] = [];
-  if (cleanPhone) filters.push(`phone.eq.${cleanPhone}`);
+  if (e164) filters.push(`phone_e164.eq.${e164}`);
   if (cleanEmail) filters.push(`email.eq.${cleanEmail}`);
 
   const cutoff = new Date(

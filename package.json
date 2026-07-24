@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
     "seed:super-admin": "tsx scripts/seed-super-admin.ts",
+    "test:phone": "tsx scripts/test-phone.ts",
+    "backfill:phone-e164": "tsx scripts/backfill-phone-e164.ts",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public --workdir . 2>/dev/null | grep -vE '^(Using workdir|A new version|We recommend)' > src/types/database.ts"
   },
   "dependencies": {
@@ -26,6 +28,7 @@
     "@tanstack/react-query-devtools": "^5.100.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "libphonenumber-js": "^1.13.9",
     "lucide-react": "^1.14.0",
     "next": "16.2.6",
     "next-themes": "^0.4.6",

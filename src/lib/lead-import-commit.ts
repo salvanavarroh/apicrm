@@ -8,6 +8,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { ImportContext, MappedRow } from "@/lib/lead-import";
+import { toE164 } from "@/lib/phone";
 import type { Database } from "@/types/database";
 
 type LeadInsert = Database["public"]["Tables"]["leads"]["Insert"];
@@ -18,6 +19,7 @@ export function buildLeadInsert(
   createdBy: string,
   context: ImportContext,
   data: MappedRow["data"],
+  country?: string | null,
 ): LeadInsert {
   const assignedUserId =
     context.distribution === "fixed" ? context.assignee_id ?? null : null;
@@ -28,6 +30,7 @@ export function buildLeadInsert(
     last_name: data.last_name,
     email: data.email,
     phone: data.phone,
+    phone_e164: toE164(data.phone, country),
     city: data.city,
     locality: data.locality,
     province: data.province,
@@ -115,8 +118,16 @@ export async function insertMappedChunk(
     return { inserted: 0, insertedIds: [], skippedDuplicates };
   }
 
+  // País de la empresa para normalizar phone_e164 (una sola vez por tanda).
+  const { data: co } = await client
+    .from("companies")
+    .select("country")
+    .eq("id", companyId)
+    .maybeSingle();
+  const country = co?.country ?? null;
+
   const inserts = toInsert.map((r) =>
-    buildLeadInsert(companyId, createdBy, context, r.data),
+    buildLeadInsert(companyId, createdBy, context, r.data, country),
   );
   const { data, error } = await client
     .from("leads")

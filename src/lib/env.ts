@@ -9,6 +9,9 @@ const serverSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
   CRON_SECRET: z.string().optional(),
+  // Mensajería omnicanal (Zernio). Opcionales hasta activar las fases de WhatsApp/Lead Ads.
+  ZERNIO_API_KEY: z.string().optional(),
+  ZERNIO_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const clientSchema = z.object({
@@ -35,5 +38,7 @@ export function getServerEnv() {
     SENTRY_DSN: process.env.SENTRY_DSN,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     CRON_SECRET: process.env.CRON_SECRET,
+    ZERNIO_API_KEY: process.env.ZERNIO_API_KEY,
+    ZERNIO_WEBHOOK_SECRET: process.env.ZERNIO_WEBHOOK_SECRET,
   });
 }

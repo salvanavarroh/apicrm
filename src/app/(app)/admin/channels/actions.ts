@@ -1,0 +1,105 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { requireRole } from "@/lib/auth";
+import { publicEnv } from "@/lib/env";
+import {
+  createProfile,
+  getConnectUrl,
+  getNumberInfo,
+  type ZernioPlatform,
+} from "@/lib/messaging/zernio";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+type Result<T = unknown> = ({ ok: true } & T) | { ok: false; message: string };
+
+/** Asegura que la empresa tenga un profile en Zernio; lo crea si falta. */
+async function ensureProfile(companyId: string): Promise<string> {
+  const admin = createAdminClient();
+  const { data: company } = await admin
+    .from("companies")
+    .select("id, name, zernio_profile_id")
+    .eq("id", companyId)
+    .maybeSingle();
+  if (company?.zernio_profile_id) return company.zernio_profile_id;
+
+  const res = await createProfile(companyId, company?.name ?? undefined);
+  const profileId = res.profile._id;
+  await admin
+    .from("companies")
+    .update({ zernio_profile_id: profileId })
+    .eq("id", companyId);
+  return profileId;
+}
+
+/** Inicia el connect flow de una plataforma. Devuelve la authUrl para redirigir. */
+export async function startConnect(
+  platform: ZernioPlatform,
+): Promise<Result<{ authUrl: string }>> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) return { ok: false, message: "Sin empresa" };
+  try {
+    const profileId = await ensureProfile(profile.company_id);
+    const appUrl = publicEnv.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const { authUrl } = await getConnectUrl(
+      platform,
+      profileId,
+      `${appUrl}/api/channels/callback`,
+    );
+    return { ok: true, authUrl };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Error conectando" };
+  }
+}
+
+/** Refresca la salud (quality/tier/name) de un canal de WhatsApp. */
+export async function refreshChannelHealth(channelId: string): Promise<Result> {
+  const profile = await requireRole(["admin"]);
+  const admin = createAdminClient();
+  const { data: channel } = await admin
+    .from("messaging_channels")
+    .select("id, company_id, zernio_account_id, platform")
+    .eq("id", channelId)
+    .maybeSingle();
+  if (!channel || channel.company_id !== profile.company_id) {
+    return { ok: false, message: "Canal no encontrado" };
+  }
+  if (channel.platform !== "whatsapp") return { ok: true };
+  try {
+    const info = await getNumberInfo(channel.zernio_account_id);
+    await admin
+      .from("messaging_channels")
+      .update({
+        quality_rating: info.quality_rating ?? null,
+        messaging_limit_tier: info.messaging_limit_tier ?? null,
+        name_status: info.name_status ?? null,
+        health_checked_at: new Date().toISOString(),
+      })
+      .eq("id", channelId);
+    revalidatePath("/admin/channels");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Error" };
+  }
+}
+
+/** Desconecta (marca) un canal en el CRM. */
+export async function disconnectChannel(channelId: string): Promise<Result> {
+  const profile = await requireRole(["admin"]);
+  const admin = createAdminClient();
+  const { data: channel } = await admin
+    .from("messaging_channels")
+    .select("company_id")
+    .eq("id", channelId)
+    .maybeSingle();
+  if (!channel || channel.company_id !== profile.company_id) {
+    return { ok: false, message: "Canal no encontrado" };
+  }
+  await admin
+    .from("messaging_channels")
+    .update({ status: "disconnected" })
+    .eq("id", channelId);
+  revalidatePath("/admin/channels");
+  return { ok: true };
+}

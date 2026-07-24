@@ -384,6 +384,7 @@ export type Database = {
       companies: {
         Row: {
           address: string | null
+          country: string | null
           created_at: string
           cuit: string | null
           id: string
@@ -398,9 +399,11 @@ export type Database = {
           subscription_ends_at: string | null
           subscription_starts_at: string | null
           updated_at: string
+          zernio_profile_id: string | null
         }
         Insert: {
           address?: string | null
+          country?: string | null
           created_at?: string
           cuit?: string | null
           id?: string
@@ -415,9 +418,11 @@ export type Database = {
           subscription_ends_at?: string | null
           subscription_starts_at?: string | null
           updated_at?: string
+          zernio_profile_id?: string | null
         }
         Update: {
           address?: string | null
+          country?: string | null
           created_at?: string
           cuit?: string | null
           id?: string
@@ -432,8 +437,113 @@ export type Database = {
           subscription_ends_at?: string | null
           subscription_starts_at?: string | null
           updated_at?: string
+          zernio_profile_id?: string | null
         }
         Relationships: []
+      }
+      conversations: {
+        Row: {
+          assigned_user_id: string | null
+          attribution: Json
+          channel_id: string
+          claimed_at: string | null
+          company_id: string
+          created_at: string
+          id: string
+          last_inbound_at: string | null
+          last_message_preview: string | null
+          last_outbound_at: string | null
+          lead_id: string | null
+          participant_bsuid: string | null
+          participant_handle: string | null
+          participant_name: string | null
+          participant_phone_e164: string | null
+          platform: Database["public"]["Enums"]["channel_platform"]
+          status: Database["public"]["Enums"]["conversation_status"]
+          unread_count: number
+          updated_at: string
+          window_expires_at: string | null
+          zernio_contact_id: string | null
+          zernio_conversation_id: string
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          attribution?: Json
+          channel_id: string
+          claimed_at?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          last_inbound_at?: string | null
+          last_message_preview?: string | null
+          last_outbound_at?: string | null
+          lead_id?: string | null
+          participant_bsuid?: string | null
+          participant_handle?: string | null
+          participant_name?: string | null
+          participant_phone_e164?: string | null
+          platform: Database["public"]["Enums"]["channel_platform"]
+          status?: Database["public"]["Enums"]["conversation_status"]
+          unread_count?: number
+          updated_at?: string
+          window_expires_at?: string | null
+          zernio_contact_id?: string | null
+          zernio_conversation_id: string
+        }
+        Update: {
+          assigned_user_id?: string | null
+          attribution?: Json
+          channel_id?: string
+          claimed_at?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          last_inbound_at?: string | null
+          last_message_preview?: string | null
+          last_outbound_at?: string | null
+          lead_id?: string | null
+          participant_bsuid?: string | null
+          participant_handle?: string | null
+          participant_name?: string | null
+          participant_phone_e164?: string | null
+          platform?: Database["public"]["Enums"]["channel_platform"]
+          status?: Database["public"]["Enums"]["conversation_status"]
+          unread_count?: number
+          updated_at?: string
+          window_expires_at?: string | null
+          zernio_contact_id?: string | null
+          zernio_conversation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       impersonation_log: {
         Row: {
@@ -470,6 +580,87 @@ export type Database = {
             columns: ["target_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_ad_forms: {
+        Row: {
+          active: boolean
+          branch_id: string | null
+          campaign_id: string | null
+          channel_id: string | null
+          company_id: string
+          created_at: string
+          field_map: Json
+          form_name: string | null
+          id: string
+          meta_form_id: string
+          product_type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          branch_id?: string | null
+          campaign_id?: string | null
+          channel_id?: string | null
+          company_id: string
+          created_at?: string
+          field_map?: Json
+          form_name?: string | null
+          id?: string
+          meta_form_id: string
+          product_type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          branch_id?: string | null
+          campaign_id?: string | null
+          channel_id?: string | null
+          company_id?: string
+          created_at?: string
+          field_map?: Json
+          form_name?: string | null
+          id?: string
+          meta_form_id?: string
+          product_type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ad_forms_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ad_forms_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ad_forms_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ad_forms_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ad_forms_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
             referencedColumns: ["id"]
           },
         ]
@@ -650,6 +841,58 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_merges: {
+        Row: {
+          absorbed_ids: string[]
+          company_id: string
+          created_at: string
+          detail: Json
+          id: string
+          performed_by: string | null
+          survivor_id: string
+        }
+        Insert: {
+          absorbed_ids: string[]
+          company_id: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          performed_by?: string | null
+          survivor_id: string
+        }
+        Update: {
+          absorbed_ids?: string[]
+          company_id?: string
+          created_at?: string
+          detail?: Json
+          id?: string
+          performed_by?: string | null
+          survivor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_merges_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_merges_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_merges_survivor_id_fkey"
+            columns: ["survivor_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -923,9 +1166,11 @@ export type Database = {
           last_contacted_at: string | null
           last_name: string | null
           locality: string | null
+          merged_into_id: string | null
           metadata: Json | null
           national_id: string | null
           phone: string | null
+          phone_e164: string | null
           preferred_color: string | null
           preferred_contact_time: string | null
           product_type_id: string | null
@@ -974,9 +1219,11 @@ export type Database = {
           last_contacted_at?: string | null
           last_name?: string | null
           locality?: string | null
+          merged_into_id?: string | null
           metadata?: Json | null
           national_id?: string | null
           phone?: string | null
+          phone_e164?: string | null
           preferred_color?: string | null
           preferred_contact_time?: string | null
           product_type_id?: string | null
@@ -1025,9 +1272,11 @@ export type Database = {
           last_contacted_at?: string | null
           last_name?: string | null
           locality?: string | null
+          merged_into_id?: string | null
           metadata?: Json | null
           national_id?: string | null
           phone?: string | null
+          phone_e164?: string | null
           preferred_color?: string | null
           preferred_contact_time?: string | null
           product_type_id?: string | null
@@ -1084,6 +1333,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_merged_into_id_fkey"
+            columns: ["merged_into_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
           {
@@ -1204,6 +1460,200 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          attachments: Json
+          body: string | null
+          company_id: string
+          conversation_id: string
+          created_at: string
+          delivery_status: Database["public"]["Enums"]["message_delivery"]
+          direction: Database["public"]["Enums"]["message_direction"]
+          error_code: string | null
+          error_detail: string | null
+          id: string
+          message_type: string
+          platform_message_id: string | null
+          platform_timestamp: string | null
+          reply_to_message_id: string | null
+          sender_type: string
+          sent_by_user_id: string | null
+          template_name: string | null
+          zernio_message_id: string | null
+        }
+        Insert: {
+          attachments?: Json
+          body?: string | null
+          company_id: string
+          conversation_id: string
+          created_at?: string
+          delivery_status?: Database["public"]["Enums"]["message_delivery"]
+          direction: Database["public"]["Enums"]["message_direction"]
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          message_type?: string
+          platform_message_id?: string | null
+          platform_timestamp?: string | null
+          reply_to_message_id?: string | null
+          sender_type?: string
+          sent_by_user_id?: string | null
+          template_name?: string | null
+          zernio_message_id?: string | null
+        }
+        Update: {
+          attachments?: Json
+          body?: string | null
+          company_id?: string
+          conversation_id?: string
+          created_at?: string
+          delivery_status?: Database["public"]["Enums"]["message_delivery"]
+          direction?: Database["public"]["Enums"]["message_direction"]
+          error_code?: string | null
+          error_detail?: string | null
+          id?: string
+          message_type?: string
+          platform_message_id?: string | null
+          platform_timestamp?: string | null
+          reply_to_message_id?: string | null
+          sender_type?: string
+          sent_by_user_id?: string | null
+          template_name?: string | null
+          zernio_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sent_by_user_id_fkey"
+            columns: ["sent_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messaging_channels: {
+        Row: {
+          branch_id: string | null
+          campaign_id: string | null
+          company_id: string
+          connected_at: string | null
+          connected_by: string | null
+          created_at: string
+          display_name: string | null
+          external_ref: string | null
+          health_checked_at: string | null
+          id: string
+          messaging_limit_tier: string | null
+          metadata: Json
+          name_status: string | null
+          platform: Database["public"]["Enums"]["channel_platform"]
+          product_type_id: string | null
+          quality_rating: string | null
+          status: Database["public"]["Enums"]["channel_status"]
+          updated_at: string
+          zernio_account_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          campaign_id?: string | null
+          company_id: string
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          display_name?: string | null
+          external_ref?: string | null
+          health_checked_at?: string | null
+          id?: string
+          messaging_limit_tier?: string | null
+          metadata?: Json
+          name_status?: string | null
+          platform: Database["public"]["Enums"]["channel_platform"]
+          product_type_id?: string | null
+          quality_rating?: string | null
+          status?: Database["public"]["Enums"]["channel_status"]
+          updated_at?: string
+          zernio_account_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          campaign_id?: string | null
+          company_id?: string
+          connected_at?: string | null
+          connected_by?: string | null
+          created_at?: string
+          display_name?: string | null
+          external_ref?: string | null
+          health_checked_at?: string | null
+          id?: string
+          messaging_limit_tier?: string | null
+          metadata?: Json
+          name_status?: string | null
+          platform?: Database["public"]["Enums"]["channel_platform"]
+          product_type_id?: string | null
+          quality_rating?: string | null
+          status?: Database["public"]["Enums"]["channel_status"]
+          updated_at?: string
+          zernio_account_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messaging_channels_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_channels_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_channels_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messaging_channels_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1964,6 +2414,115 @@ export type Database = {
           },
         ]
       }
+      webhook_events: {
+        Row: {
+          attempts: number
+          event_id: string
+          event_type: string
+          last_error: string | null
+          payload: Json
+          processed_at: string | null
+          provider: string
+          received_at: string
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          event_id: string
+          event_type: string
+          last_error?: string | null
+          payload: Json
+          processed_at?: string | null
+          provider?: string
+          received_at?: string
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          event_id?: string
+          event_type?: string
+          last_error?: string | null
+          payload?: Json
+          processed_at?: string | null
+          provider?: string
+          received_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      whatsapp_templates: {
+        Row: {
+          body_preview: string | null
+          category: string
+          channel_id: string
+          company_id: string
+          created_at: string
+          id: string
+          is_standard: boolean
+          language: string
+          rejection_reason: string | null
+          source_message_template_id: string | null
+          status: string
+          updated_at: string
+          variables: Json
+          zernio_template_name: string
+        }
+        Insert: {
+          body_preview?: string | null
+          category: string
+          channel_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_standard?: boolean
+          language: string
+          rejection_reason?: string | null
+          source_message_template_id?: string | null
+          status?: string
+          updated_at?: string
+          variables?: Json
+          zernio_template_name: string
+        }
+        Update: {
+          body_preview?: string | null
+          category?: string
+          channel_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_standard?: boolean
+          language?: string
+          rejection_reason?: string | null
+          source_message_template_id?: string | null
+          status?: string
+          updated_at?: string
+          variables?: Json
+          zernio_template_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_templates_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "messaging_channels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_templates_source_message_template_id_fkey"
+            columns: ["source_message_template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1985,6 +2544,14 @@ export type Database = {
         Returns: Database["public"]["Enums"]["user_role"]
       }
       current_user_product_type_ids: { Args: never; Returns: string[] }
+      duplicate_lead_groups: {
+        Args: never
+        Returns: {
+          lead_count: number
+          lead_ids: string[]
+          phone_e164: string
+        }[]
+      }
       has_overdue_payment: {
         Args: { p_company_id: string; p_grace_days?: number }
         Returns: boolean
@@ -2000,6 +2567,10 @@ export type Database = {
           cnt: number
           status: Database["public"]["Enums"]["lead_status"]
         }[]
+      }
+      merge_leads: {
+        Args: { p_absorbed: string[]; p_reason?: string; p_survivor: string }
+        Returns: Json
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
@@ -2022,6 +2593,8 @@ export type Database = {
         | "inbound_call"
         | "other"
       campaign_status: "active" | "inactive"
+      channel_platform: "whatsapp" | "instagram" | "facebook"
+      channel_status: "connecting" | "active" | "disconnected" | "error"
       commercial_lead_status:
         | "new"
         | "contacted"
@@ -2030,6 +2603,7 @@ export type Database = {
         | "won"
         | "lost"
       company_status: "pending" | "active" | "suspended"
+      conversation_status: "open" | "snoozed" | "closed"
       lead_payment_method:
         | "cash"
         | "financed"
@@ -2047,6 +2621,8 @@ export type Database = {
         | "rejected"
         | "closed"
       lead_temperature: "hot" | "warm" | "cold"
+      message_delivery: "queued" | "sent" | "delivered" | "read" | "failed"
+      message_direction: "inbound" | "outbound"
       note_activity:
         | "email_sent"
         | "phone_call"
@@ -2220,6 +2796,8 @@ export const Constants = {
         "other",
       ],
       campaign_status: ["active", "inactive"],
+      channel_platform: ["whatsapp", "instagram", "facebook"],
+      channel_status: ["connecting", "active", "disconnected", "error"],
       commercial_lead_status: [
         "new",
         "contacted",
@@ -2229,6 +2807,7 @@ export const Constants = {
         "lost",
       ],
       company_status: ["pending", "active", "suspended"],
+      conversation_status: ["open", "snoozed", "closed"],
       lead_payment_method: [
         "cash",
         "financed",
@@ -2248,6 +2827,8 @@ export const Constants = {
         "closed",
       ],
       lead_temperature: ["hot", "warm", "cold"],
+      message_delivery: ["queued", "sent", "delivered", "read", "failed"],
+      message_direction: ["inbound", "outbound"],
       note_activity: [
         "email_sent",
         "phone_call",

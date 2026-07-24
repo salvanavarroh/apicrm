@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { parseFields, submissionSchema } from "@/lib/forms";
-import { appendLeadVehicle, findReentryLead } from "@/lib/lead-reentry";
+import {
+  appendLeadVehicle,
+  findReentryLead,
+  resolveCompanyE164,
+} from "@/lib/lead-reentry";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Rate limit muy básico en memoria por instancia. 1 submission por IP cada 60s.
@@ -108,6 +112,8 @@ export async function POST(
 
   const cleanPhone = data.phone ? data.phone.replace(/[^\d+]/g, "") : null;
   const cleanEmail = data.email ? data.email.trim().toLowerCase() : null;
+  // Teléfono canónico E.164 según el país de la empresa (dedup cross-canal).
+  const phoneE164 = await resolveCompanyE164(admin, form.company_id, data.phone);
 
   // Reingreso (#5/#6): si el mismo cliente ya entró dentro de la ventana, es el
   // MISMO lead. Le agregamos la consulta (auto) y conserva su vendedor — no
@@ -154,6 +160,7 @@ export async function POST(
       first_name: data.first_name || null,
       last_name: data.last_name || null,
       phone: cleanPhone,
+      phone_e164: phoneE164,
       email: cleanEmail,
       city: data.city || null,
       vehicle_model: data.vehicle_model || null,

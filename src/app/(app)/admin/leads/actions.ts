@@ -14,7 +14,12 @@ import {
   type LeadInput,
   type LeadRow,
 } from "@/lib/leads";
-import { appendLeadVehicle } from "@/lib/lead-reentry";
+import {
+  appendLeadVehicle,
+  companyCountry,
+  resolveCompanyE164,
+} from "@/lib/lead-reentry";
+import { toE164 } from "@/lib/phone";
 import { notify } from "@/lib/notifications";
 import { maybeAdvanceStatus, type PresaleStatus } from "@/lib/lead-status";
 import { createClient } from "@/lib/supabase/server";
@@ -68,12 +73,13 @@ export async function findDuplicateLead(
   if (!profile.company_id) return null;
 
   const supabase = await createClient();
-  const cleanPhone = normalizePhone(phone);
+  // Match por teléfono canónico E.164 (colapsa formatos y prefijos del país).
+  const e164 = await resolveCompanyE164(supabase, profile.company_id, phone);
   const cleanEmail = normalizeEmail(email);
-  if (!cleanPhone && !cleanEmail) return null;
+  if (!e164 && !cleanEmail) return null;
 
   const filters: string[] = [];
-  if (cleanPhone) filters.push(`phone.eq.${cleanPhone}`);
+  if (e164) filters.push(`phone_e164.eq.${e164}`);
   if (cleanEmail) filters.push(`email.eq.${cleanEmail}`);
 
   const { data } = await supabase
@@ -81,6 +87,7 @@ export async function findDuplicateLead(
     .select("id, first_name, last_name, phone, email, status, created_at")
     .eq("company_id", profile.company_id)
     .or(filters.join(","))
+    .is("merged_into_id", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -131,6 +138,11 @@ export async function createLead(
   const email = normalizeEmail(parsed.data.email || null);
 
   const supabase = await createClient();
+  const phoneE164 = await resolveCompanyE164(
+    supabase,
+    profile.company_id,
+    parsed.data.phone || null,
+  );
 
   // Chequeo de duplicado (salvo skip_check)
   const duplicate =
@@ -178,6 +190,7 @@ export async function createLead(
     last_name: parsed.data.last_name || null,
     email,
     phone,
+    phone_e164: phoneE164,
     city: parsed.data.city || null,
     vehicle_brand: parsed.data.vehicle_brand || null,
     vehicle_model: parsed.data.vehicle_model || null,
@@ -394,6 +407,7 @@ export async function bulkInsertLeads(
   }
 
   const supabase = await createClient();
+  const country = await companyCountry(supabase, profile.company_id);
   const inserts: LeadInsert[] = [];
   const errors: { row: number; message: string }[] = [];
 
@@ -418,6 +432,7 @@ export async function bulkInsertLeads(
       last_name: row.last_name || null,
       email,
       phone,
+      phone_e164: toE164(phone, country),
       city: row.city || null,
       vehicle_model: row.vehicle_model || null,
       vehicle_version: row.vehicle_version || null,
