@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import {
   BarChart3,
   Briefcase,
   Building2,
   CalendarCheck,
+  ChevronDown,
   FileInput,
   FileText,
   GitMerge,
@@ -123,7 +125,7 @@ const APP_NAV: Item[] = [
 ];
 
 // --- Integraciones: subtítulo con Inbox + sub-grupos WhatsApp / Meta Ads ---
-type NavGroup = { label: string; items: Item[] };
+type NavGroup = { label: string; icon: LucideIcon; items: Item[] };
 type Integrations = { items: Item[]; groups: NavGroup[] };
 
 const INBOX_ITEM: Item = { href: "/admin/inbox", label: "Inbox", icon: MessageSquare };
@@ -133,6 +135,7 @@ const ADMIN_INTEGRATIONS: Integrations = {
   groups: [
     {
       label: "WhatsApp",
+      icon: MessageCircle,
       items: [
         { href: "/admin/channels", label: "Canales", icon: Smartphone },
         { href: "/admin/whatsapp-templates", label: "Plantillas", icon: FileText },
@@ -140,6 +143,7 @@ const ADMIN_INTEGRATIONS: Integrations = {
     },
     {
       label: "Meta Ads",
+      icon: Target,
       items: [{ href: "/admin/lead-ads", label: "Lead Ads", icon: Target }],
     },
   ],
@@ -199,6 +203,24 @@ export function AppSidebar({
   const integrations = integrationsForRole(profile.role);
   const activeItemHref = activeHref(pathname, allHrefItems(items, integrations));
 
+  // Grupos desplegables (WhatsApp, Meta Ads). Se abren solos si el activo está dentro.
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    if (integrations) {
+      for (const g of integrations.groups) {
+        if (g.items.some((it) => it.href === activeItemHref)) s.add(g.label);
+      }
+    }
+    return s;
+  });
+  const toggleGroup = (label: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+
   const renderLink = (item: Item, indent = false) => {
     const active = item.href === activeItemHref;
     const Icon = item.icon;
@@ -232,6 +254,37 @@ export function AppSidebar({
     );
   };
 
+  // Sub-botón (dentro de un grupo desplegado): más chico, indentado, sin ícono.
+  const renderSubLink = (item: Item) => {
+    const active = item.href === activeItemHref;
+    const count = badges[item.href] ?? 0;
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={cn(
+          "relative flex items-center rounded-md py-1.5 pr-3 pl-11 text-[13px] transition-colors",
+          active
+            ? "font-medium text-sidebar-accent"
+            : "text-sidebar-muted hover:bg-white/5 hover:text-sidebar-foreground",
+        )}
+      >
+        <span>{item.label}</span>
+        {count > 0 && (
+          <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-accent-foreground">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+        {active && (
+          <span
+            aria-hidden
+            className="absolute top-1 right-0 bottom-1 w-[3px] rounded-l-full bg-sidebar-accent"
+          />
+        )}
+      </Link>
+    );
+  };
+
   return (
     <aside className="flex h-full w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex items-center justify-between px-6 pt-7 pb-5">
@@ -245,7 +298,7 @@ export function AppSidebar({
 
       <Separator className="bg-sidebar-border" />
 
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+      <nav className="sidebar-scroll flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
         {items.map((item) => renderLink(item))}
 
         {integrations && (
@@ -254,14 +307,33 @@ export function AppSidebar({
               Integraciones
             </div>
             {integrations.items.map((item) => renderLink(item))}
-            {integrations.groups.map((group) => (
-              <div key={group.label} className="mt-1.5">
-                <div className="px-3 pb-0.5 text-[11px] font-medium text-sidebar-muted/70">
-                  {group.label}
+            {integrations.groups.map((group) => {
+              const GroupIcon = group.icon;
+              const open = expanded.has(group.label);
+              return (
+                <div key={group.label}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.label)}
+                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-white/5"
+                  >
+                    <GroupIcon className="size-5 shrink-0" />
+                    <span>{group.label}</span>
+                    <ChevronDown
+                      className={cn(
+                        "ml-auto size-4 shrink-0 text-sidebar-muted transition-transform",
+                        open && "rotate-180",
+                      )}
+                    />
+                  </button>
+                  {open && (
+                    <div className="mt-0.5 mb-1 flex flex-col gap-0.5">
+                      {group.items.map((item) => renderSubLink(item))}
+                    </div>
+                  )}
                 </div>
-                {group.items.map((item) => renderLink(item, true))}
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
       </nav>
