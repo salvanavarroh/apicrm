@@ -113,11 +113,17 @@ export async function sendMessage(
   if (!accountId) return { ok: false, message: "Canal sin cuenta" };
 
   try {
-    const res = await sendInboxMessage(conv.zernio_conversation_id, {
-      accountId,
-      message: body,
-    });
-    const zMsgId = res.data?.messageId ?? null;
+    // Canales mock (seed de prueba): simulamos el envío sin pegarle a Zernio.
+    let zMsgId: string | null = null;
+    if (accountId.startsWith("mock_")) {
+      zMsgId = `mock_out_${Date.now()}`;
+    } else {
+      const res = await sendInboxMessage(conv.zernio_conversation_id, {
+        accountId,
+        message: body,
+      });
+      zMsgId = res.data?.messageId ?? null;
+    }
     const { data: msg } = await admin
       .from("messages")
       .insert({
@@ -129,7 +135,7 @@ export async function sendMessage(
         sent_by_user_id: profile.id,
         message_type: "text",
         body,
-        delivery_status: "sent",
+        delivery_status: accountId.startsWith("mock_") ? "delivered" : "sent",
       })
       .select("id")
       .single();
@@ -184,19 +190,25 @@ export async function sendTemplateMessage(
   if (!accountId || !to) return { ok: false, message: "Faltan datos del canal" };
 
   try {
-    const res = await startConversation({
-      accountId,
-      participantId: to,
-      templateName,
-      templateLanguage: language,
-      templateParams: params,
-    });
+    let zMsgId: string | null = null;
+    if (accountId.startsWith("mock_")) {
+      zMsgId = `mock_tpl_${Date.now()}`;
+    } else {
+      const res = await startConversation({
+        accountId,
+        participantId: to,
+        templateName,
+        templateLanguage: language,
+        templateParams: params,
+      });
+      zMsgId = res.data?.messageId ?? null;
+    }
     const { data: msg } = await admin
       .from("messages")
       .insert({
         company_id: profile.company_id!,
         conversation_id: conversationId,
-        zernio_message_id: res.data?.messageId ?? null,
+        zernio_message_id: zMsgId,
         direction: "outbound",
         sender_type: "agent",
         sent_by_user_id: profile.id,
