@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CalendarClock,
   CalendarPlus,
   ExternalLink,
   Mail,
@@ -35,6 +36,7 @@ import {
   type LeadInfo,
 } from "@/app/(app)/admin/inbox/actions";
 import { addLeadNote, addLeadTask } from "@/app/(app)/admin/leads/actions";
+import { scheduleVisit } from "@/app/(app)/admin/leads/visit-actions";
 
 const STATUS_FLOW: LeadStatus[] = ["new", "contacted", "interested", "quoted"];
 
@@ -47,7 +49,7 @@ export function LeadInfoPanel({
 }) {
   const [info, setInfo] = useState<LeadInfo | null>(null);
   const [pending, start] = useTransition();
-  const [tab, setTab] = useState<null | "activity" | "task">(null);
+  const [tab, setTab] = useState<null | "activity" | "task" | "visit">(null);
 
   // Actividad
   const [actType, setActType] = useState<string>("other");
@@ -58,6 +60,10 @@ export function LeadInfoPanel({
   const [tDate, setTDate] = useState("");
   const [tTime, setTTime] = useState("");
   const [tPrio, setTPrio] = useState<string>("medium");
+  // Visita
+  const [vDate, setVDate] = useState("");
+  const [vTime, setVTime] = useState("");
+  const [vNotes, setVNotes] = useState("");
 
   useEffect(() => {
     getLeadInfo(leadId).then(setInfo);
@@ -110,6 +116,23 @@ export function LeadInfoPanel({
       } else toast.error(res.message);
     });
   }
+  function saveVisit() {
+    if (!vDate || !vTime) {
+      toast.error("Elegí fecha y hora");
+      return;
+    }
+    start(async () => {
+      const iso = new Date(`${vDate}T${vTime}`).toISOString();
+      const res = await scheduleVisit(leadId, { scheduled_at: iso, notes: vNotes });
+      if (res.ok) {
+        toast.success("Visita agendada");
+        setVDate("");
+        setVTime("");
+        setVNotes("");
+        setTab(null);
+      } else toast.error(res.message);
+    });
+  }
 
   return (
     <div className="flex h-full w-80 shrink-0 flex-col border-l bg-card">
@@ -154,10 +177,11 @@ export function LeadInfoPanel({
             )}
           </div>
 
-          {/* Actividad / Tarea */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* Actividad / Tarea / Visita */}
+          <div className="grid grid-cols-3 gap-1.5">
             <Button
               size="sm"
+              className="px-1 text-xs"
               variant={tab === "activity" ? "default" : "outline"}
               onClick={() => setTab(tab === "activity" ? null : "activity")}
             >
@@ -165,10 +189,19 @@ export function LeadInfoPanel({
             </Button>
             <Button
               size="sm"
+              className="px-1 text-xs"
               variant={tab === "task" ? "default" : "outline"}
               onClick={() => setTab(tab === "task" ? null : "task")}
             >
               <CalendarPlus className="mr-1 size-3.5" /> Tarea
+            </Button>
+            <Button
+              size="sm"
+              className="px-1 text-xs"
+              variant={tab === "visit" ? "default" : "outline"}
+              onClick={() => setTab(tab === "visit" ? null : "visit")}
+            >
+              <CalendarClock className="mr-1 size-3.5" /> Visita
             </Button>
           </div>
 
@@ -249,6 +282,38 @@ export function LeadInfoPanel({
             </div>
           )}
 
+          {tab === "visit" && (
+            <div className="space-y-2 rounded-md border p-2">
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={vDate}
+                  onChange={(e) => setVDate(e.target.value)}
+                  className="flex-1 rounded-md border px-2 py-1.5 text-sm"
+                />
+                <input
+                  type="time"
+                  value={vTime}
+                  onChange={(e) => setVTime(e.target.value)}
+                  className="w-24 rounded-md border px-2 py-1.5 text-sm"
+                />
+              </div>
+              <textarea
+                value={vNotes}
+                onChange={(e) => setVNotes(e.target.value)}
+                rows={2}
+                placeholder="Notas de la visita (opcional)…"
+                className="w-full rounded-md border px-2 py-1.5 text-sm"
+              />
+              <Button size="sm" className="w-full" onClick={saveVisit} disabled={pending || !vDate || !vTime}>
+                Agendar visita
+              </Button>
+              <p className="text-[10px] text-muted-foreground">
+                Requiere que el lead tenga sucursal asignada.
+              </p>
+            </div>
+          )}
+
           {/* Estado */}
           <div>
             <div className="mb-1 text-xs font-medium text-muted-foreground">Estado</div>
@@ -316,7 +381,7 @@ export function LeadInfoPanel({
       )}
 
       {info && (
-        <div className="border-t p-3">
+        <div className="flex h-[68px] items-center border-t px-3">
           <Button asChild className="w-full">
             <Link href={`/admin/leads/${info.id}`}>
               <ExternalLink className="mr-1 size-4" /> Ver ficha completa

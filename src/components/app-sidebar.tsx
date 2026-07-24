@@ -9,6 +9,8 @@ import {
   Building2,
   CalendarCheck,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   FileInput,
   FileText,
   HelpCircle,
@@ -210,6 +212,11 @@ export function AppSidebar({
   const integrations = integrationsForRole(profile.role);
   const activeItemHref = activeHref(pathname, allHrefItems(items, integrations));
 
+  // Menú acoplado (solo íconos + logo). Auto en el inbox; con botón para togglear.
+  const onInbox = pathname.includes("/inbox");
+  const [override, setOverride] = useState<boolean | null>(null);
+  const collapsed = override ?? onInbox;
+
   // Grupos desplegables (WhatsApp, Meta Ads). Se abren solos si el activo está dentro.
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     const s = new Set<string>();
@@ -232,6 +239,26 @@ export function AppSidebar({
     const active = item.href === activeItemHref;
     const Icon = item.icon;
     const count = badges[item.href] ?? 0;
+    if (collapsed) {
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          title={item.label}
+          className={cn(
+            "relative flex items-center justify-center rounded-md py-2.5 transition-colors",
+            active
+              ? "bg-white/5 text-sidebar-accent"
+              : "text-sidebar-foreground hover:bg-white/5",
+          )}
+        >
+          <Icon className="size-5 shrink-0" />
+          {count > 0 && (
+            <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-accent" />
+          )}
+        </Link>
+      );
+    }
     return (
       <Link
         key={item.href}
@@ -293,30 +320,89 @@ export function AppSidebar({
   };
 
   return (
-    <aside className="flex h-full w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex items-center justify-between px-6 pt-7 pb-5">
-        <Link href="/" aria-label="Ir al inicio">
-          <Logo size={44} />
-        </Link>
-        {profile.role !== "super_admin" && (
-          <NotificationBell className="text-sidebar-muted hover:bg-white/10 hover:text-sidebar-foreground" />
+    <aside
+      className={cn(
+        "flex h-full shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200",
+        collapsed ? "w-16" : "w-60",
+      )}
+    >
+      <div
+        className={cn(
+          "flex",
+          collapsed
+            ? "flex-col items-center gap-2 px-2 pt-6 pb-4"
+            : "items-center justify-between px-6 pt-7 pb-5",
         )}
+      >
+        <Link href="/" aria-label="Ir al inicio">
+          <Logo size={collapsed ? 30 : 44} />
+        </Link>
+        <div className="flex items-center gap-1">
+          {!collapsed && profile.role !== "super_admin" && (
+            <NotificationBell className="text-sidebar-muted hover:bg-white/10 hover:text-sidebar-foreground" />
+          )}
+          <button
+            type="button"
+            onClick={() => setOverride(!collapsed)}
+            title={collapsed ? "Expandir menú" : "Contraer menú"}
+            className="rounded-md p-1.5 text-sidebar-muted transition-colors hover:bg-white/10 hover:text-sidebar-foreground"
+          >
+            {collapsed ? (
+              <ChevronsRight className="size-4" />
+            ) : (
+              <ChevronsLeft className="size-4" />
+            )}
+          </button>
+        </div>
       </div>
 
       <Separator className="bg-sidebar-border" />
 
-      <nav className="sidebar-scroll flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+      <nav
+        className={cn(
+          "sidebar-scroll flex flex-1 flex-col gap-1 overflow-y-auto py-4",
+          collapsed ? "px-2" : "px-3",
+        )}
+      >
         {items.map((item) => renderLink(item))}
 
         {integrations && (
           <>
-            <div className="mt-5 mb-1 px-3 text-[10px] font-semibold tracking-wider text-sidebar-muted uppercase">
-              Integraciones
-            </div>
+            {collapsed ? (
+              <Separator className="my-2 bg-sidebar-border" />
+            ) : (
+              <div className="mt-5 mb-1 px-3 text-[10px] font-semibold tracking-wider text-sidebar-muted uppercase">
+                Integraciones
+              </div>
+            )}
             {integrations.items.map((item) => renderLink(item))}
             {integrations.groups.map((group) => {
               const GroupIcon = group.icon;
               const open = expanded.has(group.label);
+              if (collapsed) {
+                const groupActive = group.items.some(
+                  (it) => it.href === activeItemHref,
+                );
+                return (
+                  <button
+                    key={group.label}
+                    type="button"
+                    title={group.label}
+                    onClick={() => {
+                      setOverride(false);
+                      setExpanded((prev) => new Set(prev).add(group.label));
+                    }}
+                    className={cn(
+                      "flex items-center justify-center rounded-md py-2.5 transition-colors",
+                      groupActive
+                        ? "bg-white/5 text-sidebar-accent"
+                        : "text-sidebar-foreground hover:bg-white/5",
+                    )}
+                  >
+                    <GroupIcon className="size-5" />
+                  </button>
+                );
+              }
               return (
                 <div key={group.label}>
                   <button
@@ -345,14 +431,19 @@ export function AppSidebar({
         )}
       </nav>
 
-      <div className="flex flex-col gap-1 px-3 pb-5">
+      <div
+        className={cn(
+          "flex flex-col gap-1 pb-5",
+          collapsed ? "items-center px-2" : "px-3",
+        )}
+      >
         <Link
           href="/profile"
+          title="Mi perfil"
           className={cn(
-            "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors",
-            pathname === "/profile"
-              ? "bg-white/10"
-              : "hover:bg-white/5",
+            "flex rounded-md transition-colors",
+            collapsed ? "justify-center p-1.5" : "items-center gap-2 px-2 py-1.5",
+            pathname === "/profile" ? "bg-white/10" : "hover:bg-white/5",
           )}
         >
           <UserAvatar
@@ -362,36 +453,45 @@ export function AppSidebar({
             role={profile.role}
             size="sm"
           />
-          <span className="flex min-w-0 flex-col text-left leading-tight">
-            <span className="truncate text-xs font-medium text-sidebar-foreground">
-              {[profile.first_name, profile.last_name]
-                .filter(Boolean)
-                .join(" ") || "Mi perfil"}
+          {!collapsed && (
+            <span className="flex min-w-0 flex-col text-left leading-tight">
+              <span className="truncate text-xs font-medium text-sidebar-foreground">
+                {[profile.first_name, profile.last_name]
+                  .filter(Boolean)
+                  .join(" ") || "Mi perfil"}
+              </span>
+              <span className="truncate text-[10px] text-sidebar-muted">
+                {ROLE_LABELS[profile.role]}
+              </span>
             </span>
-            <span className="truncate text-[10px] text-sidebar-muted">
-              {ROLE_LABELS[profile.role]}
-            </span>
-          </span>
+          )}
         </Link>
 
         <Separator className="my-1 bg-sidebar-border" />
 
         <button
           type="button"
-          className="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground"
+          title="Ayuda"
+          className={cn(
+            "flex items-center rounded-md py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground",
+            collapsed ? "w-full justify-center" : "gap-3 px-3",
+          )}
         >
           <HelpCircle className="size-5 shrink-0" />
-          <span>Ayuda</span>
+          {!collapsed && <span>Ayuda</span>}
         </button>
 
-        <form action={signOut}>
+        <form action={signOut} className="w-full">
           <Button
             type="submit"
             variant="ghost"
-            className="flex w-full items-center justify-start gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-muted hover:bg-white/5 hover:text-sidebar-foreground"
+            className={cn(
+              "flex w-full items-center rounded-md py-2.5 text-sm font-medium text-sidebar-muted hover:bg-white/5 hover:text-sidebar-foreground",
+              collapsed ? "justify-center px-0" : "justify-start gap-3 px-3",
+            )}
           >
             <LogOut className="size-5 shrink-0" />
-            <span>Salir</span>
+            {!collapsed && <span>Salir</span>}
           </Button>
         </form>
       </div>

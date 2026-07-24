@@ -175,7 +175,7 @@ export function InboxView({
                     currentUserId={currentUserId}
                     onClick={() => {
                       setSelected(c);
-                      setInfoOpen(false);
+                      setInfoOpen(!!c.lead_id);
                     }}
                   />
                 ))
@@ -460,13 +460,13 @@ function Thread({
       </div>
 
       {/* Composer */}
-      <div className="border-t bg-card p-3">
+      <div className="flex h-[68px] items-center border-t bg-card px-3">
         {isPool ? (
           <Button onClick={claim} disabled={pending} className="w-full">
             Tomar conversación
           </Button>
         ) : win.expired ? (
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex w-full items-center justify-between gap-3">
             <p className="text-xs text-amber-600">
               Ventana de 24h cerrada. Enviá una plantilla aprobada para reabrir.
             </p>
@@ -477,7 +477,7 @@ function Thread({
             />
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex w-full gap-2">
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
