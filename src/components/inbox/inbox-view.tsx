@@ -192,6 +192,11 @@ export function InboxView({
                   isPriv={isPriv}
                   infoOpen={infoOpen}
                   onToggleInfo={() => setInfoOpen((o) => !o)}
+                  onClaimed={() =>
+                    setSelected((s) =>
+                      s ? { ...s, assigned_user_id: currentUserId } : s,
+                    )
+                  }
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -322,12 +327,14 @@ function Thread({
   isPriv,
   infoOpen,
   onToggleInfo,
+  onClaimed,
 }: {
   conversation: ConversationListItem;
   currentUserId: string;
   isPriv: boolean;
   infoOpen: boolean;
   onToggleInfo: () => void;
+  onClaimed: () => void;
 }) {
   const router = useRouter();
   const [messages, setMessages] = useState<InboxMessage[] | null>(null);
@@ -356,6 +363,7 @@ function Thread({
       const res = await claimConversation(conversation.id);
       if (res.ok) {
         toast.success("Conversación tomada");
+        onClaimed();
         router.refresh();
       } else toast.error(res.message);
     });

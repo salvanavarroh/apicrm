@@ -268,7 +268,25 @@ export async function claimConversation(conversationId: string): Promise<Result>
     .maybeSingle();
 
   if (!claimed) {
-    return { ok: false, message: "La tomó otro vendedor" };
+    // Ya estaba asignada: ¿a mí o a otro?
+    const { data: conv } = await admin
+      .from("conversations")
+      .select("assigned_user_id")
+      .eq("id", conversationId)
+      .maybeSingle();
+    if (conv?.assigned_user_id === profile.id) {
+      return { ok: true }; // ya es mía → no es error
+    }
+    let who = "otro vendedor";
+    if (conv?.assigned_user_id) {
+      const { data: v } = await admin
+        .from("profiles")
+        .select("first_name, last_name")
+        .eq("id", conv.assigned_user_id)
+        .maybeSingle();
+      if (v) who = fullName(v.first_name, v.last_name);
+    }
+    return { ok: false, message: `La tomó ${who}` };
   }
   // Asignar el lead si estaba sin dueño (sticky-seller de acá en más).
   if (claimed.lead_id) {
