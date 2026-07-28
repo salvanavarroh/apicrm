@@ -79,8 +79,9 @@ async function poolRecipients(admin: Admin, companyId: string): Promise<string[]
 // --- Resolver / crear lead desde un contacto entrante -----------------------
 
 type Participant = {
-  rawPhone: string | null; // identificador crudo (satisface la constraint phone/email)
-  phone_e164: string | null;
+  phone: string | null; // SOLO WhatsApp: teléfono real
+  phone_e164: string | null; // SOLO WhatsApp
+  socialId: string | null; // IG/FB: IGSID/PSID de Meta → leads.external_id (NUNCA phone)
   bsuid: string | null;
   name: string | null;
   handle: string | null;
@@ -92,8 +93,12 @@ async function resolveOrCreateLead(
   channel: ChannelRow,
   p: Participant,
 ): Promise<{ leadId: string; assignedUserId: string | null } | null> {
-  // 1) Match por phone_e164 (colapsa formatos cross-canal, respeta sticky-seller).
-  if (p.phone_e164) {
+  const isWa = channel.platform === "whatsapp";
+
+  // 1) Match a lead existente. WhatsApp → por phone_e164 (colapsa formatos
+  //    cross-canal, respeta sticky-seller). Redes → por external_id (IGSID/PSID)
+  //    para no duplicar el lead en cada mensaje nuevo del mismo usuario.
+  if (isWa && p.phone_e164) {
     const { data: existing } = await admin
       .from("leads")
       .select("id, assigned_user_id")
@@ -107,18 +112,36 @@ async function resolveOrCreateLead(
     if (existing) {
       return { leadId: existing.id, assignedUserId: existing.assigned_user_id };
     }
+  } else if (!isWa && p.socialId) {
+    const { data: existing } = await admin
+      .from("leads")
+      .select("id, assigned_user_id")
+      .eq("company_id", channel.company_id)
+      .eq("external_id", p.socialId)
+      .is("merged_into_id", null)
+      .is("archived_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      return { leadId: existing.id, assignedUserId: existing.assigned_user_id };
+    }
   }
 
-  // 2) Crear lead nuevo. Pool + claim: queda sin asignar (decisión #1).
-  const [first, ...rest] = (p.name ?? "").trim().split(/\s+/);
+  // 2) Crear lead nuevo. Pool + claim: queda sin asignar (decisión #1). En redes
+  //    no hay teléfono: el identificador social va a external_id y el nombre usa
+  //    el real o, en su defecto, el @usuario. WhatsApp guarda el teléfono.
+  const displayName = p.name ?? p.handle;
+  const [first, ...rest] = (displayName ?? "").trim().split(/\s+/);
   const { data: lead, error } = await admin
     .from("leads")
     .insert({
       company_id: channel.company_id,
       first_name: first || null,
       last_name: rest.length ? rest.join(" ") : null,
-      phone: p.rawPhone,
-      phone_e164: p.phone_e164,
+      phone: isWa ? p.phone : null,
+      phone_e164: isWa ? p.phone_e164 : null,
+      external_id: isWa ? null : p.socialId,
       source: PLATFORM_SOURCE[channel.platform] ?? channel.platform,
       branch_id: channel.branch_id,
       product_type_id: channel.product_type_id,
@@ -156,20 +179,31 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
   if (!zConvId) return;
 
   const country = await companyCountry(admin, channel.company_id);
+  const isWa = channel.platform === "whatsapp";
   // El participante viene en message.sender (mensaje) o en conversation.* (inicio de conv).
-  const rawPhone =
-    str(sender.phoneNumber) ??
-    str(conversation.participantUsername) ??
-    str(conversation.participantId);
-  const phoneE164 =
-    channel.platform === "whatsapp"
-      ? (normalizeWaId(rawPhone, country) ?? toE164(rawPhone, country))
-      : toE164(rawPhone, country);
+  // WhatsApp: el identificador ES un teléfono real (phoneNumber o el wa_id en
+  // participantId). Redes sociales: NO hay teléfono; el id es el IGSID/PSID.
+  const waPhone = isWa
+    ? (str(sender.phoneNumber) ?? str(conversation.participantId))
+    : null;
+  const phoneE164 = isWa
+    ? (normalizeWaId(waPhone, country) ?? toE164(waPhone, country))
+    : null;
+  // IGSID/PSID del contacto social → va a leads.external_id, JAMÁS a `phone`.
+  const socialId = isWa
+    ? null
+    : (str(sender.businessScopedUserId) ??
+      str(sender.contactId) ??
+      str(conversation.contactId) ??
+      str(conversation.participantId));
 
   const participant: Participant = {
-    rawPhone,
+    phone: waPhone,
     phone_e164: phoneE164,
-    bsuid: str(sender.businessScopedUserId),
+    socialId,
+    bsuid:
+      str(sender.businessScopedUserId) ??
+      (isWa ? null : str(conversation.participantId)),
     name: str(sender.name) ?? str(conversation.participantName),
     handle: str(sender.username) ?? str(conversation.participantUsername),
     contactId: str(sender.contactId) ?? str(conversation.contactId),
@@ -198,7 +232,7 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     leadId = existingConv.lead_id;
   } else {
     const resolved = await resolveOrCreateLead(admin, channel, participant);
-    if (!resolved) return; // sin teléfono ni email no podemos crear el lead
+    if (!resolved) return; // sin identificador (teléfono/email/social) no se crea
     leadId = resolved.leadId;
     assignedUserId = resolved.assignedUserId; // sticky-seller: si el lead ya tiene dueño, la conv va a él
     const attribution = extractAttribution(message);
@@ -301,7 +335,7 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
         category: "leads" as const,
         type: "wa_message_pool",
         title: `Nuevo lead por ${PLATFORM_SOURCE[channel.platform]}`,
-        body: participant.name ?? participant.phone_e164 ?? participant.rawPhone ?? null,
+        body: participant.name ?? participant.handle ?? participant.phone_e164 ?? null,
         link: "/admin/inbox",
         entityType: "lead",
         entityId: leadId,

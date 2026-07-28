@@ -269,11 +269,14 @@ function ConversationRow({
         active && "bg-card shadow-sm",
       )}
     >
-      <ContactAvatar name={c.participant_name} size="md" />
+      <ContactAvatar name={c.participant_name ?? c.participant_handle} size="md" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-medium">
-            {c.participant_name ?? c.participant_phone_e164 ?? "Contacto"}
+            {c.participant_name ??
+              c.participant_handle ??
+              c.participant_phone_e164 ??
+              "Contacto"}
           </span>
           <span className="shrink-0 text-[10px] text-muted-foreground">
             {listTime(c.last_inbound_at ?? c.updated_at)}
@@ -385,11 +388,15 @@ function Thread({
       {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-3">
-          <ContactAvatar name={conversation.participant_name} size="md" />
+          <ContactAvatar
+            name={conversation.participant_name ?? conversation.participant_handle}
+            size="md"
+          />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="truncate text-sm font-medium">
                 {conversation.participant_name ??
+                  conversation.participant_handle ??
                   conversation.participant_phone_e164 ??
                   "Contacto"}
               </span>
