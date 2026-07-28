@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { dayLabel, listTime, msgTime, windowRemaining } from "@/lib/inbox-format";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   claimConversation,
@@ -55,9 +56,44 @@ export function InboxView({
   isPriv: boolean;
   vendors: VendorOption[];
 }) {
+  const router = useRouter();
   const [tab, setTab] = useState<"chats" | "insights">("chats");
   const [selected, setSelected] = useState<ConversationListItem | null>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+
+  // Realtime: cuando entra o cambia una conversación (webhook → DB), refrescamos
+  // la lista sin que el usuario recargue. Debounce para agrupar ráfagas. Respeta
+  // RLS: el socket va autenticado y solo trae filas de la empresa del usuario.
+  useEffect(() => {
+    const supabase = createClient();
+    let t: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => router.refresh(), 400);
+    };
+    const channel = supabase
+      .channel("inbox:conversations")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "conversations" },
+        bump,
+      )
+      .subscribe();
+    return () => {
+      if (t) clearTimeout(t);
+      supabase.removeChannel(channel);
+    };
+  }, [router]);
+
+  // Mantener `selected` en sync con la lista refrescada (ventana 24h, unread,
+  // asignación) sin re-seleccionar en cada refresh idéntico.
+  useEffect(() => {
+    setSelected((prev) => {
+      if (!prev) return prev;
+      const fresh = conversations.find((c) => c.id === prev.id);
+      return fresh && fresh.updated_at !== prev.updated_at ? fresh : prev;
+    });
+  }, [conversations]);
 
   // Filtros
   const [search, setSearch] = useState("");
@@ -356,6 +392,27 @@ function Thread({
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
   }, [messages]);
+
+  // Realtime: los mensajes nuevos de ESTA conversación aparecen al instante.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`inbox:messages:${conversation.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
+        () => getMessages(conversation.id).then(setMessages),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [conversation.id]);
 
   function refreshMessages() {
     getMessages(conversation.id).then(setMessages);
