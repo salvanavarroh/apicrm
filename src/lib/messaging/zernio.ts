@@ -147,6 +147,28 @@ export async function markRead(conversationId: string, accountId: string) {
   return request("POST", `/inbox/conversations/${conversationId}/read`, { accountId });
 }
 
+export type ZernioConversationDetail = {
+  participantName?: string | null;
+  participantUsername?: string | null;
+  participantPicture?: string | null;
+};
+
+/**
+ * Detalle de una conversación. Útil en redes (IG/FB): el webhook `message.received`
+ * a veces NO trae el nombre/usuario del contacto (vienen en `conversation.started`),
+ * pero este endpoint los expone on-demand junto con la foto de perfil.
+ */
+export async function getConversationDetail(
+  conversationId: string,
+  accountId: string,
+): Promise<ZernioConversationDetail> {
+  const res = await request<{ data?: ZernioConversationDetail }>(
+    "GET",
+    `/inbox/conversations/${conversationId}?accountId=${encodeURIComponent(accountId)}`,
+  );
+  return res.data ?? {};
+}
+
 // --- Templates --------------------------------------------------------------
 export type TemplateComponent = Record<string, unknown>;
 export async function createTemplate(payload: {

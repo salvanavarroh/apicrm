@@ -6,7 +6,7 @@
 import { normalizeWaId, toE164 } from "@/lib/phone";
 import { notify } from "@/lib/notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getLeadForm } from "@/lib/messaging/zernio";
+import { getConversationDetail, getLeadForm } from "@/lib/messaging/zernio";
 import type { Database } from "@/types/database";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -197,6 +197,37 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
       str(conversation.contactId) ??
       str(conversation.participantId));
 
+  // Conversación existente? (traemos el nombre para no re-pedirlo a Zernio).
+  const { data: existingConv } = await admin
+    .from("conversations")
+    .select("id, lead_id, assigned_user_id, participant_name, participant_handle")
+    .eq("zernio_conversation_id", zConvId)
+    .maybeSingle();
+
+  // Nombre/usuario del contacto: primero del payload, luego lo ya guardado.
+  let name =
+    str(sender.name) ??
+    str(conversation.participantName) ??
+    existingConv?.participant_name ??
+    null;
+  let handle =
+    str(sender.username) ??
+    str(conversation.participantUsername) ??
+    existingConv?.participant_handle ??
+    null;
+  // Redes: el webhook de message.received NO trae nombre/usuario (vienen en
+  // conversation.started, que ignoramos por spam). Los pedimos a Zernio con el
+  // convId; el detalle expone participantName/Username on-demand.
+  if (!isWa && !name) {
+    try {
+      const d = await getConversationDetail(zConvId, accountId);
+      name = str(d.participantName);
+      handle = handle ?? str(d.participantUsername);
+    } catch {
+      /* best-effort: seguimos sin nombre */
+    }
+  }
+
   const participant: Participant = {
     phone: waPhone,
     phone_e164: phoneE164,
@@ -204,17 +235,10 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     bsuid:
       str(sender.businessScopedUserId) ??
       (isWa ? null : str(conversation.participantId)),
-    name: str(sender.name) ?? str(conversation.participantName),
-    handle: str(sender.username) ?? str(conversation.participantUsername),
+    name,
+    handle,
     contactId: str(sender.contactId) ?? str(conversation.contactId),
   };
-
-  // Conversación existente?
-  const { data: existingConv } = await admin
-    .from("conversations")
-    .select("id, lead_id, assigned_user_id")
-    .eq("zernio_conversation_id", zConvId)
-    .maybeSingle();
 
   const zMsgId = str(message.id);
   const isRealMessage = !!zMsgId;
@@ -230,6 +254,24 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     conversationId = existingConv.id;
     assignedUserId = existingConv.assigned_user_id;
     leadId = existingConv.lead_id;
+    // Backfill: si la conversación se creó sin nombre y ahora lo tenemos, guardarlo.
+    if (!existingConv.participant_name && name) {
+      await admin
+        .from("conversations")
+        .update({ participant_name: name, participant_handle: handle })
+        .eq("id", existingConv.id);
+      if (leadId) {
+        const [first, ...rest] = name.trim().split(/\s+/);
+        await admin
+          .from("leads")
+          .update({
+            first_name: first || null,
+            last_name: rest.length ? rest.join(" ") : null,
+          })
+          .eq("id", leadId)
+          .is("first_name", null);
+      }
+    }
   } else {
     const resolved = await resolveOrCreateLead(admin, channel, participant);
     if (!resolved) return; // sin identificador (teléfono/email/social) no se crea
