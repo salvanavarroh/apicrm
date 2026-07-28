@@ -1571,6 +1571,7 @@ export type Database = {
           messaging_limit_tier: string | null
           metadata: Json
           name_status: string | null
+          photo_url: string | null
           platform: Database["public"]["Enums"]["channel_platform"]
           product_type_id: string | null
           quality_rating: string | null
@@ -1592,6 +1593,7 @@ export type Database = {
           messaging_limit_tier?: string | null
           metadata?: Json
           name_status?: string | null
+          photo_url?: string | null
           platform: Database["public"]["Enums"]["channel_platform"]
           product_type_id?: string | null
           quality_rating?: string | null
@@ -1613,6 +1615,7 @@ export type Database = {
           messaging_limit_tier?: string | null
           metadata?: Json
           name_status?: string | null
+          photo_url?: string | null
           platform?: Database["public"]["Enums"]["channel_platform"]
           product_type_id?: string | null
           quality_rating?: string | null
@@ -2593,7 +2596,7 @@ export type Database = {
         | "inbound_call"
         | "other"
       campaign_status: "active" | "inactive"
-      channel_platform: "whatsapp" | "instagram" | "facebook"
+      channel_platform: "whatsapp" | "instagram" | "facebook" | "metaads"
       channel_status: "connecting" | "active" | "disconnected" | "error"
       commercial_lead_status:
         | "new"
@@ -2796,7 +2799,7 @@ export const Constants = {
         "other",
       ],
       campaign_status: ["active", "inactive"],
-      channel_platform: ["whatsapp", "instagram", "facebook"],
+      channel_platform: ["whatsapp", "instagram", "facebook", "metaads"],
       channel_status: ["connecting", "active", "disconnected", "error"],
       commercial_lead_status: [
         "new",

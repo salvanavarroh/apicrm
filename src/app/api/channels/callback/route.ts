@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentProfile } from "@/lib/auth";
+import { syncCompanyChannels } from "@/lib/messaging/sync-channels";
 import { getNumberInfo, type ZernioPlatform } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // Callback del connect flow de Zernio. El BROWSER del admin vuelve acá con
 // ?connected=<platform>&accountId=...&profileId=...&username=...
-// Creamos/actualizamos el messaging_channels de la empresa del admin logueado.
+// Además de crear el canal recién conectado, sincroniza TODAS las cuentas de
+// Zernio (Facebook crea también metaads/instagram) con foto y estado.
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -26,10 +28,11 @@ export async function GET(req: Request) {
   const username = url.searchParams.get("username");
 
   if (!platform || !VALID.includes(platform) || !accountId) {
-    return NextResponse.redirect(`${base}/admin/channels/whatsapp?error=connect_failed`);
+    return NextResponse.redirect(`${base}/admin/integraciones?error=connect_failed`);
   }
 
   const admin = createAdminClient();
+  // Upsert inmediato del canal recién conectado.
   await admin.from("messaging_channels").upsert(
     {
       company_id: profile.company_id,
@@ -43,6 +46,20 @@ export async function GET(req: Request) {
     },
     { onConflict: "zernio_account_id" },
   );
+
+  // Sincronizar todas las cuentas de Zernio (metaads, fotos, otras redes).
+  const { data: company } = await admin
+    .from("companies")
+    .select("zernio_profile_id")
+    .eq("id", profile.company_id)
+    .maybeSingle();
+  if (company?.zernio_profile_id) {
+    try {
+      await syncCompanyChannels(profile.company_id, company.zernio_profile_id);
+    } catch {
+      /* best-effort */
+    }
+  }
 
   // Salud inicial (WhatsApp): quality/tier/name.
   if (platform === "whatsapp") {
@@ -62,5 +79,5 @@ export async function GET(req: Request) {
     }
   }
 
-  return NextResponse.redirect(`${base}/admin/channels/${platform}?connected=1`);
+  return NextResponse.redirect(`${base}/admin/integraciones?connected=1`);
 }

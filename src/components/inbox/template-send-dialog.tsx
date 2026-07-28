@@ -67,7 +67,7 @@ export function TemplateSendDialog({
         ) : templates.length === 0 ? (
           <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
             No tenés plantillas aprobadas todavía.{" "}
-            <Link className="underline" href="/admin/whatsapp-templates">
+            <Link className="underline" href="/admin/integraciones?tab=templates">
               Gestionar plantillas
             </Link>
           </div>

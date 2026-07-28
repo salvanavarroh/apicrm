@@ -63,9 +63,24 @@ export async function createProfile(name: string, description?: string) {
   });
 }
 
-export async function listAccounts(profileId?: string) {
+export type ZernioAccount = {
+  _id?: string;
+  accountId?: string;
+  platform: string;
+  username?: string;
+  displayName?: string;
+  profilePicture?: string;
+  isActive?: boolean;
+  enabled?: boolean;
+  needsReconnection?: boolean;
+  platformStatus?: string;
+};
+
+export async function listAccounts(
+  profileId?: string,
+): Promise<{ accounts: ZernioAccount[] }> {
   const q = profileId ? `?profileId=${encodeURIComponent(profileId)}` : "";
-  return request<{ accounts: unknown[] }>("GET", `/accounts${q}`);
+  return request<{ accounts: ZernioAccount[] }>("GET", `/accounts${q}`);
 }
 
 // Desconecta/borra una cuenta conectada en Zernio (WhatsApp/IG/FB). Corta el

@@ -13,9 +13,32 @@ import {
   ZernioError,
   type ZernioPlatform,
 } from "@/lib/messaging/zernio";
+import { syncCompanyChannels } from "@/lib/messaging/sync-channels";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; message: string };
+
+/** Trae de Zernio TODAS las cuentas conectadas (incl. metaads) con foto y estado. */
+export async function syncChannels(): Promise<Result<{ synced: number }>> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) return { ok: false, message: "Sin empresa" };
+  const admin = createAdminClient();
+  const { data: company } = await admin
+    .from("companies")
+    .select("zernio_profile_id")
+    .eq("id", profile.company_id)
+    .maybeSingle();
+  if (!company?.zernio_profile_id) {
+    return { ok: false, message: "Conectá una cuenta primero" };
+  }
+  try {
+    const synced = await syncCompanyChannels(profile.company_id, company.zernio_profile_id);
+    revalidatePath("/admin/integraciones");
+    return { ok: true, synced };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Error sincronizando" };
+  }
+}
 
 /** Asegura que la empresa tenga un profile en Zernio; lo crea si falta. */
 async function ensureProfile(companyId: string): Promise<string> {
@@ -110,7 +133,7 @@ export async function refreshChannelHealth(channelId: string): Promise<Result> {
         health_checked_at: new Date().toISOString(),
       })
       .eq("id", channelId);
-    revalidatePath("/admin/channels");
+    revalidatePath("/admin/integraciones");
     return { ok: true };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Error" };
@@ -150,8 +173,6 @@ export async function disconnectChannel(channelId: string): Promise<Result> {
     .from("messaging_channels")
     .update({ status: "disconnected" })
     .eq("id", channelId);
-  revalidatePath("/admin/channels/whatsapp");
-  revalidatePath("/admin/channels/instagram");
-  revalidatePath("/admin/channels/facebook");
+  revalidatePath("/admin/integraciones");
   return { ok: true };
 }

@@ -5,16 +5,14 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   BarChart3,
+  Blocks,
   Briefcase,
   Building2,
   CalendarCheck,
-  ChevronDown,
   ChevronsLeft,
   ChevronsRight,
   FileInput,
-  FileText,
   HelpCircle,
-  Camera,
   Home,
   Inbox,
   Layers,
@@ -25,8 +23,6 @@ import {
   Receipt,
   Settings2,
   ShoppingBag,
-  Smartphone,
-  Target,
   UserPlus,
   Users,
   UsersRound,
@@ -125,53 +121,28 @@ const APP_NAV: Item[] = [
   { href: "/dashboard", label: "Inicio", icon: Home, match: "exact" },
 ];
 
-// --- Integraciones: subtítulo con Inbox + sub-grupos WhatsApp / Meta Ads ---
-type NavGroup = { label: string; icon: LucideIcon; items: Item[] };
-type Integrations = { items: Item[]; groups: NavGroup[] };
-
+// --- Mensajería: Inbox + una única pantalla "Integraciones" (todas las conexiones) ---
 const INBOX_ITEM: Item = { href: "/admin/inbox", label: "Inbox", icon: MessageSquare };
-const INSTAGRAM_ITEM: Item = {
-  href: "/admin/channels/instagram",
-  label: "Instagram",
-  icon: Camera,
+const INTEGRATIONS_ITEM: Item = {
+  href: "/admin/integraciones",
+  label: "Integraciones",
+  icon: Blocks,
 };
 
-const ADMIN_INTEGRATIONS: Integrations = {
-  items: [INBOX_ITEM, INSTAGRAM_ITEM],
-  groups: [
-    {
-      label: "WhatsApp",
-      icon: MessageCircle,
-      items: [
-        { href: "/admin/channels/whatsapp", label: "Conexión", icon: Smartphone },
-        { href: "/admin/whatsapp-templates", label: "Plantillas", icon: FileText },
-      ],
-    },
-    {
-      label: "Meta Ads",
-      icon: Target,
-      items: [
-        { href: "/admin/channels/facebook", label: "Conexión", icon: Smartphone },
-        { href: "/admin/lead-ads", label: "Formularios", icon: Target },
-      ],
-    },
-  ],
-};
+// Admin gestiona conexiones; gerente/supervisor/vendedor sólo atienden el Inbox.
+const ADMIN_MESSAGING: Item[] = [INBOX_ITEM, INTEGRATIONS_ITEM];
+const INBOX_ONLY: Item[] = [INBOX_ITEM];
 
-// Gerente/Supervisor/Vendedor: sólo Inbox (las pantallas de config son de admin).
-const INBOX_ONLY_INTEGRATIONS: Integrations = { items: [INBOX_ITEM], groups: [] };
-
-function integrationsForRole(role: UserRole): Integrations | null {
-  if (role === "admin") return ADMIN_INTEGRATIONS;
+function messagingForRole(role: UserRole): Item[] | null {
+  if (role === "admin") return ADMIN_MESSAGING;
   if (role === "manager" || role === "supervisor" || role === "sales")
-    return INBOX_ONLY_INTEGRATIONS;
+    return INBOX_ONLY;
   return null;
 }
 
-// Todos los hrefs (menú + integraciones) para calcular el ítem activo.
-function allHrefItems(items: Item[], integ: Integrations | null): Item[] {
-  if (!integ) return items;
-  return [...items, ...integ.items, ...integ.groups.flatMap((g) => g.items)];
+// Todos los hrefs (menú + mensajería) para calcular el ítem activo.
+function allHrefItems(items: Item[], messaging: Item[] | null): Item[] {
+  return messaging ? [...items, ...messaging] : items;
 }
 
 function navForRole(role: UserRole): Item[] {
@@ -209,8 +180,8 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const items = navForRole(profile.role);
-  const integrations = integrationsForRole(profile.role);
-  const activeItemHref = activeHref(pathname, allHrefItems(items, integrations));
+  const messaging = messagingForRole(profile.role);
+  const activeItemHref = activeHref(pathname, allHrefItems(items, messaging));
 
   // Menú acoplado (solo íconos + logo). Auto en el inbox; con botón para togglear.
   // El override manual se resetea al cruzar el borde del inbox (entrar/salir),
@@ -223,24 +194,6 @@ export function AppSidebar({
     setOverride(null);
   }
   const collapsed = override ?? onInbox;
-
-  // Grupos desplegables (WhatsApp, Meta Ads). Se abren solos si el activo está dentro.
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const s = new Set<string>();
-    if (integrations) {
-      for (const g of integrations.groups) {
-        if (g.items.some((it) => it.href === activeItemHref)) s.add(g.label);
-      }
-    }
-    return s;
-  });
-  const toggleGroup = (label: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
 
   const renderLink = (item: Item, indent = false) => {
     const active = item.href === activeItemHref;
@@ -295,37 +248,6 @@ export function AppSidebar({
     );
   };
 
-  // Sub-botón (dentro de un grupo desplegado): más chico, indentado, sin ícono.
-  const renderSubLink = (item: Item) => {
-    const active = item.href === activeItemHref;
-    const count = badges[item.href] ?? 0;
-    return (
-      <Link
-        key={item.href}
-        href={item.href}
-        className={cn(
-          "relative flex items-center rounded-md py-1.5 pr-3 pl-11 text-[13px] transition-colors",
-          active
-            ? "font-medium text-sidebar-accent"
-            : "text-sidebar-muted hover:bg-white/5 hover:text-sidebar-foreground",
-        )}
-      >
-        <span>{item.label}</span>
-        {count > 0 && (
-          <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold leading-none text-accent-foreground">
-            {count > 99 ? "99+" : count}
-          </span>
-        )}
-        {active && (
-          <span
-            aria-hidden
-            className="absolute top-1 right-0 bottom-1 w-[3px] rounded-l-full bg-sidebar-accent"
-          />
-        )}
-      </Link>
-    );
-  };
-
   return (
     <aside
       className={cn(
@@ -373,67 +295,16 @@ export function AppSidebar({
       >
         {items.map((item) => renderLink(item))}
 
-        {integrations && (
+        {messaging && (
           <>
             {collapsed ? (
               <Separator className="my-2 bg-sidebar-border" />
             ) : (
               <div className="mt-5 mb-1 px-3 text-[10px] font-semibold tracking-wider text-sidebar-muted uppercase">
-                Integraciones
+                Mensajería
               </div>
             )}
-            {integrations.items.map((item) => renderLink(item))}
-            {integrations.groups.map((group) => {
-              const GroupIcon = group.icon;
-              const open = expanded.has(group.label);
-              if (collapsed) {
-                const groupActive = group.items.some(
-                  (it) => it.href === activeItemHref,
-                );
-                return (
-                  <button
-                    key={group.label}
-                    type="button"
-                    title={group.label}
-                    onClick={() => {
-                      setOverride(false);
-                      setExpanded((prev) => new Set(prev).add(group.label));
-                    }}
-                    className={cn(
-                      "flex items-center justify-center rounded-md py-2.5 transition-colors",
-                      groupActive
-                        ? "bg-white/5 text-sidebar-accent"
-                        : "text-sidebar-foreground hover:bg-white/5",
-                    )}
-                  >
-                    <GroupIcon className="size-5" />
-                  </button>
-                );
-              }
-              return (
-                <div key={group.label}>
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(group.label)}
-                    className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-white/5"
-                  >
-                    <GroupIcon className="size-5 shrink-0" />
-                    <span>{group.label}</span>
-                    <ChevronDown
-                      className={cn(
-                        "ml-auto size-4 shrink-0 text-sidebar-muted transition-transform",
-                        open && "rotate-180",
-                      )}
-                    />
-                  </button>
-                  {open && (
-                    <div className="mt-0.5 mb-1 flex flex-col gap-0.5">
-                      {group.items.map((item) => renderSubLink(item))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {messaging.map((item) => renderLink(item))}
           </>
         )}
       </nav>

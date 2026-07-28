@@ -60,8 +60,8 @@ export function TemplatesManager({
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
         Conectá un WhatsApp en{" "}
-        <Link className="underline" href="/admin/channels/whatsapp">
-          Conexión
+        <Link className="underline" href="/admin/integraciones?tab=connections">
+          Conexiones
         </Link>{" "}
         para
         gestionar plantillas.
