@@ -1,6 +1,17 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchPaged } from "@/lib/leads-fetch";
 import { fullName } from "@/lib/leads";
 import type { Database } from "@/types/database";
+
+export type ReportRange = { from?: string | null; to?: string | null };
+
+type LeadReportRow = {
+  id: string;
+  company_id: string;
+  status: string;
+  created_at: string;
+  campaign_id: string | null;
+};
 
 // Etiquetas de canal (mismo set que el diálogo de campañas, replicado acá para
 // no importar un componente client en código server).
@@ -68,19 +79,32 @@ export type CrossReports = {
   totals: { companies: number; leads: number; sales: number; revenue: number };
 };
 
-export async function loadCrossReports(): Promise<CrossReports> {
+export async function loadCrossReports(
+  range?: ReportRange,
+): Promise<CrossReports> {
   const admin = createAdminClient();
 
-  const [companiesRes, leadsRes, campaignsRes, salesRes, profilesRes, paymentsRes] =
+  // Rango de fechas opcional (YYYY-MM-DD). Filtra leads por created_at y ventas
+  // por started_at. Sin rango = histórico completo.
+  const fromIso = range?.from
+    ? new Date(`${range.from}T00:00:00`).toISOString()
+    : null;
+  const toIso = range?.to
+    ? new Date(`${range.to}T23:59:59.999`).toISOString()
+    : null;
+
+  const [companiesRes, campaignsRes, salesRes, profilesRes, paymentsRes] =
     await Promise.all([
       admin.from("companies").select("id, name, status"),
-      admin
-        .from("leads")
-        .select("id, company_id, status, created_at, campaign_id"),
       admin.from("campaigns").select("id, origin"),
-      admin
-        .from("sales")
-        .select("company_id, vendor_id, final_price, status, started_at"),
+      (() => {
+        let q = admin
+          .from("sales")
+          .select("company_id, vendor_id, final_price, status, started_at");
+        if (fromIso) q = q.gte("started_at", fromIso);
+        if (toIso) q = q.lte("started_at", toIso);
+        return q;
+      })(),
       admin
         .from("profiles")
         .select("id, first_name, last_name, company_id, role")
@@ -88,8 +112,21 @@ export async function loadCrossReports(): Promise<CrossReports> {
       admin.from("subscription_payments").select("company_id, status"),
     ]);
 
+  // Leads paginados (PostgREST corta en 1000): traemos todos para que los
+  // totales/conversión sean exactos aun con miles de leads. Ver [[leads-page-1000-row-cap]].
+  const { rows: leads } = await fetchPaged<LeadReportRow>((withCount) => {
+    let q = admin
+      .from("leads")
+      .select(
+        "id, company_id, status, created_at, campaign_id",
+        withCount ? { count: "exact" } : {},
+      );
+    if (fromIso) q = q.gte("created_at", fromIso);
+    if (toIso) q = q.lte("created_at", toIso);
+    return q.order("created_at", { ascending: false });
+  }, 50000);
+
   const companies = companiesRes.data ?? [];
-  const leads = leadsRes.data ?? [];
   const campaigns = campaignsRes.data ?? [];
   const sales = salesRes.data ?? [];
   const profiles = profilesRes.data ?? [];

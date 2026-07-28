@@ -13,6 +13,8 @@ import { requireRole } from "@/lib/auth";
 import { formatARS } from "@/lib/format";
 import { loadCrossReports } from "@/lib/cross-reports";
 
+import { ReportsToolbar } from "./reports-toolbar";
+
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
 const COMPANY_STATUS_LABELS: Record<string, string> = {
@@ -21,9 +23,14 @@ const COMPANY_STATUS_LABELS: Record<string, string> = {
   suspended: "Suspendida",
 };
 
-export default async function SuperAdminReportsPage() {
+export default async function SuperAdminReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
   await requireRole(["super_admin"]);
-  const data = await loadCrossReports();
+  const { from = "", to = "" } = await searchParams;
+  const data = await loadCrossReports({ from: from || null, to: to || null });
   const atRisk = data.health.filter((h) => h.atRisk);
 
   return (
@@ -34,9 +41,11 @@ export default async function SuperAdminReportsPage() {
         </h1>
         <p className="text-sm text-muted-foreground">
           Comparativa de performance entre todas las concesionarias de la
-          plataforma (histórico).
+          plataforma. {from || to ? "Período filtrado." : "Histórico completo."}
         </p>
       </header>
+
+      <ReportsToolbar from={from} to={to} data={data} />
 
       <div className="grid gap-3 sm:grid-cols-4">
         <KpiCard

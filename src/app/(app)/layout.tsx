@@ -44,10 +44,12 @@ export default async function AppLayout({
   let sidebarBadges: Record<string, number> = {};
   if (profile.role === "super_admin") {
     const admin = createAdminClient();
+    // Los "Leads" del SuperAdmin son las solicitudes de demo desde la landing
+    // (commercial_leads), NO los leads operativos de las concesionarias.
     const [{ count: newLeads }, { count: pendingBranchReqs }] =
       await Promise.all([
         admin
-          .from("leads")
+          .from("commercial_leads")
           .select("id", { count: "exact", head: true })
           .eq("status", "new"),
         admin
