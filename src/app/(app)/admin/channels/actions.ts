@@ -6,9 +6,11 @@ import { requireRole } from "@/lib/auth";
 import { publicEnv } from "@/lib/env";
 import {
   createProfile,
+  deleteAccount,
   getConnectUrl,
   getNumberInfo,
   purchasePhoneNumber,
+  ZernioError,
   type ZernioPlatform,
 } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -115,22 +117,41 @@ export async function refreshChannelHealth(channelId: string): Promise<Result> {
   }
 }
 
-/** Desconecta (marca) un canal en el CRM. */
+/**
+ * Desconecta un canal DE VERDAD: borra la cuenta en Zernio (corta recepción y
+ * facturación) y marca el canal como desconectado. Un 404 en Zernio significa
+ * que ya estaba desconectada → se trata como éxito.
+ */
 export async function disconnectChannel(channelId: string): Promise<Result> {
   const profile = await requireRole(["admin"]);
   const admin = createAdminClient();
   const { data: channel } = await admin
     .from("messaging_channels")
-    .select("company_id")
+    .select("company_id, zernio_account_id")
     .eq("id", channelId)
     .maybeSingle();
   if (!channel || channel.company_id !== profile.company_id) {
     return { ok: false, message: "Canal no encontrado" };
   }
+
+  try {
+    await deleteAccount(channel.zernio_account_id);
+  } catch (e) {
+    // Si ya no existe en Zernio (404), seguimos; cualquier otro error se reporta.
+    if (!(e instanceof ZernioError && e.status === 404)) {
+      return {
+        ok: false,
+        message: `No se pudo desconectar en Zernio: ${e instanceof Error ? e.message : "error"}. Reintentá.`,
+      };
+    }
+  }
+
   await admin
     .from("messaging_channels")
     .update({ status: "disconnected" })
     .eq("id", channelId);
-  revalidatePath("/admin/channels");
+  revalidatePath("/admin/channels/whatsapp");
+  revalidatePath("/admin/channels/instagram");
+  revalidatePath("/admin/channels/facebook");
   return { ok: true };
 }

@@ -102,7 +102,11 @@ export default async function ChannelPlatformPage({
                   </div>
                 )}
               </div>
-              <ChannelRowActions channelId={c.id} platform={c.platform} />
+              <ChannelRowActions
+                channelId={c.id}
+                platform={c.platform}
+                status={c.status}
+              />
             </Card>
           ))}
         </div>

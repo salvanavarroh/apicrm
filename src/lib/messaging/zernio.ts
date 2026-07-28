@@ -68,6 +68,12 @@ export async function listAccounts(profileId?: string) {
   return request<{ accounts: unknown[] }>("GET", `/accounts${q}`);
 }
 
+// Desconecta/borra una cuenta conectada en Zernio (WhatsApp/IG/FB). Corta el
+// canal: deja de recibir mensajes y de facturar esa cuenta.
+export async function deleteAccount(accountId: string): Promise<unknown> {
+  return request("DELETE", `/accounts/${encodeURIComponent(accountId)}`);
+}
+
 // --- Connect flow -----------------------------------------------------------
 export async function getConnectUrl(
   platform: ZernioPlatform,

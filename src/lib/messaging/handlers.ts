@@ -469,10 +469,47 @@ export async function handleAccountDisconnected(payload: Json): Promise<void> {
   const account = (payload.account as Json) ?? {};
   const accountId = str(account.accountId) ?? str(account.id);
   if (!accountId) return;
+
+  const disconnectionType =
+    str(account.disconnectionType) ?? str(payload.disconnectionType);
+  const reason = str(account.reason) ?? str(payload.reason);
+
+  const { data: channel } = await admin
+    .from("messaging_channels")
+    .select("id, company_id, platform, display_name")
+    .eq("zernio_account_id", accountId)
+    .maybeSingle();
+
   await admin
     .from("messaging_channels")
-    .update({ status: "disconnected" })
+    .update({
+      status: "disconnected",
+      metadata: { disconnectionType, reason } as never,
+    })
     .eq("zernio_account_id", accountId);
+
+  // Avisar al admin/gerente SOLO si fue involuntaria (token vencido, revocación).
+  // Si la hizo el admin (intentional), no notificamos.
+  if (channel && disconnectionType !== "intentional") {
+    const recipients = await poolRecipients(admin, channel.company_id);
+    const platformName = PLATFORM_SOURCE[channel.platform] ?? channel.platform;
+    await notify(
+      recipients.map((uid) => ({
+        companyId: channel.company_id,
+        userId: uid,
+        category: "other" as const,
+        type: "channel_disconnected",
+        title: `Se desconectó tu ${platformName}`,
+        body:
+          reason ??
+          "Reconectalo desde Canales para seguir recibiendo mensajes.",
+        link: `/admin/channels/${channel.platform}`,
+        entityType: "channel",
+        entityId: channel.id,
+      })),
+      admin,
+    );
+  }
 }
 
 // --- Template status --------------------------------------------------------

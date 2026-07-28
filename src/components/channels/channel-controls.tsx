@@ -84,9 +84,11 @@ export function PlatformConnect({ platform }: { platform: Platform }) {
 export function ChannelRowActions({
   channelId,
   platform,
+  status,
 }: {
   channelId: string;
   platform: string;
+  status: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -101,7 +103,12 @@ export function ChannelRowActions({
     });
   }
   function disconnect() {
-    if (!confirm("¿Desconectar este canal?")) return;
+    if (
+      !confirm(
+        "¿Desconectar este canal? Deja de recibir mensajes y de facturar esta cuenta en Zernio. Podés reconectarlo después.",
+      )
+    )
+      return;
     start(async () => {
       const res = await disconnectChannel(channelId);
       if (res.ok) {
@@ -110,17 +117,34 @@ export function ChannelRowActions({
       } else toast.error(res.message);
     });
   }
+  function reconnect() {
+    start(async () => {
+      const res = await startConnect(platform as Platform);
+      if (res.ok) window.location.href = res.authUrl;
+      else toast.error(res.message);
+    });
+  }
+
+  const canReconnect = status === "disconnected" || status === "error";
 
   return (
     <div className="flex gap-2">
-      {platform === "whatsapp" && (
-        <Button size="sm" variant="outline" onClick={refresh} disabled={pending}>
-          Salud
+      {canReconnect ? (
+        <Button size="sm" onClick={reconnect} disabled={pending}>
+          Reconectar
         </Button>
+      ) : (
+        <>
+          {platform === "whatsapp" && (
+            <Button size="sm" variant="outline" onClick={refresh} disabled={pending}>
+              Salud
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={disconnect} disabled={pending}>
+            Desconectar
+          </Button>
+        </>
       )}
-      <Button size="sm" variant="outline" onClick={disconnect} disabled={pending}>
-        Desconectar
-      </Button>
     </div>
   );
 }
