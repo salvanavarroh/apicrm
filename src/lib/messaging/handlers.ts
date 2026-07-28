@@ -79,9 +79,11 @@ async function poolRecipients(admin: Admin, companyId: string): Promise<string[]
 // --- Resolver / crear lead desde un contacto entrante -----------------------
 
 type Participant = {
+  rawPhone: string | null; // identificador crudo (satisface la constraint phone/email)
   phone_e164: string | null;
   bsuid: string | null;
   name: string | null;
+  handle: string | null;
   contactId: string | null;
 };
 
@@ -89,7 +91,7 @@ async function resolveOrCreateLead(
   admin: Admin,
   channel: ChannelRow,
   p: Participant,
-): Promise<{ leadId: string; assignedUserId: string | null }> {
+): Promise<{ leadId: string; assignedUserId: string | null } | null> {
   // 1) Match por phone_e164 (colapsa formatos cross-canal, respeta sticky-seller).
   if (p.phone_e164) {
     const { data: existing } = await admin
@@ -109,26 +111,31 @@ async function resolveOrCreateLead(
 
   // 2) Crear lead nuevo. Pool + claim: queda sin asignar (decisión #1).
   const [first, ...rest] = (p.name ?? "").trim().split(/\s+/);
-  const { data: lead } = await admin
+  const { data: lead, error } = await admin
     .from("leads")
     .insert({
       company_id: channel.company_id,
       first_name: first || null,
       last_name: rest.length ? rest.join(" ") : null,
+      phone: p.rawPhone,
       phone_e164: p.phone_e164,
       source: PLATFORM_SOURCE[channel.platform] ?? channel.platform,
       branch_id: channel.branch_id,
       product_type_id: channel.product_type_id,
       campaign_id: channel.campaign_id,
       status: "new",
-      metadata: (p.bsuid
+      metadata: (p.bsuid || p.contactId
         ? { bsuid: p.bsuid, zernio_contact_id: p.contactId }
         : {}) as never,
     })
     .select("id, assigned_user_id")
     .single();
 
-  return { leadId: lead!.id, assignedUserId: lead?.assigned_user_id ?? null };
+  if (error || !lead) {
+    console.error("[inbound] no se pudo crear el lead:", error?.message);
+    return null;
+  }
+  return { leadId: lead.id, assignedUserId: lead.assigned_user_id };
 }
 
 // --- Inbox: message.received / conversation.started -------------------------
@@ -141,23 +148,31 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
   if (!channel) return; // canal no gestionado por el CRM → ignorar
 
   const message = (payload.message as Json) ?? {};
+  const conversation = (payload.conversation as Json) ?? {};
   const sender = (message.sender as Json) ?? {};
-  const zConvId =
-    str(message.conversationId) ?? str((payload.conversation as Json)?.id);
+
+  // message.received trae message.conversationId; conversation.started trae conversation.id.
+  const zConvId = str(message.conversationId) ?? str(conversation.id);
   if (!zConvId) return;
 
   const country = await companyCountry(admin, channel.company_id);
-  const rawPhone = str(sender.phoneNumber);
+  // El participante viene en message.sender (mensaje) o en conversation.* (inicio de conv).
+  const rawPhone =
+    str(sender.phoneNumber) ??
+    str(conversation.participantUsername) ??
+    str(conversation.participantId);
   const phoneE164 =
     channel.platform === "whatsapp"
-      ? normalizeWaId(rawPhone, country) ?? toE164(rawPhone, country)
+      ? (normalizeWaId(rawPhone, country) ?? toE164(rawPhone, country))
       : toE164(rawPhone, country);
 
   const participant: Participant = {
+    rawPhone,
     phone_e164: phoneE164,
     bsuid: str(sender.businessScopedUserId),
-    name: str(sender.name) ?? str(sender.username),
-    contactId: str(sender.contactId),
+    name: str(sender.name) ?? str(conversation.participantName),
+    handle: str(sender.username) ?? str(conversation.participantUsername),
+    contactId: str(sender.contactId) ?? str(conversation.contactId),
   };
 
   // Conversación existente?
@@ -166,6 +181,12 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     .select("id, lead_id, assigned_user_id")
     .eq("zernio_conversation_id", zConvId)
     .maybeSingle();
+
+  const zMsgId = str(message.id);
+  const isRealMessage = !!zMsgId;
+  // Un conversation.started SIN mensaje NO crea nada: Zernio manda muchos vacíos
+  // con ids distintos. Solo message.received (mensaje real) crea la conversación.
+  if (!existingConv && !isRealMessage) return;
 
   let conversationId: string;
   let assignedUserId: string | null;
@@ -176,54 +197,59 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     assignedUserId = existingConv.assigned_user_id;
     leadId = existingConv.lead_id;
   } else {
-    const { leadId: lid, assignedUserId: aid } = await resolveOrCreateLead(
-      admin,
-      channel,
-      participant,
-    );
-    leadId = lid;
-    assignedUserId = aid; // sticky-seller: si el lead ya tiene dueño, la conv va a él
+    const resolved = await resolveOrCreateLead(admin, channel, participant);
+    if (!resolved) return; // sin teléfono ni email no podemos crear el lead
+    leadId = resolved.leadId;
+    assignedUserId = resolved.assignedUserId; // sticky-seller: si el lead ya tiene dueño, la conv va a él
     const attribution = extractAttribution(message);
-    const { data: conv } = await admin
+    const { data: conv, error: convErr } = await admin
       .from("conversations")
       .insert({
         company_id: channel.company_id,
         channel_id: channel.id,
-        lead_id: lid,
+        lead_id: leadId,
         zernio_conversation_id: zConvId,
         platform: channel.platform,
         participant_bsuid: participant.bsuid,
         participant_phone_e164: participant.phone_e164,
         participant_name: participant.name,
-        participant_handle: str(sender.username),
+        participant_handle: participant.handle,
         zernio_contact_id: participant.contactId,
-        assigned_user_id: aid,
-        claimed_at: aid ? new Date().toISOString() : null,
+        assigned_user_id: assignedUserId,
+        claimed_at: assignedUserId ? new Date().toISOString() : null,
         attribution: attribution as never,
       })
       .select("id")
       .single();
-    conversationId = conv!.id;
-    // La atribución (ctwa_clid / ad) queda en conversations.attribution.
+    if (convErr || !conv) {
+      console.error("[inbound] no se pudo crear la conversación:", convErr?.message);
+      return;
+    }
+    conversationId = conv.id;
   }
 
-  // Insertar mensaje entrante (idempotente por zernio_message_id).
-  const zMsgId = str(message.id) ?? str(message.platformMessageId);
-  const body = str(message.text) ?? str((message.text as Json)?.body) ?? null;
-  await admin.from("messages").upsert(
-    {
-      company_id: channel.company_id,
-      conversation_id: conversationId,
-      zernio_message_id: zMsgId,
-      platform_message_id: str(message.platformMessageId),
-      direction: "inbound",
-      sender_type: "contact",
-      message_type: str(message.type) ?? "text",
-      body,
-      attachments: (message.attachments ?? []) as never,
-    },
-    { onConflict: "zernio_message_id", ignoreDuplicates: true },
-  );
+  // Insertar mensaje SOLO si es real (message.received trae message.id).
+  const body =
+    typeof message.text === "string"
+      ? (message.text as string)
+      : str((message.text as Json)?.body);
+
+  if (isRealMessage) {
+    await admin.from("messages").upsert(
+      {
+        company_id: channel.company_id,
+        conversation_id: conversationId,
+        zernio_message_id: zMsgId,
+        platform_message_id: str(message.platformMessageId),
+        direction: "inbound",
+        sender_type: "contact",
+        message_type: str(message.type) ?? "text",
+        body,
+        attachments: (message.attachments ?? []) as never,
+      },
+      { onConflict: "zernio_message_id", ignoreDuplicates: true },
+    );
+  }
 
   // Actualizar conversación: ventana 24h, last_inbound, unread, preview.
   const now = new Date();
@@ -238,13 +264,18 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     .update({
       last_inbound_at: now.toISOString(),
       window_expires_at: windowExpires.toISOString(),
-      last_message_preview: body?.slice(0, 120) ?? "(adjunto)",
-      unread_count: (cur?.unread_count ?? 0) + 1,
+      last_message_preview: (
+        body ?? (isRealMessage ? "(adjunto)" : "Nueva conversación")
+      ).slice(0, 120),
+      unread_count: (cur?.unread_count ?? 0) + (isRealMessage ? 1 : 0),
       status: "open",
     })
     .eq("id", conversationId);
 
-  // Notificar.
+  // Notificar solo en mensaje real o al crear la conversación (evita el spam de
+  // los conversation.started repetidos que manda Zernio).
+  if (!isRealMessage && existingConv) return;
+
   const link = leadId ? `/admin/leads/${leadId}` : `/admin/inbox`;
   if (assignedUserId) {
     await notify(
@@ -270,7 +301,7 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
         category: "leads" as const,
         type: "wa_message_pool",
         title: `Nuevo lead por ${PLATFORM_SOURCE[channel.platform]}`,
-        body: participant.name ?? participant.phone_e164 ?? null,
+        body: participant.name ?? participant.phone_e164 ?? participant.rawPhone ?? null,
         link: "/admin/inbox",
         entityType: "lead",
         entityId: leadId,
