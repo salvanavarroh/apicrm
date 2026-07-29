@@ -376,6 +376,21 @@ export async function sendAttachment(
   if (!accountId) return { ok: false, message: "Canal sin cuenta" };
 
   const mime = file.type || "application/octet-stream";
+  const base = mime.split(";")[0].trim();
+  // Formatos que aceptan a la vez WhatsApp e Instagram (audio ya viene como m4a).
+  const ALLOWED = new Set([
+    "image/png",
+    "image/jpeg",
+    "video/mp4",
+    "application/pdf",
+    "audio/mp4",
+    "audio/aac",
+    "audio/x-m4a",
+    "audio/m4a",
+  ]);
+  if (!ALLOWED.has(base)) {
+    return { ok: false, message: "Formato de archivo no soportado" };
+  }
   const kind = mediaKind(mime);
   const ext =
     (file.name.includes(".") ? file.name.split(".").pop() : mime.split("/")[1]) ||

@@ -36,6 +36,7 @@ import { WindowCountdown } from "@/components/inbox/window-countdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { needsAudioTranscode, toSendableAudio } from "@/lib/audio-transcode";
 import { dayLabel, listTime, msgTime, windowRemaining } from "@/lib/inbox-format";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,28 @@ export type ConversationListItem = {
 };
 
 type Scope = "all" | "mine" | "pool";
+
+// Formatos aceptados para enviar (intersección WhatsApp ∩ Instagram + audio, que
+// se transcodifica a m4a antes de subir). Evita mandar algo que Meta rechace.
+const MAX_ATTACH_BYTES = 25 * 1024 * 1024;
+const ACCEPT_ATTR = "image/png,image/jpeg,video/mp4,audio/*,application/pdf";
+const ALLOWED_EXACT = ["image/png", "image/jpeg", "video/mp4", "application/pdf"];
+function fileAllowed(f: File): { ok: boolean; msg?: string } {
+  if (f.size === 0) return { ok: false, msg: "El archivo está vacío" };
+  if (f.size > MAX_ATTACH_BYTES) return { ok: false, msg: "El archivo supera los 25MB" };
+  const base = (f.type || "").split(";")[0].trim();
+  if (base.startsWith("audio/")) return { ok: true };
+  if (ALLOWED_EXACT.includes(base)) return { ok: true };
+  return {
+    ok: false,
+    msg: "Formato no soportado. Se pueden enviar imágenes JPG/PNG, video MP4, audio o PDF.",
+  };
+}
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 // Clasifica un adjunto para elegir cómo mostrarlo (player, imagen o descarga).
 function attachmentKind(a: Attachment): "image" | "audio" | "video" | "file" {
@@ -365,10 +388,14 @@ function fmtRecTime(s: number): string {
 // (Enviar) confirma; el tacho descarta. Muestra un contador mientras graba.
 function AudioRecorder({
   onRecorded,
+  onRecordingChange,
   disabled,
+  className,
 }: {
   onRecorded: (f: File) => void;
+  onRecordingChange?: (recording: boolean) => void;
   disabled?: boolean;
+  className?: string;
 }) {
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -376,6 +403,11 @@ function AudioRecorder({
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
+
+  function setRec(v: boolean) {
+    setRecording(v);
+    onRecordingChange?.(v);
+  }
 
   async function start() {
     try {
@@ -390,7 +422,7 @@ function AudioRecorder({
       rec.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         if (timerRef.current) clearInterval(timerRef.current);
-        setRecording(false);
+        setRec(false);
         setSeconds(0);
         if (cancelledRef.current) return;
         const type = rec.mimeType || "audio/webm";
@@ -402,7 +434,7 @@ function AudioRecorder({
       };
       recorderRef.current = rec;
       rec.start();
-      setRecording(true);
+      setRec(true);
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
     } catch {
@@ -412,11 +444,17 @@ function AudioRecorder({
 
   if (recording) {
     return (
-      <div className="flex items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5">
-        <span className="size-2 animate-pulse rounded-full bg-red-500" />
-        <span className="text-xs tabular-nums text-muted-foreground">
+      <div
+        className={cn(
+          "flex items-center gap-2 rounded-lg border bg-background px-3 py-2",
+          className,
+        )}
+      >
+        <span className="size-2.5 shrink-0 animate-pulse rounded-full bg-red-500" />
+        <span className="text-sm tabular-nums text-muted-foreground">
           {fmtRecTime(seconds)}
         </span>
+        <span className="flex-1 truncate text-xs text-muted-foreground">Grabando…</span>
         <button
           type="button"
           title="Descartar"
@@ -424,17 +462,17 @@ function AudioRecorder({
             cancelledRef.current = true;
             recorderRef.current?.stop();
           }}
-          className="ml-1 text-muted-foreground hover:text-destructive"
+          className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
         >
-          <Trash2 className="size-4" />
+          <Trash2 className="size-[18px]" />
         </button>
         <button
           type="button"
           title="Enviar nota de voz"
           onClick={() => recorderRef.current?.stop()}
-          className="text-primary hover:opacity-80"
+          className="shrink-0 text-primary transition-opacity hover:opacity-80"
         >
-          <Send className="size-4" />
+          <Send className="size-[18px]" />
         </button>
       </div>
     );
@@ -445,9 +483,10 @@ function AudioRecorder({
       type="button"
       size="icon"
       variant="ghost"
-      title="Grabar nota de voz"
+      title={disabled ? "Borrá el texto para grabar un audio" : "Grabar nota de voz"}
       onClick={start}
       disabled={disabled}
+      className={className}
     >
       <Mic className="size-5" />
     </Button>
@@ -794,6 +833,8 @@ function Thread({
   const [messages, setMessages] = useState<InboxMessage[] | null>(null);
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
+  const [staged, setStaged] = useState<{ file: File; url: string } | null>(null);
+  const [recording, setRecording] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -875,7 +916,8 @@ function Thread({
   }
 
   // Envío de adjunto (archivo elegido o nota de voz grabada). El caption es el
-  // texto actual del composer. Optimista con preview local (objectURL).
+  // texto actual del composer. Optimista con preview local (objectURL). El audio
+  // se transcodifica a m4a/AAC (compatible WhatsApp + Instagram) antes de subir.
   function sendMedia(file: File) {
     if (!canSend) return;
     const caption = text.trim();
@@ -900,26 +942,69 @@ function Thread({
     };
     setMessages((prev) => [...(prev ?? []), optimistic]);
     setText("");
+    const revert = () => {
+      setMessages((prev) => (prev ?? []).filter((m) => m.id !== optimistic.id));
+      setText(caption);
+      URL.revokeObjectURL(localUrl);
+    };
     start(async () => {
+      let toSend = file;
+      if (kind === "audio" && needsAudioTranscode(mime)) {
+        const tid = toast.loading("Preparando audio…");
+        try {
+          toSend = await toSendableAudio(file);
+        } catch {
+          toast.dismiss(tid);
+          toast.error("No se pudo preparar el audio para enviar");
+          revert();
+          return;
+        }
+        toast.dismiss(tid);
+      }
       const fd = new FormData();
-      fd.append("file", file);
+      fd.append("file", toSend);
       if (caption) fd.append("caption", caption);
       const res = await sendAttachment(conversation.id, fd);
       if (res.ok) {
         refreshMessages();
+        URL.revokeObjectURL(localUrl);
       } else {
-        setMessages((prev) => (prev ?? []).filter((m) => m.id !== optimistic.id));
-        setText(caption);
         toast.error(res.message);
+        revert();
       }
-      URL.revokeObjectURL(localUrl);
     });
   }
 
+  // Elegir un archivo NO lo envía: queda "staged" para mandarlo con un mensaje.
   function onFilePick(e: ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (f) sendMedia(f);
     e.target.value = "";
+    if (!f) return;
+    const check = fileAllowed(f);
+    if (!check.ok) {
+      toast.error(check.msg!);
+      return;
+    }
+    if (staged) URL.revokeObjectURL(staged.url);
+    setStaged({ file: f, url: URL.createObjectURL(f) });
+  }
+
+  function removeStaged() {
+    if (staged) URL.revokeObjectURL(staged.url);
+    setStaged(null);
+  }
+
+  // Enviar: si hay archivo staged, va el archivo (con el texto como caption);
+  // si no, va el mensaje de texto.
+  function onSend() {
+    if (staged) {
+      const f = staged.file;
+      URL.revokeObjectURL(staged.url);
+      setStaged(null);
+      sendMedia(f);
+    } else {
+      send();
+    }
   }
 
   return (
@@ -1052,41 +1137,90 @@ function Thread({
             />
           </div>
         ) : (
-          <div className="flex w-full items-center gap-2">
+          <div className="flex w-full flex-col gap-2">
             <input
               ref={fileRef}
               type="file"
               hidden
-              accept="image/*,video/*,audio/*,.pdf,application/pdf"
+              accept={ACCEPT_ATTR}
               onChange={onFilePick}
             />
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              title="Adjuntar archivo"
-              onClick={() => fileRef.current?.click()}
-              disabled={!canSend}
-            >
-              <Paperclip className="size-5" />
-            </Button>
-            <AudioRecorder onRecorded={sendMedia} disabled={!canSend} />
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-              placeholder={canSend ? "Escribí un mensaje…" : "Sólo el dueño responde"}
-              disabled={!canSend}
-              className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
-            />
-            <Button onClick={send} disabled={!canSend || !text.trim()}>
-              Enviar
-            </Button>
+            {/* Archivo adjunto listo para enviar (con un mensaje opcional). */}
+            {staged && !recording && (
+              <div className="flex items-center gap-2.5 rounded-lg border bg-muted/40 p-2">
+                {staged.file.type.startsWith("image/") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={staged.url} alt="" className="size-10 shrink-0 rounded object-cover" />
+                ) : staged.file.type.startsWith("video/") ? (
+                  <video src={staged.url} muted className="size-10 shrink-0 rounded object-cover" />
+                ) : (
+                  <span className="grid size-10 shrink-0 place-items-center rounded bg-background">
+                    <Paperclip className="size-4 text-muted-foreground" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium">{staged.file.name}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {fmtSize(staged.file.size)} · listo para enviar
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeStaged}
+                  title="Quitar"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            )}
+
+            <div className="flex w-full items-center gap-2">
+              {!recording && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  title="Adjuntar archivo"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={!canSend}
+                >
+                  <Paperclip className="size-5" />
+                </Button>
+              )}
+              <AudioRecorder
+                onRecorded={sendMedia}
+                onRecordingChange={setRecording}
+                disabled={!canSend || text.trim().length > 0 || !!staged}
+                className={recording ? "flex-1" : undefined}
+              />
+              {!recording && (
+                <>
+                  <input
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        onSend();
+                      }
+                    }}
+                    placeholder={
+                      staged
+                        ? "Agregá un mensaje (opcional)…"
+                        : canSend
+                          ? "Escribí un mensaje…"
+                          : "Sólo el dueño responde"
+                    }
+                    disabled={!canSend}
+                    className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
+                  />
+                  <Button onClick={onSend} disabled={!canSend || (!text.trim() && !staged)}>
+                    Enviar
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
