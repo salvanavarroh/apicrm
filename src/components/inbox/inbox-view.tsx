@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Info, Search } from "lucide-react";
+import { FileText, Info, Paperclip, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import {
   claimConversation,
   getMessages,
   sendMessage,
+  type Attachment,
   type InboxMessage,
 } from "@/app/(app)/admin/inbox/actions";
 
@@ -44,6 +45,77 @@ export type ConversationListItem = {
 };
 
 type Scope = "all" | "mine" | "pool";
+
+// Clasifica un adjunto para elegir cómo mostrarlo (player, imagen o descarga).
+function attachmentKind(a: Attachment): "image" | "audio" | "video" | "file" {
+  const t = a.type ?? "";
+  const m = a.payload?.mimeType ?? "";
+  if (t === "image" || m.startsWith("image/")) return "image";
+  if (t === "audio" || m.startsWith("audio/")) return "audio";
+  if (t === "video" || m.startsWith("video/")) return "video";
+  return "file";
+}
+
+// Adjuntos de un mensaje: imagen con preview, audio/video con player, resto como
+// descarga. El src pega al proxy /api/inbox/media (nunca la URL cruda de Zernio).
+function MessageAttachments({
+  messageId,
+  attachments,
+  outbound,
+}: {
+  messageId: string;
+  attachments: Attachment[];
+  outbound: boolean;
+}) {
+  if (!attachments?.length) return null;
+  return (
+    <div className="mt-1 flex flex-col gap-1.5">
+      {attachments.map((a, i) => {
+        const src = `/api/inbox/media?msg=${messageId}&i=${i}`;
+        const kind = attachmentKind(a);
+        if (kind === "image") {
+          return (
+            <a key={i} href={src} target="_blank" rel="noreferrer">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt="Imagen adjunta"
+                className="max-h-64 w-auto max-w-full rounded-lg object-cover"
+              />
+            </a>
+          );
+        }
+        if (kind === "audio") {
+          return <audio key={i} controls src={src} className="h-9 w-56 max-w-full" />;
+        }
+        if (kind === "video") {
+          return (
+            <video
+              key={i}
+              controls
+              src={src}
+              className="max-h-64 w-auto max-w-full rounded-lg"
+            />
+          );
+        }
+        return (
+          <a
+            key={i}
+            href={`${src}&dl=1`}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs underline-offset-2 hover:underline",
+              outbound ? "bg-primary-foreground/15" : "bg-muted",
+            )}
+          >
+            <Paperclip className="size-3.5" /> Abrir archivo
+          </a>
+        );
+      })}
+    </div>
+  );
+}
 
 // Estado de entrega de mensajes salientes, en español y legible.
 const DELIVERY_LABEL: Record<string, string> = {
@@ -452,6 +524,7 @@ function Thread({
       delivery_status: "sending",
       created_at: new Date().toISOString(),
       sent_by_user_id: currentUserId,
+      attachments: [],
     };
     setMessages((prev) => [...(prev ?? []), optimistic]);
     setText("");
@@ -546,7 +619,14 @@ function Thread({
                           "bg-destructive/10 text-destructive ring-1 ring-destructive/25",
                       )}
                     >
-                      <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                      {m.body && (
+                        <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                      )}
+                      <MessageAttachments
+                        messageId={m.id}
+                        attachments={m.attachments}
+                        outbound={out}
+                      />
                       <div
                         className={cn(
                           "mt-1 flex items-center justify-end gap-1 text-[10px]",

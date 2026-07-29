@@ -228,6 +228,11 @@ export async function getInboxInsights(): Promise<InboxInsights | null> {
   };
 }
 
+export type Attachment = {
+  url?: string;
+  type?: string; // audio | image | video | file | document | unsupported_type
+  payload?: { mimeType?: string; id?: string; url?: string } | null;
+};
 export type InboxMessage = {
   id: string;
   direction: "inbound" | "outbound";
@@ -236,6 +241,7 @@ export type InboxMessage = {
   delivery_status: string;
   created_at: string;
   sent_by_user_id: string | null;
+  attachments: Attachment[];
 };
 
 /** Mensajes de una conversación (RLS decide si el usuario la ve). */
@@ -244,12 +250,17 @@ export async function getMessages(conversationId: string): Promise<InboxMessage[
   const supabase = await createClient();
   const { data } = await supabase
     .from("messages")
-    .select("id, direction, body, message_type, delivery_status, created_at, sent_by_user_id")
+    .select(
+      "id, direction, body, message_type, delivery_status, created_at, sent_by_user_id, attachments",
+    )
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
   // Marcar leído (best-effort) al abrir.
   await supabase.from("conversations").update({ unread_count: 0 }).eq("id", conversationId);
-  return (data ?? []) as InboxMessage[];
+  return (data ?? []).map((m) => ({
+    ...m,
+    attachments: Array.isArray(m.attachments) ? (m.attachments as Attachment[]) : [],
+  })) as InboxMessage[];
 }
 
 /** Toma una conversación del pool (claim atómico + asignación del lead). */

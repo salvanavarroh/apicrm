@@ -147,6 +147,20 @@ export async function markRead(conversationId: string, accountId: string) {
   return request("POST", `/inbox/conversations/${conversationId}/read`, { accountId });
 }
 
+/**
+ * Baja un adjunto (audio/imagen/video/archivo) de un mensaje. Los media de
+ * WhatsApp viven en `zernio.com/api/v1/...` y requieren el Bearer del API key;
+ * los de Meta (Instagram/Facebook) son URLs firmadas de su CDN que se bajan
+ * directo. Se usa desde el proxy server-side para no exponer la key al browser.
+ */
+export async function fetchMedia(url: string): Promise<Response> {
+  const isZernio = url.startsWith(BASE) || url.startsWith("https://zernio.com/");
+  return fetch(url, {
+    headers: isZernio ? { Authorization: `Bearer ${apiKey()}` } : {},
+    cache: "no-store",
+  });
+}
+
 export type ZernioConversationDetail = {
   participantName?: string | null;
   participantUsername?: string | null;
