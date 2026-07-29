@@ -232,6 +232,7 @@ export type Attachment = {
   url?: string;
   type?: string; // audio | image | video | file | document | unsupported_type
   payload?: { mimeType?: string; id?: string; url?: string } | null;
+  localUrl?: string; // sólo cliente: preview optimista (objectURL) antes de subir
 };
 export type InboxMessage = {
   id: string;
@@ -322,6 +323,136 @@ async function loadConversationForSend(conversationId: string, companyId: string
     .eq("company_id", companyId)
     .maybeSingle();
   return data;
+}
+
+type MediaKind = "image" | "video" | "audio" | "file";
+function mediaKind(mime: string): MediaKind {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  return "file";
+}
+
+const MAX_ATTACH_BYTES = 25 * 1024 * 1024; // 25MB (límite del bucket)
+
+/**
+ * Envía un adjunto (imagen/audio/video/archivo) por el inbox. Sube el archivo al
+ * bucket público `inbox-outbound`, se lo pasa a Zernio por URL (que lo reenvía a
+ * WhatsApp/Meta) y guarda el mensaje con el adjunto. El caption es opcional.
+ */
+export async function sendAttachment(
+  conversationId: string,
+  formData: FormData,
+): Promise<Result<{ messageId: string }>> {
+  const profile = await requireRole([...ROLES]);
+  const admin = createAdminClient();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, message: "Archivo vacío" };
+  }
+  if (file.size > MAX_ATTACH_BYTES) {
+    return { ok: false, message: "El archivo supera los 25MB" };
+  }
+  const caption = ((formData.get("caption") as string | null) ?? "").trim() || null;
+
+  const conv = await loadConversationForSend(conversationId, profile.company_id!);
+  if (!conv) return { ok: false, message: "Conversación no encontrada" };
+
+  const isPrivileged = ["admin", "manager", "supervisor"].includes(profile.role);
+  if (!isPrivileged && conv.assigned_user_id !== profile.id) {
+    return { ok: false, message: "Tomá la conversación antes de responder" };
+  }
+  const expired =
+    !conv.window_expires_at || new Date(conv.window_expires_at) < new Date();
+  if (expired) {
+    return {
+      ok: false,
+      message: "La ventana de 24h expiró. Usá una plantilla aprobada para reabrir.",
+    };
+  }
+  const accountId = (conv.channel as { zernio_account_id: string } | null)
+    ?.zernio_account_id;
+  if (!accountId) return { ok: false, message: "Canal sin cuenta" };
+
+  const mime = file.type || "application/octet-stream";
+  const kind = mediaKind(mime);
+  const ext =
+    (file.name.includes(".") ? file.name.split(".").pop() : mime.split("/")[1]) ||
+    "bin";
+  const path = `${profile.company_id}/${conversationId}/${crypto.randomUUID()}.${ext}`;
+
+  try {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const up = await admin.storage
+      .from("inbox-outbound")
+      .upload(path, bytes, { contentType: mime, upsert: false });
+    if (up.error) {
+      return { ok: false, message: `No se pudo subir el archivo: ${up.error.message}` };
+    }
+    const publicUrl = admin.storage.from("inbox-outbound").getPublicUrl(path)
+      .data.publicUrl;
+
+    // Envío por Zernio (los canales mock no pegan a la API).
+    let zMsgId: string | null = null;
+    if (accountId.startsWith("mock_")) {
+      zMsgId = `mock_out_${Date.now()}`;
+    } else {
+      const res = await sendInboxMessage(conv.zernio_conversation_id, {
+        accountId,
+        message: caption ?? undefined,
+        attachmentUrl: publicUrl,
+        attachmentType: kind,
+        attachmentName: file.name,
+      });
+      zMsgId = res.data?.messageId ?? null;
+    }
+
+    const { data: msg } = await admin
+      .from("messages")
+      .insert({
+        company_id: profile.company_id!,
+        conversation_id: conversationId,
+        zernio_message_id: zMsgId,
+        direction: "outbound",
+        sender_type: "agent",
+        sent_by_user_id: profile.id,
+        message_type: kind,
+        body: caption,
+        attachments: [{ url: publicUrl, type: kind, payload: { mimeType: mime } }] as never,
+        delivery_status: accountId.startsWith("mock_") ? "delivered" : "sent",
+      })
+      .select("id")
+      .single();
+
+    const preview =
+      caption ??
+      { image: "📷 Imagen", audio: "🎤 Audio", video: "🎬 Video", file: "📎 Archivo" }[kind];
+    await admin
+      .from("conversations")
+      .update({
+        last_outbound_at: new Date().toISOString(),
+        last_message_preview: preview,
+        unread_count: 0,
+      })
+      .eq("id", conversationId);
+
+    if (conv.lead_id) {
+      await admin.from("lead_notes").insert({
+        lead_id: conv.lead_id,
+        company_id: profile.company_id!,
+        author_id: profile.id,
+        content: caption ?? `[${kind}]`,
+        activity_type: "whatsapp",
+      });
+      await maybeAdvanceStatus(admin, conv.lead_id, "contacted");
+    }
+
+    revalidatePath("/admin/inbox");
+    return { ok: true, messageId: msg!.id };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Error enviando adjunto" };
+  }
 }
 
 /** Envía un mensaje de texto (dentro de la ventana de 24h). */

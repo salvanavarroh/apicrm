@@ -1,8 +1,15 @@
 "use client";
 
-import { FileText, Info, Paperclip, Search } from "lucide-react";
+import { FileText, Info, Mic, Paperclip, Search, Send, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ChangeEvent,
+} from "react";
 import { toast } from "sonner";
 
 import { ChannelPill } from "@/components/inbox/channel-pill";
@@ -20,6 +27,7 @@ import { cn } from "@/lib/utils";
 import {
   claimConversation,
   getMessages,
+  sendAttachment,
   sendMessage,
   type Attachment,
   type InboxMessage,
@@ -71,7 +79,7 @@ function MessageAttachments({
   return (
     <div className="mt-1 flex flex-col gap-1.5">
       {attachments.map((a, i) => {
-        const src = `/api/inbox/media?msg=${messageId}&i=${i}`;
+        const src = a.localUrl ?? `/api/inbox/media?msg=${messageId}&i=${i}`;
         const kind = attachmentKind(a);
         if (kind === "image") {
           return (
@@ -101,7 +109,7 @@ function MessageAttachments({
         return (
           <a
             key={i}
-            href={`${src}&dl=1`}
+            href={a.localUrl ?? `${src}&dl=1`}
             target="_blank"
             rel="noreferrer"
             className={cn(
@@ -114,6 +122,113 @@ function MessageAttachments({
         );
       })}
     </div>
+  );
+}
+
+// Formato de grabación preferido: ogg/opus (compatible WhatsApp) si el browser
+// lo soporta; si no, webm/opus (Chrome) o mp4 (Safari).
+function pickAudioMime(): string | undefined {
+  if (typeof MediaRecorder === "undefined") return undefined;
+  for (const t of ["audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/mp4", "audio/webm"]) {
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return undefined;
+}
+function fmtRecTime(s: number): string {
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// Grabadora de notas de voz: micrófono → MediaRecorder → File. El botón de stop
+// (Enviar) confirma; el tacho descarta. Muestra un contador mientras graba.
+function AudioRecorder({
+  onRecorded,
+  disabled,
+}: {
+  onRecorded: (f: File) => void;
+  disabled?: boolean;
+}) {
+  const [recording, setRecording] = useState(false);
+  const [seconds, setSeconds] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelledRef = useRef(false);
+
+  async function start() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = pickAudioMime();
+      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      chunksRef.current = [];
+      cancelledRef.current = false;
+      rec.ondataavailable = (e) => {
+        if (e.data.size) chunksRef.current.push(e.data);
+      };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (timerRef.current) clearInterval(timerRef.current);
+        setRecording(false);
+        setSeconds(0);
+        if (cancelledRef.current) return;
+        const type = rec.mimeType || "audio/webm";
+        const ext = type.includes("ogg") ? "ogg" : type.includes("mp4") ? "m4a" : "webm";
+        const blob = new Blob(chunksRef.current, { type });
+        if (blob.size > 0) {
+          onRecorded(new File([blob], `nota-de-voz.${ext}`, { type }));
+        }
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      setSeconds(0);
+      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+    } catch {
+      toast.error("No pudimos acceder al micrófono. Revisá los permisos.");
+    }
+  }
+
+  if (recording) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-lg border bg-background px-2.5 py-1.5">
+        <span className="size-2 animate-pulse rounded-full bg-red-500" />
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {fmtRecTime(seconds)}
+        </span>
+        <button
+          type="button"
+          title="Descartar"
+          onClick={() => {
+            cancelledRef.current = true;
+            recorderRef.current?.stop();
+          }}
+          className="ml-1 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="size-4" />
+        </button>
+        <button
+          type="button"
+          title="Enviar nota de voz"
+          onClick={() => recorderRef.current?.stop()}
+          className="text-primary hover:opacity-80"
+        >
+          <Send className="size-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      size="icon"
+      variant="ghost"
+      title="Grabar nota de voz"
+      onClick={start}
+      disabled={disabled}
+    >
+      <Mic className="size-5" />
+    </Button>
   );
 }
 
@@ -167,15 +282,11 @@ export function InboxView({
     };
   }, [router]);
 
-  // Mantener `selected` en sync con la lista refrescada (ventana 24h, unread,
-  // asignación) sin re-seleccionar en cada refresh idéntico.
-  useEffect(() => {
-    setSelected((prev) => {
-      if (!prev) return prev;
-      const fresh = conversations.find((c) => c.id === prev.id);
-      return fresh && fresh.updated_at !== prev.updated_at ? fresh : prev;
-    });
-  }, [conversations]);
+  // Versión siempre fresca de la conversación abierta (ventana 24h, unread,
+  // asignación): se deriva de la lista refrescada en cada render, sin efectos.
+  const activeConv = selected
+    ? (conversations.find((c) => c.id === selected.id) ?? selected)
+    : null;
 
   // Filtros
   const [search, setSearch] = useState("");
@@ -302,10 +413,10 @@ export function InboxView({
 
             {/* Chat */}
             <div className="flex min-w-0 flex-1 flex-col bg-background">
-              {selected ? (
+              {activeConv ? (
                 <Thread
-                  key={selected.id}
-                  conversation={selected}
+                  key={activeConv.id}
+                  conversation={activeConv}
                   currentUserId={currentUserId}
                   isPriv={isPriv}
                   infoOpen={infoOpen}
@@ -324,10 +435,10 @@ export function InboxView({
             </div>
 
             {/* Panel info */}
-            {infoOpen && selected?.lead_id && (
+            {infoOpen && activeConv?.lead_id && (
               <LeadInfoPanel
-                key={selected.lead_id}
-                leadId={selected.lead_id}
+                key={activeConv.lead_id}
+                leadId={activeConv.lead_id}
                 onClose={() => setInfoOpen(false)}
               />
             )}
@@ -462,6 +573,7 @@ function Thread({
   const [text, setText] = useState("");
   const [pending, start] = useTransition();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const isMine = conversation.assigned_user_id === currentUserId;
   const isPool = !conversation.assigned_user_id;
@@ -538,6 +650,54 @@ function Thread({
         toast.error(res.message);
       }
     });
+  }
+
+  // Envío de adjunto (archivo elegido o nota de voz grabada). El caption es el
+  // texto actual del composer. Optimista con preview local (objectURL).
+  function sendMedia(file: File) {
+    if (!canSend) return;
+    const caption = text.trim();
+    const mime = file.type || "application/octet-stream";
+    const kind = mime.startsWith("image/")
+      ? "image"
+      : mime.startsWith("audio/")
+        ? "audio"
+        : mime.startsWith("video/")
+          ? "video"
+          : "file";
+    const localUrl = URL.createObjectURL(file);
+    const optimistic: InboxMessage = {
+      id: `optimistic-${crypto.randomUUID()}`,
+      direction: "outbound",
+      body: caption || null,
+      message_type: kind,
+      delivery_status: "sending",
+      created_at: new Date().toISOString(),
+      sent_by_user_id: currentUserId,
+      attachments: [{ type: kind, payload: { mimeType: mime }, localUrl }],
+    };
+    setMessages((prev) => [...(prev ?? []), optimistic]);
+    setText("");
+    start(async () => {
+      const fd = new FormData();
+      fd.append("file", file);
+      if (caption) fd.append("caption", caption);
+      const res = await sendAttachment(conversation.id, fd);
+      if (res.ok) {
+        refreshMessages();
+      } else {
+        setMessages((prev) => (prev ?? []).filter((m) => m.id !== optimistic.id));
+        setText(caption);
+        toast.error(res.message);
+      }
+      URL.revokeObjectURL(localUrl);
+    });
+  }
+
+  function onFilePick(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) sendMedia(f);
+    e.target.value = "";
   }
 
   return (
@@ -670,7 +830,25 @@ function Thread({
             />
           </div>
         ) : (
-          <div className="flex w-full gap-2">
+          <div className="flex w-full items-center gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              hidden
+              accept="image/*,video/*,audio/*,.pdf,application/pdf"
+              onChange={onFilePick}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              title="Adjuntar archivo"
+              onClick={() => fileRef.current?.click()}
+              disabled={!canSend}
+            >
+              <Paperclip className="size-5" />
+            </Button>
+            <AudioRecorder onRecorded={sendMedia} disabled={!canSend} />
             <input
               value={text}
               onChange={(e) => setText(e.target.value)}
