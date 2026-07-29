@@ -45,6 +45,16 @@ export type ConversationListItem = {
 
 type Scope = "all" | "mine" | "pool";
 
+// Estado de entrega de mensajes salientes, en español y legible.
+const DELIVERY_LABEL: Record<string, string> = {
+  sending: "enviando…",
+  queued: "en cola",
+  sent: "enviado",
+  delivered: "entregado",
+  read: "leído",
+  failed: "no enviado",
+};
+
 export function InboxView({
   conversations,
   currentUserId,
@@ -430,13 +440,30 @@ function Thread({
   }
   function send() {
     const body = text.trim();
-    if (!body) return;
+    if (!body || !canSend) return;
+    // Optimistic update: el mensaje aparece al toque como "enviando…". Si el
+    // server confirma, refreshMessages lo reemplaza por el real; si falla, se
+    // revierte y le devolvemos el texto al usuario para que no lo pierda.
+    const optimistic: InboxMessage = {
+      id: `optimistic-${crypto.randomUUID()}`,
+      direction: "outbound",
+      body,
+      message_type: "text",
+      delivery_status: "sending",
+      created_at: new Date().toISOString(),
+      sent_by_user_id: currentUserId,
+    };
+    setMessages((prev) => [...(prev ?? []), optimistic]);
+    setText("");
     start(async () => {
       const res = await sendMessage(conversation.id, body);
       if (res.ok) {
-        setText("");
         refreshMessages();
-      } else toast.error(res.message);
+      } else {
+        setMessages((prev) => (prev ?? []).filter((m) => m.id !== optimistic.id));
+        setText(body);
+        toast.error(res.message);
+      }
     });
   }
 
@@ -498,32 +525,46 @@ function Thread({
               <div key={m.id}>
                 {newDay && (
                   <div className="my-3 flex justify-center">
-                    <span className="rounded-full bg-card px-2 py-0.5 text-[10px] text-muted-foreground shadow-sm">
+                    <span className="rounded-full border bg-card px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                       {dayLabel(m.created_at)}
                     </span>
                   </div>
                 )}
-                <div
-                  className={cn(
-                    "max-w-[70%] rounded-lg px-3 py-1.5 text-sm shadow-sm",
-                    m.direction === "outbound"
-                      ? "ml-auto bg-primary text-primary-foreground"
-                      : "bg-card",
-                  )}
-                >
-                  <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                  <div
-                    className={cn(
-                      "mt-0.5 flex items-center justify-end gap-1 text-[10px]",
-                      m.direction === "outbound"
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {msgTime(m.created_at)}
-                    {m.direction === "outbound" && <span>· {m.delivery_status}</span>}
-                  </div>
-                </div>
+                {(() => {
+                  const out = m.direction === "outbound";
+                  const sending = m.delivery_status === "sending";
+                  const failed = m.delivery_status === "failed";
+                  return (
+                    <div
+                      className={cn(
+                        "max-w-[75%] rounded-2xl px-3 py-2 text-sm transition-opacity",
+                        out
+                          ? "ml-auto rounded-br-md bg-primary text-primary-foreground"
+                          : "rounded-bl-md border bg-card",
+                        sending && "opacity-60",
+                        failed &&
+                          "bg-destructive/10 text-destructive ring-1 ring-destructive/25",
+                      )}
+                    >
+                      <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                      <div
+                        className={cn(
+                          "mt-1 flex items-center justify-end gap-1 text-[10px]",
+                          failed
+                            ? "text-destructive/80"
+                            : out
+                              ? "text-primary-foreground/70"
+                              : "text-muted-foreground",
+                        )}
+                      >
+                        {msgTime(m.created_at)}
+                        {out && (
+                          <span>· {DELIVERY_LABEL[m.delivery_status] ?? m.delivery_status}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             );
           })
@@ -560,10 +601,10 @@ function Thread({
                 }
               }}
               placeholder={canSend ? "Escribí un mensaje…" : "Sólo el dueño responde"}
-              disabled={!canSend || pending}
-              className="flex-1 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+              disabled={!canSend}
+              className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
             />
-            <Button onClick={send} disabled={!canSend || pending || !text.trim()}>
+            <Button onClick={send} disabled={!canSend || !text.trim()}>
               Enviar
             </Button>
           </div>

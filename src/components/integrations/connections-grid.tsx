@@ -46,6 +46,12 @@ const STATUS_TONE: Record<string, string> = {
   disconnected: "bg-red-100 text-red-700",
   error: "bg-red-100 text-red-700",
 };
+const STATUS_LABEL: Record<string, string> = {
+  active: "Activo",
+  connecting: "Conectando",
+  disconnected: "Desconectado",
+  error: "Error",
+};
 
 export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
   const router = useRouter();
@@ -157,7 +163,7 @@ export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
                     return (
                       <div
                         key={c.id}
-                        className="flex items-center gap-2 rounded-lg border p-2"
+                        className="flex items-center gap-2.5 rounded-lg bg-muted/40 p-2"
                       >
                         <ContactAvatar
                           name={c.display_name ?? c.external_ref}
@@ -169,8 +175,8 @@ export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
                             <span className="truncate text-sm font-medium">
                               {c.display_name ?? c.external_ref ?? meta.label}
                             </span>
-                            <Badge className={cn("text-[10px]", STATUS_TONE[c.status])}>
-                              {c.status}
+                            <Badge className={cn("shrink-0 text-[10px]", STATUS_TONE[c.status])}>
+                              {STATUS_LABEL[c.status] ?? c.status}
                             </Badge>
                           </div>
                           {platform === "whatsapp" && (
