@@ -1,6 +1,18 @@
 "use client";
 
-import { FileText, Info, Mic, Paperclip, Search, Send, Trash2 } from "lucide-react";
+import {
+  FileText,
+  ImageOff,
+  Info,
+  Mic,
+  Paperclip,
+  Pause,
+  Play,
+  Search,
+  Send,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -9,7 +21,10 @@ import {
   useState,
   useTransition,
   type ChangeEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { ChannelPill } from "@/components/inbox/channel-pill";
@@ -64,8 +79,237 @@ function attachmentKind(a: Attachment): "image" | "audio" | "video" | "file" {
   return "file";
 }
 
-// Adjuntos de un mensaje: imagen con preview, audio/video con player, resto como
-// descarga. El src pega al proxy /api/inbox/media (nunca la URL cruda de Zernio).
+// Loader de 3 puntitos estilo WhatsApp mientras carga un adjunto.
+function DotsLoader({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1", className)} aria-label="Cargando">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="wa-dot size-1.5 rounded-full bg-current"
+          style={{ animationDelay: `${i * 0.15}s` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+// Popup a pantalla completa para ver imagen/video en grande (portal al body).
+function Lightbox({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Cerrar"
+        className="absolute top-4 right-4 rounded-full bg-white/10 p-2 text-white/90 transition-colors hover:bg-white/20"
+      >
+        <X className="size-5" />
+      </button>
+      <div onClick={(e) => e.stopPropagation()} className="max-h-[90vh] max-w-[92vw]">
+        {children}
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// Imagen: placeholder con loader mientras carga; clic → lightbox. La burbuja se
+// ajusta al tamaño de la imagen.
+function ImageAttachment({ src, outbound }: { src: string; outbound: boolean }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+  const [open, setOpen] = useState(false);
+  if (error) {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs",
+          outbound ? "bg-primary-foreground/15" : "bg-muted",
+        )}
+      >
+        <ImageOff className="size-3.5" /> Imagen no disponible
+      </span>
+    );
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "relative block w-fit cursor-zoom-in overflow-hidden rounded-lg",
+          !loaded && "grid min-h-[140px] min-w-[180px] place-items-center bg-black/5",
+        )}
+      >
+        {!loaded && <DotsLoader className="opacity-70" />}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="Imagen adjunta"
+          onLoad={() => setLoaded(true)}
+          onError={() => setError(true)}
+          className={cn("block max-h-72 max-w-[17.5rem] rounded-lg object-cover", !loaded && "hidden")}
+        />
+      </button>
+      {open && (
+        <Lightbox onClose={() => setOpen(false)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="" className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain" />
+        </Lightbox>
+      )}
+    </>
+  );
+}
+
+// Video: primer frame como thumbnail + botón play; clic → lightbox reproduce.
+function VideoAttachment({ src }: { src: string }) {
+  const [ready, setReady] = useState(false);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={cn(
+          "relative block w-fit cursor-pointer overflow-hidden rounded-lg bg-black",
+          !ready && "grid min-h-[140px] min-w-[180px] place-items-center",
+        )}
+      >
+        {!ready && <DotsLoader className="text-white/80" />}
+        <video
+          src={src}
+          preload="metadata"
+          muted
+          onLoadedData={() => setReady(true)}
+          className={cn("block max-h-72 max-w-[17.5rem]", !ready && "hidden")}
+        />
+        {ready && (
+          <span className="absolute inset-0 grid place-items-center">
+            <span className="grid size-12 place-items-center rounded-full bg-black/50 text-white backdrop-blur-sm">
+              <Play className="size-6 translate-x-0.5" />
+            </span>
+          </span>
+        )}
+      </button>
+      {open && (
+        <Lightbox onClose={() => setOpen(false)}>
+          <video src={src} controls autoPlay className="max-h-[90vh] max-w-[92vw] rounded-lg" />
+        </Lightbox>
+      )}
+    </>
+  );
+}
+
+// Player de audio custom, look & feel WhatsApp: play/pausa, barra seekable,
+// duración. Ancho fijo y cómodo. Arregla la duración Infinity de los webm.
+function AudioBubble({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [dur, setDur] = useState(0);
+  const [cur, setCur] = useState(0);
+  const [ready, setReady] = useState(false);
+
+  function onMeta() {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.duration === Infinity || Number.isNaN(a.duration)) {
+      a.currentTime = 1e101; // fuerza el cálculo de la duración en webm
+      return;
+    }
+    setDur(a.duration);
+    setReady(true);
+  }
+  function onTime() {
+    const a = audioRef.current;
+    if (!a) return;
+    if (!ready && a.duration !== Infinity && !Number.isNaN(a.duration)) {
+      setDur(a.duration);
+      setReady(true);
+      a.currentTime = 0;
+      return;
+    }
+    setCur(a.currentTime);
+  }
+  function toggle() {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) void a.play();
+    else a.pause();
+  }
+  function seek(e: ReactMouseEvent<HTMLDivElement>) {
+    const a = audioRef.current;
+    const bar = barRef.current;
+    if (!a || !bar || !dur) return;
+    const rect = bar.getBoundingClientRect();
+    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    a.currentTime = pct * dur;
+    setCur(a.currentTime);
+  }
+  const pct = dur ? (cur / dur) * 100 : 0;
+
+  return (
+    <div className="flex w-[min(72vw,17rem)] items-center gap-2.5 py-0.5">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label={playing ? "Pausar" : "Reproducir"}
+        className="grid size-9 shrink-0 place-items-center rounded-full bg-current/10 transition-colors hover:bg-current/20"
+      >
+        {!ready ? (
+          <DotsLoader />
+        ) : playing ? (
+          <Pause className="size-4" />
+        ) : (
+          <Play className="size-4 translate-x-px" />
+        )}
+      </button>
+      <div
+        ref={barRef}
+        onClick={seek}
+        className="relative h-1 flex-1 cursor-pointer rounded-full bg-current/25"
+      >
+        <div className="absolute inset-y-0 left-0 rounded-full bg-current" style={{ width: `${pct}%` }} />
+        <div
+          className="absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-current shadow-sm"
+          style={{ left: `calc(${pct}% - 5px)` }}
+        />
+      </div>
+      <span className="shrink-0 text-[10px] tabular-nums opacity-70">
+        {fmtRecTime(Math.floor(cur > 0 ? cur : dur))}
+      </span>
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={onMeta}
+        onTimeUpdate={onTime}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setCur(0);
+        }}
+      />
+    </div>
+  );
+}
+
+// Adjuntos de un mensaje. El src pega al proxy /api/inbox/media (nunca la URL
+// cruda de Zernio) salvo el preview optimista local.
 function MessageAttachments({
   messageId,
   attachments,
@@ -81,31 +325,9 @@ function MessageAttachments({
       {attachments.map((a, i) => {
         const src = a.localUrl ?? `/api/inbox/media?msg=${messageId}&i=${i}`;
         const kind = attachmentKind(a);
-        if (kind === "image") {
-          return (
-            <a key={i} href={src} target="_blank" rel="noreferrer">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt="Imagen adjunta"
-                className="max-h-64 w-auto max-w-full rounded-lg object-cover"
-              />
-            </a>
-          );
-        }
-        if (kind === "audio") {
-          return <audio key={i} controls src={src} className="h-9 w-56 max-w-full" />;
-        }
-        if (kind === "video") {
-          return (
-            <video
-              key={i}
-              controls
-              src={src}
-              className="max-h-64 w-auto max-w-full rounded-lg"
-            />
-          );
-        }
+        if (kind === "image") return <ImageAttachment key={i} src={src} outbound={outbound} />;
+        if (kind === "audio") return <AudioBubble key={i} src={src} />;
+        if (kind === "video") return <VideoAttachment key={i} src={src} />;
         return (
           <a
             key={i}
@@ -770,7 +992,7 @@ function Thread({
                   return (
                     <div
                       className={cn(
-                        "max-w-[75%] rounded-2xl px-3 py-2 text-sm transition-opacity",
+                        "w-fit max-w-[75%] rounded-2xl px-3 py-2 text-sm transition-opacity",
                         out
                           ? "ml-auto rounded-br-md bg-primary text-primary-foreground"
                           : "rounded-bl-md border bg-card",
