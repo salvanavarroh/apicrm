@@ -85,6 +85,7 @@ type Participant = {
   bsuid: string | null;
   name: string | null;
   handle: string | null;
+  photo_url: string | null; // IG/FB: foto de perfil del contacto (Meta CDN)
   contactId: string | null;
 };
 
@@ -200,7 +201,9 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
   // Conversación existente? (traemos el nombre para no re-pedirlo a Zernio).
   const { data: existingConv } = await admin
     .from("conversations")
-    .select("id, lead_id, assigned_user_id, participant_name, participant_handle")
+    .select(
+      "id, lead_id, assigned_user_id, participant_name, participant_handle, participant_photo_url",
+    )
     .eq("zernio_conversation_id", zConvId)
     .maybeSingle();
 
@@ -215,16 +218,25 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     str(conversation.participantUsername) ??
     existingConv?.participant_handle ??
     null;
-  // Redes: el webhook de message.received NO trae nombre/usuario (vienen en
+  // Foto de perfil del contacto (solo IG/FB; WhatsApp no la expone). Primero del
+  // payload del webhook, luego la ya guardada.
+  let photoUrl =
+    str(sender.picture) ??
+    str(conversation.participantPicture) ??
+    existingConv?.participant_photo_url ??
+    null;
+  // Redes: el webhook de message.received NO trae nombre/usuario/foto (vienen en
   // conversation.started, que ignoramos por spam). Los pedimos a Zernio con el
-  // convId; el detalle expone participantName/Username on-demand.
-  if (!isWa && !name) {
+  // convId; el detalle expone participantName/Username/Picture on-demand. Pedimos
+  // el detalle si falta el nombre o la foto.
+  if (!isWa && (!name || !photoUrl)) {
     try {
       const d = await getConversationDetail(zConvId, accountId);
-      name = str(d.participantName);
+      name = name ?? str(d.participantName);
       handle = handle ?? str(d.participantUsername);
+      photoUrl = photoUrl ?? str(d.participantPicture);
     } catch {
-      /* best-effort: seguimos sin nombre */
+      /* best-effort: seguimos sin nombre/foto */
     }
   }
 
@@ -237,6 +249,7 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
       (isWa ? null : str(conversation.participantId)),
     name,
     handle,
+    photo_url: photoUrl,
     contactId: str(sender.contactId) ?? str(conversation.contactId),
   };
 
@@ -254,12 +267,23 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     conversationId = existingConv.id;
     assignedUserId = existingConv.assigned_user_id;
     leadId = existingConv.lead_id;
-    // Backfill: si la conversación se creó sin nombre y ahora lo tenemos, guardarlo.
+    // Backfill: si la conversación se creó sin nombre y/o sin foto y ahora los
+    // tenemos, los guardamos.
+    const convPatch: Record<string, unknown> = {};
     if (!existingConv.participant_name && name) {
+      convPatch.participant_name = name;
+      convPatch.participant_handle = handle;
+    }
+    if (!existingConv.participant_photo_url && photoUrl) {
+      convPatch.participant_photo_url = photoUrl;
+    }
+    if (Object.keys(convPatch).length > 0) {
       await admin
         .from("conversations")
-        .update({ participant_name: name, participant_handle: handle })
+        .update(convPatch as never)
         .eq("id", existingConv.id);
+    }
+    if (!existingConv.participant_name && name) {
       if (leadId) {
         const [first, ...rest] = name.trim().split(/\s+/);
         await admin
@@ -290,6 +314,7 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
         participant_phone_e164: participant.phone_e164,
         participant_name: participant.name,
         participant_handle: participant.handle,
+        participant_photo_url: participant.photo_url,
         zernio_contact_id: participant.contactId,
         assigned_user_id: assignedUserId,
         claimed_at: assignedUserId ? new Date().toISOString() : null,

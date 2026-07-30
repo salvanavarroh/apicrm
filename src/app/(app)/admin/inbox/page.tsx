@@ -14,7 +14,7 @@ export default async function AdminInboxPage() {
   const { data } = await supabase
     .from("conversations")
     .select(
-      "id, platform, participant_name, participant_phone_e164, participant_handle, assigned_user_id, status, unread_count, last_message_preview, last_inbound_at, last_outbound_at, window_expires_at, lead_id, updated_at",
+      "id, platform, participant_name, participant_phone_e164, participant_handle, participant_photo_url, assigned_user_id, status, unread_count, last_message_preview, last_inbound_at, last_outbound_at, window_expires_at, lead_id, updated_at",
     )
     .order("updated_at", { ascending: false })
     .limit(200);

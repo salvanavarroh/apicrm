@@ -458,6 +458,7 @@ export type Database = {
           participant_handle: string | null
           participant_name: string | null
           participant_phone_e164: string | null
+          participant_photo_url: string | null
           platform: Database["public"]["Enums"]["channel_platform"]
           status: Database["public"]["Enums"]["conversation_status"]
           unread_count: number
@@ -482,6 +483,7 @@ export type Database = {
           participant_handle?: string | null
           participant_name?: string | null
           participant_phone_e164?: string | null
+          participant_photo_url?: string | null
           platform: Database["public"]["Enums"]["channel_platform"]
           status?: Database["public"]["Enums"]["conversation_status"]
           unread_count?: number
@@ -506,6 +508,7 @@ export type Database = {
           participant_handle?: string | null
           participant_name?: string | null
           participant_phone_e164?: string | null
+          participant_photo_url?: string | null
           platform?: Database["public"]["Enums"]["channel_platform"]
           status?: Database["public"]["Enums"]["conversation_status"]
           unread_count?: number

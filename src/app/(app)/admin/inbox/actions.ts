@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/auth";
 import { fullName } from "@/lib/leads";
 import { maybeAdvanceStatus } from "@/lib/lead-status";
-import { sendInboxMessage, startConversation } from "@/lib/messaging/zernio";
+import { markRead, sendInboxMessage, startConversation } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -129,17 +129,55 @@ export async function quickAddNote(leadId: string, content: string): Promise<Res
 }
 
 // --- Plantillas aprobadas (para enviar desde el header) --------------------
+export type TemplateVar = { pos: number; label: string };
 export type ApprovedTemplate = {
   name: string;
   language: string;
   body_preview: string | null;
+  variables: TemplateVar[];
 };
+
+// Deriva las variables de la plantilla: primero de la metadata `variables`
+// (`[{pos, maps_to}]`), y si no viene, contando los `{{n}}` del preview.
+function templateVars(variables: unknown, bodyPreview: string | null): TemplateVar[] {
+  const out: TemplateVar[] = [];
+  if (Array.isArray(variables)) {
+    for (const v of variables as Array<{ pos?: number; maps_to?: string }>) {
+      if (typeof v?.pos === "number") {
+        out.push({
+          pos: v.pos,
+          label:
+            typeof v.maps_to === "string" && v.maps_to ? v.maps_to : `Variable ${v.pos}`,
+        });
+      }
+    }
+  }
+  if (out.length === 0 && bodyPreview) {
+    const positions = new Set<number>();
+    for (const m of bodyPreview.matchAll(/\{\{\s*(\d+)\s*\}\}/g)) {
+      positions.add(Number(m[1]));
+    }
+    for (const p of Array.from(positions).sort((a, b) => a - b)) {
+      out.push({ pos: p, label: `Variable ${p}` });
+    }
+  }
+  return out.sort((a, b) => a.pos - b.pos);
+}
+
+// Sustituye los `{{n}}` del preview con los valores dados (en orden por pos).
+function substituteVars(preview: string, params: string[]): string {
+  return preview.replace(/\{\{\s*(\d+)\s*\}\}/g, (_m, n) => {
+    const val = params[Number(n) - 1];
+    return val != null && val !== "" ? val : `{{${n}}}`;
+  });
+}
+
 export async function listApprovedTemplates(): Promise<ApprovedTemplate[]> {
   const profile = await requireRole([...ROLES]);
   const supabase = await createClient();
   const { data } = await supabase
     .from("whatsapp_templates")
-    .select("zernio_template_name, language, body_preview")
+    .select("zernio_template_name, language, body_preview, variables")
     .eq("company_id", profile.company_id!)
     .eq("status", "APPROVED")
     .order("zernio_template_name");
@@ -147,6 +185,7 @@ export async function listApprovedTemplates(): Promise<ApprovedTemplate[]> {
     name: t.zernio_template_name,
     language: t.language,
     body_preview: t.body_preview,
+    variables: templateVars(t.variables, t.body_preview),
   }));
 }
 
@@ -258,6 +297,27 @@ export async function getMessages(conversationId: string): Promise<InboxMessage[
     .order("created_at", { ascending: true });
   // Marcar leído (best-effort) al abrir.
   await supabase.from("conversations").update({ unread_count: 0 }).eq("id", conversationId);
+
+  // Read receipts (tildes azules): avisar a Zernio que el contacto fue leído.
+  // Best-effort: no bloqueamos la carga de mensajes si la API falla.
+  try {
+    const admin = createAdminClient();
+    const { data: conv } = await admin
+      .from("conversations")
+      .select(
+        "zernio_conversation_id, channel:messaging_channels!channel_id (zernio_account_id)",
+      )
+      .eq("id", conversationId)
+      .maybeSingle();
+    const accountId = (conv?.channel as { zernio_account_id: string } | null)
+      ?.zernio_account_id;
+    if (conv?.zernio_conversation_id && accountId && !accountId.startsWith("mock_")) {
+      await markRead(conv.zernio_conversation_id, accountId);
+    }
+  } catch {
+    /* best-effort: la marca de leído no debe romper la apertura del chat */
+  }
+
   return (data ?? []).map((m) => ({
     ...m,
     attachments: Array.isArray(m.attachments) ? (m.attachments as Attachment[]) : [],
@@ -308,6 +368,54 @@ export async function claimConversation(conversationId: string): Promise<Result>
       .eq("id", claimed.lead_id)
       .is("assigned_user_id", null);
   }
+  revalidatePath("/admin/inbox");
+  return { ok: true };
+}
+
+/**
+ * Reasigna/transfiere una conversación a otro vendedor. Solo roles privilegiados
+ * (admin/manager/supervisor). Reasigna también el lead vinculado (sticky-seller).
+ */
+export async function reassignConversation(
+  conversationId: string,
+  toUserId: string,
+): Promise<Result> {
+  const profile = await requireRole([...PRIV_ROLES]);
+  const admin = createAdminClient();
+
+  // La conversación debe ser de la empresa del que reasigna.
+  const { data: conv } = await admin
+    .from("conversations")
+    .select("id, lead_id")
+    .eq("id", conversationId)
+    .eq("company_id", profile.company_id!)
+    .maybeSingle();
+  if (!conv) return { ok: false, message: "Conversación no encontrada" };
+
+  // El destinatario debe ser un usuario activo de la misma empresa.
+  const { data: target } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", toUserId)
+    .eq("company_id", profile.company_id!)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!target) return { ok: false, message: "Vendedor no válido" };
+
+  const now = new Date().toISOString();
+  await admin
+    .from("conversations")
+    .update({ assigned_user_id: toUserId, claimed_at: now })
+    .eq("id", conversationId);
+
+  // Reasignar el lead vinculado para que quede con el mismo dueño.
+  if (conv.lead_id) {
+    await admin
+      .from("leads")
+      .update({ assigned_user_id: toUserId, assigned_at: now })
+      .eq("id", conv.lead_id);
+  }
+
   revalidatePath("/admin/inbox");
   return { ok: true };
 }
@@ -580,6 +688,20 @@ export async function sendTemplateMessage(
   const to = conv.participant_phone_e164?.replace(/[^\d]/g, "");
   if (!accountId || !to) return { ok: false, message: "Faltan datos del canal" };
 
+  // Texto final que se muestra en la burbuja: sustituimos las variables en el
+  // preview de la plantilla (para mock y para reales, así el chat muestra lo que
+  // realmente se envió). Fallback al nombre de la plantilla si no hay preview.
+  const { data: tpl } = await admin
+    .from("whatsapp_templates")
+    .select("body_preview")
+    .eq("company_id", profile.company_id!)
+    .eq("zernio_template_name", templateName)
+    .eq("language", language)
+    .maybeSingle();
+  const bodyText = tpl?.body_preview
+    ? substituteVars(tpl.body_preview, params)
+    : `[plantilla: ${templateName}]`;
+
   try {
     let zMsgId: string | null = null;
     if (accountId.startsWith("mock_")) {
@@ -605,7 +727,7 @@ export async function sendTemplateMessage(
         sent_by_user_id: profile.id,
         message_type: "template",
         template_name: templateName,
-        body: `[plantilla: ${templateName}]`,
+        body: bodyText,
         delivery_status: "sent",
       })
       .select("id")

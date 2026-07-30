@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import {
   claimConversation,
   getMessages,
+  reassignConversation,
   sendAttachment,
   sendMessage,
   type Attachment,
@@ -56,6 +57,7 @@ export type ConversationListItem = {
   participant_name: string | null;
   participant_phone_e164: string | null;
   participant_handle: string | null;
+  participant_photo_url: string | null;
   assigned_user_id: string | null;
   assigned_name: string | null;
   status: string;
@@ -680,6 +682,7 @@ export function InboxView({
                   conversation={activeConv}
                   currentUserId={currentUserId}
                   isPriv={isPriv}
+                  vendors={vendors}
                   infoOpen={infoOpen}
                   onToggleInfo={() => setInfoOpen((o) => !o)}
                   onClaimed={() =>
@@ -759,7 +762,11 @@ function ConversationRow({
         active && "bg-card shadow-sm",
       )}
     >
-      <ContactAvatar name={c.participant_name ?? c.participant_handle} size="md" />
+      <ContactAvatar
+        name={c.participant_name ?? c.participant_handle}
+        photoUrl={c.participant_photo_url}
+        size="md"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm font-medium">
@@ -818,6 +825,7 @@ function Thread({
   conversation,
   currentUserId,
   isPriv,
+  vendors,
   infoOpen,
   onToggleInfo,
   onClaimed,
@@ -825,6 +833,7 @@ function Thread({
   conversation: ConversationListItem;
   currentUserId: string;
   isPriv: boolean;
+  vendors: VendorOption[];
   infoOpen: boolean;
   onToggleInfo: () => void;
   onClaimed: () => void;
@@ -881,6 +890,17 @@ function Thread({
       if (res.ok) {
         toast.success("Conversación tomada");
         onClaimed();
+        router.refresh();
+      } else toast.error(res.message);
+    });
+  }
+  // Reasignar/transferir a otro vendedor (solo privilegiados).
+  function reassign(toUserId: string) {
+    if (!toUserId || toUserId === conversation.assigned_user_id) return;
+    start(async () => {
+      const res = await reassignConversation(conversation.id, toUserId);
+      if (res.ok) {
+        toast.success("Conversación reasignada");
         router.refresh();
       } else toast.error(res.message);
     });
@@ -1014,6 +1034,7 @@ function Thread({
         <div className="flex min-w-0 items-center gap-3">
           <ContactAvatar
             name={conversation.participant_name ?? conversation.participant_handle}
+            photoUrl={conversation.participant_photo_url}
             size="md"
           />
           <div className="min-w-0">
@@ -1033,6 +1054,25 @@ function Thread({
         </div>
         <div className="flex items-center gap-2">
           <WindowCountdown expiresAt={conversation.window_expires_at} />
+          {isPriv && vendors.length > 0 && (
+            <select
+              value={conversation.assigned_user_id ?? ""}
+              onChange={(e) => reassign(e.target.value)}
+              disabled={pending}
+              title="Reasignar a otro vendedor"
+              aria-label="Reasignar a otro vendedor"
+              className="h-8 max-w-[9rem] rounded-md border bg-background px-2 text-sm text-muted-foreground disabled:opacity-50"
+            >
+              <option value="" disabled>
+                Reasignar…
+              </option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          )}
           <TemplateSendDialog
             conversationId={conversation.id}
             onSent={refreshMessages}
