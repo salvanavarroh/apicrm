@@ -70,6 +70,7 @@ const ADMIN_NAV: Item[] = [
     icon: Briefcase,
   },
   { href: "/admin/campaigns", label: "Campañas", icon: Megaphone },
+  { href: "/admin/ads", label: "Rendimiento Ads", icon: BarChart3 },
   { href: "/admin/users", label: "Usuarios", icon: UsersRound },
 ];
 

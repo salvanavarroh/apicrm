@@ -228,6 +228,58 @@ export async function listLeadForms(
   return request("GET", `/ads/lead-forms?accountId=${encodeURIComponent(accountId)}`);
 }
 
+// --- Ads insights (rendimiento por anuncio) --------------------------------
+// GET /ads devuelve los anuncios de las cuentas conectadas (Meta/TikTok/Google…)
+// con métricas reales por ad: inversión, impresiones, clics, CTR, CPC, ROAS, etc.
+export type ZernioAdMetrics = {
+  spend?: number;
+  impressions?: number;
+  reach?: number;
+  clicks?: number;
+  engagement?: number;
+  ctr?: number;
+  cpc?: number;
+  cpm?: number;
+  conversions?: number;
+  costPerConversion?: number;
+  roas?: number;
+  purchaseValue?: number;
+};
+export type ZernioAd = {
+  _id?: string;
+  platform?: string;
+  platformAdId?: string;
+  platformCampaignId?: string;
+  platformAdSetId?: string;
+  platformAdAccountId?: string;
+  campaignName?: string;
+  adSetName?: string;
+  name?: string;
+  status?: string;
+  platformStatus?: string;
+  currency?: string;
+  metrics?: ZernioAdMetrics;
+};
+export type ListAdsResponse = {
+  ads: ZernioAd[];
+  pagination?: { page: number; limit: number; total: number; pages: number };
+};
+export async function listAds(params: {
+  accountId?: string;
+  fromDate?: string; // YYYY-MM-DD
+  toDate?: string;
+  platform?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}): Promise<ListAdsResponse> {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
+  }
+  return request<ListAdsResponse>("GET", `/ads?${q.toString()}`);
+}
+
 // --- Phone numbers (comprar número) ----------------------------------------
 export type PurchaseResult = {
   status?: string; // "kyc_required" | "active" | ...
