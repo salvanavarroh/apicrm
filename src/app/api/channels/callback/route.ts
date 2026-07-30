@@ -72,6 +72,17 @@ export async function GET(req: Request) {
           messaging_limit_tier: info.messaging_limit_tier ?? null,
           name_status: info.name_status ?? null,
           health_checked_at: new Date().toISOString(),
+          metadata: {
+            health: {
+              status: info.status ?? null,
+              canSendMessage: info.can_send_message ?? null,
+              businessVerification: info.business_verification_status ?? null,
+              displayPhoneNumber: info.display_phone_number ?? null,
+              verifiedName: info.verified_name ?? null,
+              isOfficial: info.is_official_business_account ?? null,
+              blockers: info.blockers,
+            },
+          } as never,
         })
         .eq("zernio_account_id", accountId);
     } catch {

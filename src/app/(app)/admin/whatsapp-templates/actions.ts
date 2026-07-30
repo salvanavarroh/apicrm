@@ -13,20 +13,25 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; message: string };
 
-// Placeholders de ejemplo para que Meta acepte el template.
+// Placeholders de ejemplo para las variables del template.
 const EXAMPLE = ["Juan", "Corolla XEI", "la concesionaria"];
-
-function bodyComponent(text: string) {
-  return {
-    type: "BODY",
-    text,
-    example: { body_text: [EXAMPLE] },
-  };
-}
 
 function countVars(text: string): number {
   const m = text.match(/\{\{\d+\}\}/g);
   return m ? new Set(m).size : 0;
+}
+
+// Meta SOLO acepta `example.body_text` si el cuerpo tiene variables, y la
+// cantidad de ejemplos debe coincidir EXACTO con la cantidad de {{n}}. Mandar
+// ejemplos de más (o sin variables) hace fallar la creación de la plantilla.
+function bodyComponent(text: string) {
+  const n = countVars(text);
+  const comp: Record<string, unknown> = { type: "BODY", text };
+  if (n > 0) {
+    const examples = Array.from({ length: n }, (_, i) => EXAMPLE[i] ?? `ejemplo${i + 1}`);
+    comp.example = { body_text: [examples] };
+  }
+  return comp;
 }
 
 async function channelOf(companyId: string, channelId: string) {

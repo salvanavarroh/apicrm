@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -19,6 +19,15 @@ import {
   syncChannels,
 } from "@/app/(app)/admin/channels/actions";
 
+export type NumberHealth = {
+  status?: string | null;
+  canSendMessage?: string | null;
+  businessVerification?: string | null;
+  displayPhoneNumber?: string | null;
+  verifiedName?: string | null;
+  isOfficial?: boolean | null;
+  blockers?: { entity: string; code?: number; description: string; solution?: string }[];
+};
 export type Channel = {
   id: string;
   platform: string;
@@ -29,6 +38,7 @@ export type Channel = {
   quality_rating: string | null;
   messaging_limit_tier: string | null;
   name_status: string | null;
+  metadata: { health?: NumberHealth } | null;
 };
 
 const ORDER = ["whatsapp", "instagram", "facebook", "metaads"] as const;
@@ -52,6 +62,75 @@ const STATUS_LABEL: Record<string, string> = {
   disconnected: "Desconectado",
   error: "Error",
 };
+
+// Salud del número de WhatsApp: estado de envío + bloqueos accionables (método
+// de pago, verificación del negocio, nombre sin aprobar).
+function WhatsappHealth({
+  health,
+  nameStatus,
+}: {
+  health?: NumberHealth;
+  nameStatus: string | null;
+}) {
+  const nameNotApproved = !!nameStatus && nameStatus !== "APPROVED";
+  const csm = health?.canSendMessage ?? undefined;
+  if (!health && !nameNotApproved) return null;
+
+  const tone =
+    csm === "BLOCKED"
+      ? "text-red-600"
+      : csm === "LIMITED"
+        ? "text-amber-600"
+        : "text-emerald-600";
+  const label =
+    csm === "BLOCKED"
+      ? "Envío bloqueado"
+      : csm === "LIMITED"
+        ? "Envío limitado"
+        : csm === "AVAILABLE"
+          ? "Puede enviar mensajes"
+          : null;
+  const blockers = health?.blockers ?? [];
+  const clean = blockers.length === 0 && !nameNotApproved && csm === "AVAILABLE";
+
+  return (
+    <div className="mt-2 space-y-1.5 border-t pt-2 text-[11px]">
+      {label && (
+        <div className={cn("flex items-center gap-1.5 font-medium", tone)}>
+          {csm === "AVAILABLE" ? (
+            <CheckCircle2 className="size-3.5" />
+          ) : (
+            <AlertTriangle className="size-3.5" />
+          )}
+          {label}
+        </div>
+      )}
+      {clean && (
+        <div className="text-muted-foreground">Sin restricciones. Todo en orden.</div>
+      )}
+      {nameNotApproved && (
+        <div className="flex items-start gap-1.5 text-amber-600">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            Nombre para mostrar sin aprobar ({nameStatus}). No podés enviar mensajes
+            hasta que Meta lo apruebe.
+          </span>
+        </div>
+      )}
+      {blockers.map((b, i) => (
+        <div key={i} className="flex items-start gap-1.5 text-red-600">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+          <span>
+            <span className="font-medium">{b.description}</span>
+            {b.solution && (
+              <span className="block text-muted-foreground">→ {b.solution}</span>
+            )}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
   const router = useRouter();
@@ -163,50 +242,52 @@ export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
                     return (
                       <div
                         key={c.id}
-                        className="flex items-center gap-2.5 rounded-lg bg-muted/40 p-2"
+                        className="rounded-lg bg-muted/40 p-2"
                       >
-                        <ContactAvatar
-                          name={c.display_name ?? c.external_ref}
-                          photoUrl={c.photo_url}
-                          size="sm"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="truncate text-sm font-medium">
-                              {c.display_name ?? c.external_ref ?? meta.label}
-                            </span>
-                            <Badge className={cn("shrink-0 text-[10px]", STATUS_TONE[c.status])}>
-                              {STATUS_LABEL[c.status] ?? c.status}
-                            </Badge>
-                          </div>
-                          {platform === "whatsapp" && (
-                            <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                              {c.quality_rating && <span>calidad: {c.quality_rating}</span>}
-                              {c.messaging_limit_tier && <span>{c.messaging_limit_tier}</span>}
-                              {c.name_status && c.name_status !== "APPROVED" && (
-                                <span className="text-amber-600">nombre: {c.name_status}</span>
-                              )}
+                        <div className="flex items-center gap-2.5">
+                          <ContactAvatar
+                            name={c.display_name ?? c.external_ref}
+                            photoUrl={c.photo_url}
+                            size="sm"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate text-sm font-medium">
+                                {c.display_name ?? c.external_ref ?? meta.label}
+                              </span>
+                              <Badge className={cn("shrink-0 text-[10px]", STATUS_TONE[c.status])}>
+                                {STATUS_LABEL[c.status] ?? c.status}
+                              </Badge>
                             </div>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 gap-1">
-                          {canReconnect ? (
-                            <Button size="sm" onClick={() => reconnect(platform)} disabled={pending}>
-                              Reconectar
-                            </Button>
-                          ) : (
-                            <>
-                              {platform === "whatsapp" && (
-                                <Button size="sm" variant="ghost" onClick={() => health(c.id)} disabled={pending}>
-                                  Salud
-                                </Button>
-                              )}
-                              <Button size="sm" variant="ghost" onClick={() => disconnect(c.id)} disabled={pending}>
-                                Desconectar
+                            {platform === "whatsapp" && (
+                              <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+                                {c.quality_rating && <span>calidad: {c.quality_rating}</span>}
+                                {c.messaging_limit_tier && <span>{c.messaging_limit_tier}</span>}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex shrink-0 gap-1">
+                            {canReconnect ? (
+                              <Button size="sm" onClick={() => reconnect(platform)} disabled={pending}>
+                                Reconectar
                               </Button>
-                            </>
-                          )}
+                            ) : (
+                              <>
+                                {platform === "whatsapp" && (
+                                  <Button size="sm" variant="ghost" onClick={() => health(c.id)} disabled={pending}>
+                                    Salud
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="ghost" onClick={() => disconnect(c.id)} disabled={pending}>
+                                  Desconectar
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
+                        {platform === "whatsapp" && (
+                          <WhatsappHealth health={c.metadata?.health} nameStatus={c.name_status} />
+                        )}
                       </div>
                     );
                   })}

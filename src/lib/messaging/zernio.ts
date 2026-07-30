@@ -100,15 +100,94 @@ export async function getConnectUrl(
 }
 
 // --- WhatsApp: salud del número --------------------------------------------
+export type NumberBlocker = {
+  entity: string; // PHONE_NUMBER | WABA | BUSINESS | APP
+  code?: number;
+  description: string;
+  solution?: string;
+};
 export type NumberInfo = {
   quality_rating?: string;
   messaging_limit_tier?: string;
-  name_status?: string;
-  status?: string;
+  name_status?: string; // APPROVED | NON_EXISTS | PENDING_REVIEW | ...
+  status?: string; // CONNECTED | ...
   display_phone_number?: string;
+  verified_name?: string;
+  platform_type?: string; // CLOUD_API
+  is_official_business_account?: boolean;
+  can_send_message?: string; // AVAILABLE | LIMITED | BLOCKED
+  business_verification_status?: string; // verified | not_verified
+  code_verification_status?: string;
+  blockers: NumberBlocker[]; // errores que bloquean/limitan (excluye llamadas/SIP)
 };
+
+// Códigos de error que NO afectan mensajería (son de llamadas/SIP) → se ignoran.
+const IGNORED_HEALTH_CODES = new Set([138024, 138025]);
+
+type RawEntity = {
+  entity_type?: string;
+  can_send_message?: string;
+  errors?: Array<{ error_code?: number; error_description?: string; possible_solution?: string }>;
+};
+type RawNumberInfo = {
+  phone?: Record<string, unknown> & { health_status?: { can_send_message?: string; entities?: RawEntity[] } };
+  waba?: Record<string, unknown> & { health_status?: { can_send_message?: string; entities?: RawEntity[] } };
+};
+
+/**
+ * Salud del número de WhatsApp. La respuesta real de Zernio anida todo bajo
+ * `phone` y `waba` (no en el primer nivel) e incluye `health_status` con los
+ * bloqueos por entidad (método de pago, verificación del negocio, etc.).
+ */
 export async function getNumberInfo(accountId: string): Promise<NumberInfo> {
-  return request("GET", `/whatsapp/number-info?accountId=${encodeURIComponent(accountId)}`);
+  const res = await request<RawNumberInfo>(
+    "GET",
+    `/whatsapp/number-info?accountId=${encodeURIComponent(accountId)}`,
+  );
+  const phone = (res?.phone ?? {}) as Record<string, unknown>;
+  const waba = (res?.waba ?? {}) as Record<string, unknown>;
+  const s = (v: unknown) => (typeof v === "string" ? v : undefined);
+
+  const entities: RawEntity[] = [
+    ...(res?.phone?.health_status?.entities ?? []),
+    ...(res?.waba?.health_status?.entities ?? []),
+  ];
+  const blockers: NumberBlocker[] = [];
+  const seen = new Set<string>();
+  for (const e of entities) {
+    for (const err of e.errors ?? []) {
+      if (err.error_code && IGNORED_HEALTH_CODES.has(err.error_code)) continue;
+      const key = `${e.entity_type}:${err.error_code}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      blockers.push({
+        entity: e.entity_type ?? "UNKNOWN",
+        code: err.error_code,
+        description: err.error_description ?? "Error",
+        solution: err.possible_solution,
+      });
+    }
+  }
+
+  return {
+    quality_rating: s(phone.quality_rating),
+    messaging_limit_tier: s(phone.messaging_limit_tier),
+    name_status: s(phone.name_status),
+    status: s(phone.status),
+    display_phone_number: s(phone.display_phone_number),
+    verified_name: s(phone.verified_name),
+    platform_type: s(phone.platform_type),
+    is_official_business_account:
+      typeof phone.is_official_business_account === "boolean"
+        ? phone.is_official_business_account
+        : undefined,
+    can_send_message:
+      s(res?.phone?.health_status?.can_send_message) ??
+      s(res?.waba?.health_status?.can_send_message),
+    business_verification_status: s(waba.business_verification_status),
+    code_verification_status: s(phone.code_verification_status),
+    blockers,
+  };
 }
 
 // --- Inbox: enviar / marcar leído ------------------------------------------
