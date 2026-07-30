@@ -1,11 +1,16 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { BrandIcon, PLATFORM_META } from "@/components/integrations/brand-icon";
+import {
+  explainBlocker,
+  explainNameStatus,
+  type HealthExplanation,
+} from "@/lib/messaging/whatsapp-health";
 import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -72,9 +77,9 @@ function WhatsappHealth({
   health?: NumberHealth;
   nameStatus: string | null;
 }) {
-  const nameNotApproved = !!nameStatus && nameStatus !== "APPROVED";
+  const nameExp = nameStatus ? explainNameStatus(nameStatus) : null;
   const csm = health?.canSendMessage ?? undefined;
-  if (!health && !nameNotApproved) return null;
+  if (!health && !nameExp) return null;
 
   const tone =
     csm === "BLOCKED"
@@ -90,11 +95,15 @@ function WhatsappHealth({
         : csm === "AVAILABLE"
           ? "Puede enviar mensajes"
           : null;
-  const blockers = health?.blockers ?? [];
-  const clean = blockers.length === 0 && !nameNotApproved && csm === "AVAILABLE";
+
+  const issues: HealthExplanation[] = [
+    ...(nameExp ? [nameExp] : []),
+    ...(health?.blockers ?? []).map((b) => explainBlocker(b.code, b.description, b.solution)),
+  ];
+  const clean = issues.length === 0 && csm === "AVAILABLE";
 
   return (
-    <div className="mt-2 space-y-1.5 border-t pt-2 text-[11px]">
+    <div className="mt-2 space-y-2 border-t pt-2 text-[11px]">
       {label && (
         <div className={cn("flex items-center gap-1.5 font-medium", tone)}>
           {csm === "AVAILABLE" ? (
@@ -108,24 +117,27 @@ function WhatsappHealth({
       {clean && (
         <div className="text-muted-foreground">Sin restricciones. Todo en orden.</div>
       )}
-      {nameNotApproved && (
-        <div className="flex items-start gap-1.5 text-amber-600">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          <span>
-            Nombre para mostrar sin aprobar ({nameStatus}). No podés enviar mensajes
-            hasta que Meta lo apruebe.
-          </span>
-        </div>
-      )}
-      {blockers.map((b, i) => (
-        <div key={i} className="flex items-start gap-1.5 text-red-600">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          <span>
-            <span className="font-medium">{b.description}</span>
-            {b.solution && (
-              <span className="block text-muted-foreground">→ {b.solution}</span>
-            )}
-          </span>
+      {issues.map((x, i) => (
+        <div key={i} className="rounded-md bg-background/60 p-2">
+          <div className="flex items-start gap-1.5">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+            <span className="text-foreground">{x.title}</span>
+          </div>
+          <div className="mt-1 pl-5 text-muted-foreground">
+            <span className="font-medium text-foreground">Qué hacer: </span>
+            {x.whatToDo}
+          </div>
+          {x.url && (
+            <a
+              href={x.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 ml-5 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+            >
+              <ExternalLink className="size-3" />
+              {x.urlLabel ?? "Resolver"}
+            </a>
+          )}
         </div>
       ))}
     </div>
@@ -274,7 +286,14 @@ export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
                             ) : (
                               <>
                                 {platform === "whatsapp" && (
-                                  <Button size="sm" variant="ghost" onClick={() => health(c.id)} disabled={pending}>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => health(c.id)}
+                                    disabled={pending}
+                                    title="Actualizar estado y salud del número"
+                                  >
+                                    <RefreshCw className={cn("mr-1 size-4", pending && "animate-spin")} />
                                     Salud
                                   </Button>
                                 )}

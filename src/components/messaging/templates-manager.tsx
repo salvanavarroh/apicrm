@@ -1,8 +1,9 @@
 "use client";
 
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,23 @@ export function TemplatesManager({
   const [category, setCategory] = useState<"UTILITY" | "MARKETING">("MARKETING");
   const [language, setLanguage] = useState("es_AR");
   const [body, setBody] = useState("");
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Inserta una variable {{n}} en la posición del cursor del cuerpo.
+  function insertVar(n: number) {
+    const token = `{{${n}}}`;
+    const el = bodyRef.current;
+    const start = el?.selectionStart ?? body.length;
+    const end = el?.selectionEnd ?? body.length;
+    const next = body.slice(0, start) + token + body.slice(end);
+    setBody(next);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const pos = start + token.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
 
   if (channels.length === 0) {
     return (
@@ -139,17 +157,39 @@ export function TemplatesManager({
               className="w-24 rounded-md border px-2 py-2 text-sm"
             />
           </div>
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Hola {{1}}, te escribo por el {{2}}…"
-            rows={3}
-            className="rounded-md border px-3 py-2 text-sm sm:col-span-2"
-          />
-          <p className="text-xs text-muted-foreground sm:col-span-2">
-            Variables: <code>{"{{1}}"}</code> nombre · <code>{"{{2}}"}</code> vehículo ·{" "}
-            <code>{"{{3}}"}</code> concesionaria.
-          </p>
+          <div className="space-y-1.5 sm:col-span-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Insertar variable:</span>
+              {[
+                { n: 1, label: "Nombre" },
+                { n: 2, label: "Vehículo" },
+                { n: 3, label: "Concesionaria" },
+              ].map((v) => (
+                <button
+                  key={v.n}
+                  type="button"
+                  onClick={() => insertVar(v.n)}
+                  className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors hover:bg-muted"
+                >
+                  <Plus className="size-3" />
+                  {v.label}
+                  <code className="text-muted-foreground">{`{{${v.n}}}`}</code>
+                </button>
+              ))}
+            </div>
+            <textarea
+              ref={bodyRef}
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Hola {{1}}, te escribo por el {{2}}…"
+              rows={3}
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Al enviar la plantilla vas a completar cada variable con el dato real del
+              lead. Tocá un botón para insertarla donde está el cursor.
+            </p>
+          </div>
           <div className="sm:col-span-2">
             <Button onClick={create} disabled={pending}>
               Enviar a aprobación
