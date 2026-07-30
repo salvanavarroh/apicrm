@@ -3,13 +3,14 @@
 import {
   BarChart3,
   DollarSign,
+  Download,
   MousePointerClick,
   TrendingDown,
   TrendingUp,
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Area,
@@ -54,6 +55,13 @@ const PLATFORM_COLOR: Record<string, string> = {
 };
 const C = { spend: "#6851FC", leads: "#0EA5E9", sales: "#22C55E" };
 
+type GroupMode = "ad" | "adset" | "campaign";
+const GROUP_MODES: { value: GroupMode; label: string }[] = [
+  { value: "ad", label: "Anuncio" },
+  { value: "adset", label: "Adset" },
+  { value: "campaign", label: "Campaña" },
+];
+
 function money(n: number, currency = "ARS"): string {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
@@ -86,8 +94,15 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
   const [data, setData] = useState(initial);
   const [days, setDays] = useState(30);
   const [platform, setPlatform] = useState("");
+  const [groupMode, setGroupMode] = useState<GroupMode>("ad");
   const [detail, setDetail] = useState<AdRow | null>(null);
   const [pending, start] = useTransition();
+
+  // Filas de la tabla según el agrupamiento (anuncio / adset / campaña).
+  const displayRows = useMemo(
+    () => aggregateRows(data.rows, groupMode),
+    [data.rows, groupMode],
+  );
   // Los charts (recharts) se montan solo en el cliente para evitar problemas de
   // hidratación (miden el ancho del contenedor con ResizeObserver).
   const [mounted, setMounted] = useState(false);
@@ -164,9 +179,15 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
         </select>
       </div>
 
-      {/* KPIs con deltas */}
+      {/* KPIs con deltas vs. período anterior */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <Kpi label="Inversión" value={money(t.spend)} icon={DollarSign} />
+        <Kpi
+          label="Inversión"
+          value={money(t.spend)}
+          icon={DollarSign}
+          delta={delta(t.spend, p.spend)}
+          mood="neutral"
+        />
         <Kpi label="Leads" value={int(t.leads)} icon={Users} delta={delta(t.leads, p.leads)} />
         <Kpi label="Ventas" value={int(t.sales)} icon={TrendingUp} delta={delta(t.sales, p.sales)} />
         <Kpi label="Facturación" value={money(t.revenue)} icon={DollarSign} delta={delta(t.revenue, p.revenue)} />
@@ -174,14 +195,26 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
           label="Costo por lead"
           value={t.costPerLead != null ? money(t.costPerLead) : "—"}
           icon={MousePointerClick}
+          delta={
+            t.costPerLead != null && p.costPerLead != null
+              ? delta(t.costPerLead, p.costPerLead)
+              : null
+          }
+          mood="down"
         />
         <Kpi
           label="ROAS real"
           value={t.realRoas != null ? `${t.realRoas.toFixed(2)}x` : "—"}
           icon={TrendingUp}
           caption="facturación / inversión"
+          delta={
+            t.realRoas != null && p.realRoas != null ? delta(t.realRoas, p.realRoas) : null
+          }
         />
       </div>
+
+      {/* Comparación con período anterior */}
+      <PeriodComparison t={t} p={p} days={days} />
 
       {/* Gráficos */}
       <div className="grid gap-3 lg:grid-cols-3">
@@ -281,14 +314,51 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
         </ChartCard>
       </div>
 
-      {/* Tabla por anuncio */}
+      {/* Tabla con agrupamiento + export */}
       <Card className="overflow-hidden p-0">
-        <div className="border-b px-4 py-2.5 text-sm font-medium">Anuncios (clic para ver detalle)</div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+          <span className="text-sm font-medium">
+            {groupMode === "ad"
+              ? "Anuncios"
+              : groupMode === "adset"
+                ? "Adsets"
+                : "Campañas"}{" "}
+            <span className="font-normal text-muted-foreground">(clic para ver detalle)</span>
+          </span>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border p-0.5">
+              {GROUP_MODES.map((g) => (
+                <button
+                  key={g.value}
+                  onClick={() => setGroupMode(g.value)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs transition-colors",
+                    groupMode === g.value
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted",
+                  )}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => exportCsv(displayRows, data.range, groupMode)}
+              disabled={displayRows.length === 0}
+            >
+              <Download className="mr-1 size-4" /> CSV
+            </Button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] text-sm">
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
-                <th className="px-3 py-2.5 font-medium">Anuncio</th>
+                <th className="px-3 py-2.5 font-medium">
+                  {groupMode === "adset" ? "Adset" : groupMode === "campaign" ? "Campaña" : "Anuncio"}
+                </th>
                 <th className="px-3 py-2.5 text-right font-medium">Inversión</th>
                 <th className="px-3 py-2.5 text-right font-medium">Clics</th>
                 <th className="px-3 py-2.5 text-right font-medium">CTR</th>
@@ -300,14 +370,14 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
               </tr>
             </thead>
             <tbody>
-              {data.rows.length === 0 ? (
+              {displayRows.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
                     No hay anuncios con datos en este período.
                   </td>
                 </tr>
               ) : (
-                data.rows.map((r) => (
+                displayRows.map((r) => (
                   <tr
                     key={r.adId}
                     onClick={() => setDetail(r)}
@@ -366,18 +436,259 @@ function roasTone(r: AdRow): string {
   return "";
 }
 
+// Agrupa las filas por adset o campaña (o las deja tal cual en modo "ad").
+// Métricas de conteo/monto se suman; las tasas (CTR, CPC, ROAS) se recalculan
+// desde los agregados — ROAS de plataforma ponderado por inversión.
+function aggregateRows(rows: AdRow[], mode: GroupMode): AdRow[] {
+  if (mode === "ad") return rows;
+  const map = new Map<string, AdRow>();
+  const wRoas = new Map<string, number>();
+  for (const r of rows) {
+    const key =
+      mode === "adset" ? (r.adSetName ?? "Sin adset") : (r.campaignName ?? "Sin campaña");
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        adId: `${mode}:${key}`,
+        platform: r.platform,
+        campaignName: mode === "adset" ? r.campaignName : null,
+        adSetName: mode === "adset" ? r.adSetName : null,
+        adName: key,
+        status: null,
+        currency: r.currency,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        ctr: 0,
+        cpc: 0,
+        conversions: 0,
+        roas: 0,
+        leads: 0,
+        contacted: 0,
+        interested: 0,
+        quoted: 0,
+        sales: 0,
+        revenue: 0,
+        costPerLead: null,
+        costPerSale: null,
+        realRoas: null,
+      };
+      map.set(key, g);
+      wRoas.set(key, 0);
+    }
+    g.spend += r.spend;
+    g.impressions += r.impressions;
+    g.clicks += r.clicks;
+    g.conversions += r.conversions;
+    g.leads += r.leads;
+    g.contacted += r.contacted;
+    g.interested += r.interested;
+    g.quoted += r.quoted;
+    g.sales += r.sales;
+    g.revenue += r.revenue;
+    wRoas.set(key, (wRoas.get(key) ?? 0) + r.roas * r.spend);
+  }
+  for (const [key, g] of map) {
+    g.ctr = g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0;
+    g.cpc = g.clicks > 0 ? g.spend / g.clicks : 0;
+    g.roas = g.spend > 0 ? (wRoas.get(key) ?? 0) / g.spend : 0;
+    g.costPerLead = g.spend > 0 && g.leads > 0 ? g.spend / g.leads : null;
+    g.costPerSale = g.spend > 0 && g.sales > 0 ? g.spend / g.sales : null;
+    g.realRoas = g.spend > 0 ? g.revenue / g.spend : null;
+  }
+  return Array.from(map.values()).sort((a, b) => b.spend - a.spend || b.leads - a.leads);
+}
+
+// Exporta las filas visibles a CSV (Excel es-AR: separador ';', BOM UTF-8,
+// números con punto decimal). Descarga en el navegador sin tocar el server.
+function exportCsv(rows: AdRow[], range: { from: string; to: string }, mode: GroupMode): void {
+  const headers = [
+    mode === "adset" ? "Adset" : mode === "campaign" ? "Campaña" : "Anuncio",
+    "Adset",
+    "Campaña",
+    "Plataforma",
+    "Estado",
+    "Inversión",
+    "Impresiones",
+    "Clics",
+    "CTR %",
+    "CPC",
+    "ROAS plataforma",
+    "Leads",
+    "Contactados",
+    "Interesados",
+    "Presupuestados",
+    "Ventas",
+    "Facturación",
+    "Costo/lead",
+    "Costo/venta",
+    "ROAS real",
+  ];
+  const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const n = (v: number) => (Number.isFinite(v) ? String(Math.round(v * 100) / 100) : "");
+  const nn = (v: number | null) => (v == null ? "" : n(v));
+  const lines = [headers.join(";")];
+  for (const r of rows) {
+    lines.push(
+      [
+        q(r.adName ?? r.adId),
+        q(r.adSetName ?? ""),
+        q(r.campaignName ?? ""),
+        q(r.platform),
+        q(r.status ?? ""),
+        n(r.spend),
+        n(r.impressions),
+        n(r.clicks),
+        n(r.ctr),
+        n(r.cpc),
+        n(r.roas),
+        n(r.leads),
+        n(r.contacted),
+        n(r.interested),
+        n(r.quoted),
+        n(r.sales),
+        n(r.revenue),
+        nn(r.costPerLead),
+        nn(r.costPerSale),
+        nn(r.realRoas),
+      ].join(";"),
+    );
+  }
+  const csv = String.fromCharCode(0xfeff) + lines.join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ads-${range.from}-a-${range.to}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Comparación del período actual vs. el anterior (mismo largo, inmediatamente
+// previo): valor actual, valor anterior y variación coloreada por "mood".
+function PeriodComparison({
+  t,
+  p,
+  days,
+}: {
+  t: AdsPerformance["totals"];
+  p: AdsPerformance["previous"];
+  days: number;
+}) {
+  const rows: {
+    label: string;
+    cur: number | null;
+    prev: number | null;
+    fmt: (n: number) => string;
+    mood: DeltaMood;
+  }[] = [
+    { label: "Inversión", cur: t.spend, prev: p.spend, fmt: (n) => money(n), mood: "neutral" },
+    { label: "Leads", cur: t.leads, prev: p.leads, fmt: int, mood: "up" },
+    { label: "Ventas", cur: t.sales, prev: p.sales, fmt: int, mood: "up" },
+    { label: "Facturación", cur: t.revenue, prev: p.revenue, fmt: (n) => money(n), mood: "up" },
+    { label: "Clics", cur: t.clicks, prev: p.clicks, fmt: int, mood: "up" },
+    {
+      label: "Costo por lead",
+      cur: t.costPerLead,
+      prev: p.costPerLead,
+      fmt: (n) => money(n),
+      mood: "down",
+    },
+    {
+      label: "ROAS real",
+      cur: t.realRoas,
+      prev: p.realRoas,
+      fmt: (n) => `${n.toFixed(2)}x`,
+      mood: "up",
+    },
+  ];
+
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b px-4 py-2.5 text-sm font-medium">
+        Comparación con período anterior{" "}
+        <span className="font-normal text-muted-foreground">
+          (últimos {days} días vs. {days} anteriores)
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] text-sm">
+          <thead>
+            <tr className="border-b text-xs text-muted-foreground">
+              <th className="px-4 py-2 text-left font-medium">Métrica</th>
+              <th className="px-4 py-2 text-right font-medium">Actual</th>
+              <th className="px-4 py-2 text-right font-medium">Anterior</th>
+              <th className="px-4 py-2 text-right font-medium">Variación</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const d =
+                r.cur != null && r.prev != null ? delta(r.cur, r.prev) : null;
+              return (
+                <tr key={r.label} className="border-b last:border-0">
+                  <td className="px-4 py-2 text-muted-foreground">{r.label}</td>
+                  <td className="px-4 py-2 text-right font-medium tabular-nums">
+                    {r.cur != null ? r.fmt(r.cur) : "—"}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
+                    {r.prev != null ? r.fmt(r.prev) : "—"}
+                  </td>
+                  <td className="px-4 py-2 text-right">
+                    {d ? (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+                          deltaTone(d.up, r.mood),
+                        )}
+                      >
+                        {d.up ? (
+                          <TrendingUp className="size-3" />
+                        ) : (
+                          <TrendingDown className="size-3" />
+                        )}
+                        {d.pctText}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+// mood: cómo colorear el delta. "up" = subir es bueno (leads, ROAS); "down" =
+// bajar es bueno (costo por lead); "neutral" = informativo (inversión).
+type DeltaMood = "up" | "down" | "neutral";
+
+function deltaTone(up: boolean, mood: DeltaMood): string {
+  if (mood === "neutral") return "bg-muted text-muted-foreground";
+  const good = mood === "down" ? !up : up;
+  return good ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700";
+}
+
 function Kpi({
   label,
   value,
   caption,
   icon: Icon,
   delta,
+  mood = "up",
 }: {
   label: string;
   value: string;
   caption?: string;
   icon: typeof DollarSign;
   delta?: { pctText: string; up: boolean } | null;
+  mood?: DeltaMood;
 }) {
   return (
     <Card className="flex flex-col gap-1.5 p-4">
@@ -390,7 +701,7 @@ function Kpi({
           <span
             className={cn(
               "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-              delta.up ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700",
+              deltaTone(delta.up, mood),
             )}
           >
             {delta.up ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}

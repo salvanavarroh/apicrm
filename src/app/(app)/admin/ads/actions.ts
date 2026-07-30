@@ -57,11 +57,24 @@ export type GroupRow = {
   revenue: number;
 };
 
+// Totales del período anterior (mismo largo, inmediatamente previo) para las
+// comparaciones. Incluye inversión/clics reales de Zernio además del embudo CRM.
+export type PreviousTotals = {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  leads: number;
+  sales: number;
+  revenue: number;
+  costPerLead: number | null;
+  realRoas: number | null;
+};
+
 export type AdsPerformance = {
   connected: boolean;
   rows: AdRow[];
   totals: Totals;
-  previous: { leads: number; sales: number; revenue: number };
+  previous: PreviousTotals;
   funnel: { leads: number; contacted: number; interested: number; quoted: number; sales: number };
   byPlatform: GroupRow[];
   byCampaign: GroupRow[];
@@ -130,7 +143,7 @@ export async function getAdsPerformance(input?: {
       connected: false,
       rows: [],
       totals: emptyTotals(),
-      previous: { leads: 0, sales: 0, revenue: 0 },
+      previous: emptyPrevious(),
       funnel: { leads: 0, contacted: 0, interested: 0, quoted: 0, sales: 0 },
       byPlatform: [],
       byCampaign: [],
@@ -139,39 +152,8 @@ export async function getAdsPerformance(input?: {
     };
   }
 
-  // 1) Anuncios de Zernio (paginado, con tope).
-  const ads: ZernioAd[] = [];
-  for (const acc of accounts) {
-    try {
-      const first = await listAds({
-        accountId: acc.zernio_account_id,
-        fromDate: from,
-        toDate: to,
-        platform: input?.platform || undefined,
-        limit: 100,
-        page: 1,
-      });
-      ads.push(...(first.ads ?? []));
-      const pages = Math.min(first.pagination?.pages ?? 1, 5);
-      if (pages > 1) {
-        const rest = await Promise.all(
-          Array.from({ length: pages - 1 }, (_, i) =>
-            listAds({
-              accountId: acc.zernio_account_id,
-              fromDate: from,
-              toDate: to,
-              platform: input?.platform || undefined,
-              limit: 100,
-              page: i + 2,
-            }).catch(() => ({ ads: [] as ZernioAd[] })),
-          ),
-        );
-        for (const r of rest) ads.push(...(r.ads ?? []));
-      }
-    } catch {
-      /* seguimos con lo que haya */
-    }
-  }
+  // 1) Anuncios de Zernio del período (paginado, con tope).
+  const ads = await collectAds(accounts, from, to, input?.platform, 5);
 
   // 2) Embudo del CRM (leads del rango con atribución de anuncio) + ventas.
   const { data: leads } = await supabase
@@ -326,8 +308,25 @@ export async function getAdsPerformance(input?: {
     .map(([date, v]) => ({ date, ...v }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  // Período anterior (solo CRM: barato) para los deltas de leads/ventas/facturación.
-  const previous = { leads: 0, sales: 0, revenue: 0 };
+  // Período anterior (mismo largo) para comparaciones y deltas: inversión/clics
+  // reales de Zernio + embudo CRM (leads/ventas/facturación).
+  const previous: PreviousTotals = {
+    spend: 0,
+    impressions: 0,
+    clicks: 0,
+    leads: 0,
+    sales: 0,
+    revenue: 0,
+    costPerLead: null,
+    realRoas: null,
+  };
+  const prevAds = await collectAds(accounts, prevFrom, prevTo, input?.platform, 3);
+  for (const a of prevAds) {
+    const m = a.metrics ?? {};
+    previous.spend += num(m.spend);
+    previous.impressions += num(m.impressions);
+    previous.clicks += num(m.clicks);
+  }
   const { data: prevLeads } = await supabase
     .from("leads")
     .select("id")
@@ -354,8 +353,57 @@ export async function getAdsPerformance(input?: {
       previous.revenue += Number(s.final_price ?? 0);
     }
   }
+  previous.costPerLead =
+    previous.spend > 0 && previous.leads > 0 ? previous.spend / previous.leads : null;
+  previous.realRoas = previous.spend > 0 ? previous.revenue / previous.spend : null;
 
   return { connected: true, rows, totals, previous, funnel, byPlatform, byCampaign, daily, range };
+}
+
+// Baja los anuncios de todas las cuentas conectadas para un rango (paginado, con
+// tope de páginas). Reutilizado para el período actual y el anterior.
+async function collectAds(
+  accounts: { zernio_account_id: string | null }[],
+  from: string,
+  to: string,
+  platform: string | undefined,
+  maxPages: number,
+): Promise<ZernioAd[]> {
+  const ads: ZernioAd[] = [];
+  for (const acc of accounts) {
+    const accountId = acc.zernio_account_id;
+    if (!accountId) continue;
+    try {
+      const first = await listAds({
+        accountId,
+        fromDate: from,
+        toDate: to,
+        platform: platform || undefined,
+        limit: 100,
+        page: 1,
+      });
+      ads.push(...(first.ads ?? []));
+      const pages = Math.min(first.pagination?.pages ?? 1, maxPages);
+      if (pages > 1) {
+        const rest = await Promise.all(
+          Array.from({ length: pages - 1 }, (_, i) =>
+            listAds({
+              accountId,
+              fromDate: from,
+              toDate: to,
+              platform: platform || undefined,
+              limit: 100,
+              page: i + 2,
+            }).catch(() => ({ ads: [] as ZernioAd[] })),
+          ),
+        );
+        for (const r of rest) ads.push(...(r.ads ?? []));
+      }
+    } catch {
+      /* seguimos con lo que haya */
+    }
+  }
+  return ads;
 }
 
 function groupBy(rows: AdRow[], keyOf: (r: AdRow) => string): GroupRow[] {
@@ -375,6 +423,18 @@ function groupBy(rows: AdRow[], keyOf: (r: AdRow) => string): GroupRow[] {
 function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+function emptyPrevious(): PreviousTotals {
+  return {
+    spend: 0,
+    impressions: 0,
+    clicks: 0,
+    leads: 0,
+    sales: 0,
+    revenue: 0,
+    costPerLead: null,
+    realRoas: null,
+  };
 }
 function emptyTotals(): Totals {
   return {
