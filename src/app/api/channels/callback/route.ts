@@ -27,25 +27,26 @@ export async function GET(req: Request) {
   const accountId = url.searchParams.get("accountId");
   const username = url.searchParams.get("username");
 
-  if (!platform || !VALID.includes(platform) || !accountId) {
-    return NextResponse.redirect(`${base}/admin/integraciones?error=connect_failed`);
-  }
-
   const admin = createAdminClient();
-  // Upsert inmediato del canal recién conectado.
-  await admin.from("messaging_channels").upsert(
-    {
-      company_id: profile.company_id,
-      zernio_account_id: accountId,
-      platform,
-      external_ref: username,
-      display_name: username,
-      status: "active",
-      connected_by: profile.id,
-      connected_at: new Date().toISOString(),
-    },
-    { onConflict: "zernio_account_id" },
-  );
+  // Upsert inmediato SOLO para canales de mensajería conocidos. Las plataformas
+  // de ads (TikTok/Google) no vienen con un platform de VALID; se resuelven en
+  // el sync de abajo (que lee /accounts con la plataforma y foto reales).
+  const isMessaging = platform && VALID.includes(platform);
+  if (isMessaging && accountId) {
+    await admin.from("messaging_channels").upsert(
+      {
+        company_id: profile.company_id,
+        zernio_account_id: accountId,
+        platform: platform as "whatsapp" | "instagram" | "facebook",
+        external_ref: username,
+        display_name: username,
+        status: "active",
+        connected_by: profile.id,
+        connected_at: new Date().toISOString(),
+      },
+      { onConflict: "zernio_account_id" },
+    );
+  }
 
   // Sincronizar todas las cuentas de Zernio (metaads, fotos, otras redes).
   const { data: company } = await admin
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
   }
 
   // Salud inicial (WhatsApp): quality/tier/name.
-  if (platform === "whatsapp") {
+  if (platform === "whatsapp" && accountId) {
     try {
       const info = await getNumberInfo(accountId);
       await admin

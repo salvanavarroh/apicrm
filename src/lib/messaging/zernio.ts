@@ -9,7 +9,12 @@ import { getServerEnv } from "@/lib/env";
 
 const BASE = "https://zernio.com/api/v1";
 
-export type ZernioPlatform = "whatsapp" | "instagram" | "facebook";
+export type ZernioPlatform =
+  | "whatsapp"
+  | "instagram"
+  | "facebook"
+  | "tiktok-ads"
+  | "google-ads";
 
 export class ZernioError extends Error {
   status: number;

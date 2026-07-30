@@ -72,12 +72,12 @@ export async function getAdsPerformance(input?: {
   const from = input?.from ?? ymd(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
   const range = { from, to };
 
-  // Cuentas de ads conectadas (Meta Ads; TikTok/Google cuando se conecten).
+  // Cuentas de ads conectadas: Meta Ads, TikTok Ads y Google Ads.
   const { data: adAccounts } = await supabase
     .from("messaging_channels")
     .select("zernio_account_id, platform")
     .eq("company_id", companyId)
-    .eq("platform", "metaads")
+    .in("platform", ["metaads", "tiktok", "google"])
     .eq("status", "active");
 
   const accounts = (adAccounts ?? []).filter((a) => a.zernio_account_id);

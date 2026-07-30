@@ -7,7 +7,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/database";
 
 type Platform = Database["public"]["Enums"]["channel_platform"];
-const SUPPORTED: Platform[] = ["whatsapp", "instagram", "facebook", "metaads"];
+const SUPPORTED: Platform[] = [
+  "whatsapp",
+  "instagram",
+  "facebook",
+  "metaads",
+  "tiktok",
+  "google",
+];
+
+// Zernio puede devolver la plataforma de ads con o sin sufijo (-ads) → la
+// normalizamos al valor del enum.
+function normalizePlatform(raw: string): Platform | null {
+  const p = raw.toLowerCase();
+  if (p.startsWith("tiktok")) return "tiktok";
+  if (p.startsWith("google")) return "google";
+  return SUPPORTED.includes(p as Platform) ? (p as Platform) : null;
+}
 
 export async function syncCompanyChannels(
   companyId: string,
@@ -17,7 +33,8 @@ export async function syncCompanyChannels(
   const res = await listAccounts(profileId);
   let synced = 0;
   for (const a of res.accounts ?? []) {
-    if (!SUPPORTED.includes(a.platform as Platform)) continue;
+    const platform = a.platform ? normalizePlatform(a.platform) : null;
+    if (!platform) continue;
     const accId = a._id ?? a.accountId;
     if (!accId) continue;
     const active = a.needsReconnection
@@ -27,7 +44,7 @@ export async function syncCompanyChannels(
       {
         company_id: companyId,
         zernio_account_id: accId,
-        platform: a.platform as Platform,
+        platform,
         external_ref: a.username ?? a.displayName ?? null,
         display_name: a.displayName ?? a.username ?? null,
         photo_url: a.profilePicture ?? null,

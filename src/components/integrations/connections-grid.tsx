@@ -46,13 +46,26 @@ export type Channel = {
   metadata: { health?: NumberHealth } | null;
 };
 
-const ORDER = ["whatsapp", "instagram", "facebook", "metaads"] as const;
-// Meta Ads se conecta con el flujo de Facebook (trae ads).
-const CONNECT_AS: Record<string, "whatsapp" | "instagram" | "facebook"> = {
+const ORDER = [
+  "whatsapp",
+  "instagram",
+  "facebook",
+  "metaads",
+  "tiktok",
+  "google",
+] as const;
+// Cada card → el slug del flujo de conexión de Zernio. Meta Ads va con Facebook
+// (trae los ads); TikTok/Google Ads usan sus flujos de ads (OAuth real).
+const CONNECT_AS: Record<
+  string,
+  "whatsapp" | "instagram" | "facebook" | "tiktok-ads" | "google-ads"
+> = {
   whatsapp: "whatsapp",
   instagram: "instagram",
   facebook: "facebook",
   metaads: "facebook",
+  tiktok: "tiktok-ads",
+  google: "google-ads",
 };
 
 const STATUS_TONE: Record<string, string> = {

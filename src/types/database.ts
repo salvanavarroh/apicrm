@@ -2599,7 +2599,7 @@ export type Database = {
         | "inbound_call"
         | "other"
       campaign_status: "active" | "inactive"
-      channel_platform: "whatsapp" | "instagram" | "facebook" | "metaads"
+      channel_platform: "whatsapp" | "instagram" | "facebook" | "metaads" | "tiktok" | "google"
       channel_status: "connecting" | "active" | "disconnected" | "error"
       commercial_lead_status:
         | "new"
@@ -2802,7 +2802,7 @@ export const Constants = {
         "other",
       ],
       campaign_status: ["active", "inactive"],
-      channel_platform: ["whatsapp", "instagram", "facebook", "metaads"],
+      channel_platform: ["whatsapp", "instagram", "facebook", "metaads", "tiktok", "google"],
       channel_status: ["connecting", "active", "disconnected", "error"],
       commercial_lead_status: [
         "new",
