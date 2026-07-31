@@ -24,9 +24,11 @@ function countVars(text: string): number {
 // Meta SOLO acepta `example.body_text` si el cuerpo tiene variables, y la
 // cantidad de ejemplos debe coincidir EXACTO con la cantidad de {{n}}. Mandar
 // ejemplos de más (o sin variables) hace fallar la creación de la plantilla.
+// OJO: Zernio valida el `type` del componente en MINÚSCULA (body/header/footer/
+// buttons) — mandar "BODY" (estilo Meta) devuelve "Invalid discriminator value".
 function bodyComponent(text: string) {
   const n = countVars(text);
-  const comp: Record<string, unknown> = { type: "BODY", text };
+  const comp: Record<string, unknown> = { type: "body", text };
   if (n > 0) {
     const examples = Array.from({ length: n }, (_, i) => EXAMPLE[i] ?? `ejemplo${i + 1}`);
     comp.example = { body_text: [examples] };
