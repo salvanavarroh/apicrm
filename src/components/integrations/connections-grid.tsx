@@ -15,6 +15,7 @@ import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ConfirmDialog, type ConfirmOptions } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
   disconnectChannel,
@@ -181,6 +182,7 @@ export function ConnectionsGrid({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [kyc, setKyc] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmOptions | null>(null);
 
   function connect(platform: string) {
     start(async () => {
@@ -190,22 +192,23 @@ export function ConnectionsGrid({
     });
   }
   function buy() {
-    if (
-      !confirm(
-        "Vas a provisionar un número nuevo de WhatsApp vía Zernio (~$8/mes en Argentina, con verificación KYC de 1-3 días). ¿Continuar?",
-      )
-    )
-      return;
-    start(async () => {
-      const res = await startBuyNumber();
-      if (!res.ok) {
-        toast.error(res.message);
-        return;
-      }
-      if (res.kycUrl) {
-        setKyc(res.kycUrl);
-        toast.success("Completá la verificación KYC para activar el número");
-      } else toast.success("Número solicitado");
+    setConfirmState({
+      title: "Comprar número de WhatsApp",
+      description:
+        "Vas a provisionar un número nuevo vía Zernio (~$9/mes en Argentina, con verificación KYC de 1 a 3 días).",
+      confirmLabel: "Comprar número",
+      onConfirm: () =>
+        start(async () => {
+          const res = await startBuyNumber();
+          if (!res.ok) {
+            toast.error(res.message);
+            return;
+          }
+          if (res.kycUrl) {
+            setKyc(res.kycUrl);
+            toast.success("Completá la verificación KYC para activar el número");
+          } else toast.success("Número solicitado");
+        }),
     });
   }
   function sync() {
@@ -227,18 +230,20 @@ export function ConnectionsGrid({
     });
   }
   function disconnect(id: string) {
-    if (
-      !confirm(
-        "¿Desconectar? Deja de recibir mensajes y de facturar esta cuenta en Zernio. Podés reconectarla después.",
-      )
-    )
-      return;
-    start(async () => {
-      const res = await disconnectChannel(id);
-      if (res.ok) {
-        toast.success("Desconectado");
-        router.refresh();
-      } else toast.error(res.message);
+    setConfirmState({
+      title: "Desconectar canal",
+      description:
+        "Vas a dejar de recibir mensajes y de facturar esta cuenta en Zernio. Podés reconectarla después.",
+      confirmLabel: "Desconectar",
+      danger: true,
+      onConfirm: () =>
+        start(async () => {
+          const res = await disconnectChannel(id);
+          if (res.ok) {
+            toast.success("Desconectado");
+            router.refresh();
+          } else toast.error(res.message);
+        }),
     });
   }
   function reconnect(platform: string) {
@@ -369,6 +374,8 @@ export function ConnectionsGrid({
           );
         })}
       </div>
+
+      <ConfirmDialog state={confirmState} onClose={() => setConfirmState(null)} />
     </div>
   );
 }
