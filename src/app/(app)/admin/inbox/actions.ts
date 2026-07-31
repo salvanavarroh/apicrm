@@ -329,6 +329,20 @@ export async function claimConversation(conversationId: string): Promise<Result>
   const profile = await requireRole([...ROLES]);
   const admin = createAdminClient();
 
+  // Los vendedores solo pueden tomar conversaciones de SU sucursal o generales
+  // (sin sucursal). Refuerza en escritura la segregación por sucursal del Inbox.
+  if (profile.role === "sales") {
+    const { data: conv } = await admin
+      .from("conversations")
+      .select("branch_id")
+      .eq("id", conversationId)
+      .eq("company_id", profile.company_id!)
+      .maybeSingle();
+    if (conv?.branch_id && conv.branch_id !== profile.branch_id) {
+      return { ok: false, message: "Esta conversación es de otra sucursal" };
+    }
+  }
+
   // Claim atómico: sólo si sigue sin asignar.
   const { data: claimed } = await admin
     .from("conversations")

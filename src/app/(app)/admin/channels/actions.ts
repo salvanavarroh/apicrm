@@ -45,6 +45,15 @@ export async function setChannelRouting(
     .eq("id", channelId)
     .eq("company_id", profile.company_id);
   if (error) return { ok: false, message: error.message };
+
+  // Propaga el branch a las conversaciones existentes de este número, para que el
+  // Inbox por sucursal quede consistente si se cambia el routing más adelante.
+  await admin
+    .from("conversations")
+    .update({ branch_id: routing.branchId })
+    .eq("channel_id", channelId)
+    .eq("company_id", profile.company_id);
+
   revalidatePath("/admin/integraciones");
   return { ok: true };
 }
