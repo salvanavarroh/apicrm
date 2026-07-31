@@ -53,6 +53,30 @@ const PLATFORM_COLOR: Record<string, string> = {
   TikTok: "#111827",
   Google: "#F59E0B",
 };
+const PLATFORM_LABEL: Record<string, string> = {
+  facebook: "Meta",
+  instagram: "Meta",
+  meta: "Meta",
+  metaads: "Meta",
+  tiktok: "TikTok",
+  google: "Google",
+};
+function platformLabel(p: string): string {
+  return PLATFORM_LABEL[p.toLowerCase()] ?? p;
+}
+function PlatformBadge({ platform }: { platform: string }) {
+  const label = platformLabel(platform);
+  const color = PLATFORM_COLOR[label] ?? "#94A3B8";
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+      style={{ backgroundColor: `${color}1a`, color }}
+    >
+      <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
+}
 const C = { spend: "#6851FC", leads: "#0EA5E9", sales: "#22C55E" };
 
 type GroupMode = "ad" | "adset" | "campaign";
@@ -74,6 +98,15 @@ function int(n: number): string {
 }
 function pct(n: number): string {
   return `${(n || 0).toFixed(1)}%`;
+}
+function relTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "recién";
+  if (m < 60) return `hace ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `hace ${h} h`;
+  return `hace ${Math.floor(h / 24)} d`;
 }
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -165,18 +198,28 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
             </button>
           ))}
         </div>
-        <select
-          value={platform}
-          onChange={(e) => reload(days, e.target.value)}
-          disabled={pending}
-          className="rounded-lg border bg-background px-3 py-1.5 text-sm"
-        >
-          {PLATFORMS.map((x) => (
-            <option key={x.value} value={x.value}>
-              {x.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          {mounted && (
+            <span
+              className="text-xs text-muted-foreground"
+              title={new Date(data.generatedAt).toLocaleString("es-AR")}
+            >
+              Actualizado {relTime(data.generatedAt)}
+            </span>
+          )}
+          <select
+            value={platform}
+            onChange={(e) => reload(days, e.target.value)}
+            disabled={pending}
+            className="rounded-lg border bg-background px-3 py-1.5 text-sm"
+          >
+            {PLATFORMS.map((x) => (
+              <option key={x.value} value={x.value}>
+                {x.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* KPIs con deltas vs. período anterior */}
@@ -385,7 +428,8 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
                   >
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="max-w-[240px] truncate font-medium">
+                        <PlatformBadge platform={r.platform} />
+                        <span className="max-w-[220px] truncate font-medium">
                           {r.adName ?? r.adSetName ?? r.adId}
                         </span>
                         {r.status && (
@@ -534,7 +578,7 @@ function exportCsv(rows: AdRow[], range: { from: string; to: string }, mode: Gro
         q(r.adName ?? r.adId),
         q(r.adSetName ?? ""),
         q(r.campaignName ?? ""),
-        q(r.platform),
+        q(platformLabel(r.platform)),
         q(r.status ?? ""),
         n(r.spend),
         n(r.impressions),
@@ -803,6 +847,14 @@ function AdDetail({ row, onClose }: { row: AdRow; onClose: () => void }) {
       >
         <div className="flex items-start justify-between gap-2 border-b p-4">
           <div className="min-w-0">
+            <div className="mb-1 flex items-center gap-1.5">
+              <PlatformBadge platform={row.platform} />
+              {row.status && (
+                <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_TONE[row.status] ?? "bg-muted text-muted-foreground")}>
+                  {row.status.toLowerCase()}
+                </span>
+              )}
+            </div>
             <div className="truncate font-semibold">{row.adName ?? row.adSetName ?? row.adId}</div>
             <div className="text-xs text-muted-foreground">{row.campaignName ?? "—"}</div>
           </div>

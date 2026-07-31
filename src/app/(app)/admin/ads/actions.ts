@@ -80,6 +80,7 @@ export type AdsPerformance = {
   byCampaign: GroupRow[];
   daily: { date: string; leads: number; sales: number }[];
   range: { from: string; to: string };
+  generatedAt: string; // ISO — cuándo se trajo esta data (para "actualizado hace X")
 };
 
 // Rango de avance del lead (para el embudo).
@@ -149,6 +150,7 @@ export async function getAdsPerformance(input?: {
       byCampaign: [],
       daily: [],
       range,
+      generatedAt: new Date().toISOString(),
     };
   }
 
@@ -357,7 +359,18 @@ export async function getAdsPerformance(input?: {
     previous.spend > 0 && previous.leads > 0 ? previous.spend / previous.leads : null;
   previous.realRoas = previous.spend > 0 ? previous.revenue / previous.spend : null;
 
-  return { connected: true, rows, totals, previous, funnel, byPlatform, byCampaign, daily, range };
+  return {
+    connected: true,
+    rows,
+    totals,
+    previous,
+    funnel,
+    byPlatform,
+    byCampaign,
+    daily,
+    range,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 // Baja los anuncios de todas las cuentas conectadas para un rango (paginado, con
