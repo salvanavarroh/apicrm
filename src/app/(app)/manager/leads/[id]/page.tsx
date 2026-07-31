@@ -291,6 +291,8 @@ export default async function ManagerLeadDetailPage({
 
           <TrackingCard
             data={{
+              source: lead.source,
+              campaign: lead.campaigns?.name ?? null,
               utm_source: lead.utm_source,
               utm_medium: lead.utm_medium,
               utm_campaign: lead.utm_campaign,

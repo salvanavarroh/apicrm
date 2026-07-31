@@ -3,12 +3,15 @@ import {
   ExternalLink,
   Globe2,
   Megaphone,
+  Radio,
   Tag,
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export type TrackingData = {
+  source?: string | null; // canal/origen del lead: WhatsApp, Instagram, Meta Lead Ads, Landing…
+  campaign?: string | null; // campaña comercial asignada (si hay)
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -30,7 +33,8 @@ export function TrackingCard({ data }: { data: TrackingData }) {
     data.utm_term ||
     data.utm_content;
   const hasOrigin = data.landing_url || data.referrer;
-  if (!hasUtm && !hasOrigin) return null;
+  const hasChannel = !!data.source || !!data.campaign;
+  if (!hasChannel && !hasUtm && !hasOrigin) return null;
 
   return (
     <Card>
@@ -41,6 +45,28 @@ export function TrackingCard({ data }: { data: TrackingData }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 text-sm">
+        {hasChannel && (
+          <div className="flex flex-col gap-2">
+            <SectionLabel
+              icon={<Radio className="size-3.5" />}
+              text="Canal de origen"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {data.source && (
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-accent/10 px-2.5 py-1 text-sm font-medium text-foreground">
+                  {data.source}
+                </span>
+              )}
+              {data.campaign && (
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                  <Megaphone className="size-3" />
+                  {data.campaign}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {hasUtm && (
           <div className="flex flex-col gap-2">
             <SectionLabel
