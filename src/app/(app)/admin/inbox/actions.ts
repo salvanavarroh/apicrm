@@ -560,14 +560,9 @@ export async function sendAttachment(
       })
       .eq("id", conversationId);
 
+    // Los mensajes NO van al historial de actividad del lead (viven en la sección
+    // Mensajes / Inbox). Solo avanzamos el pipeline.
     if (conv.lead_id) {
-      await admin.from("lead_notes").insert({
-        lead_id: conv.lead_id,
-        company_id: profile.company_id!,
-        author_id: profile.id,
-        content: caption ?? `[${kind}]`,
-        activity_type: "whatsapp",
-      });
       await maybeAdvanceStatus(admin, conv.lead_id, "contacted");
     }
 
@@ -648,15 +643,9 @@ export async function sendMessage(
       })
       .eq("id", conversationId);
 
-    // Registrar actividad → avanza pipeline (reusa lo existente).
+    // Los mensajes NO van al historial de actividad (viven en Mensajes/Inbox);
+    // solo avanzamos el pipeline.
     if (conv.lead_id) {
-      await admin.from("lead_notes").insert({
-        lead_id: conv.lead_id,
-        company_id: profile.company_id!,
-        author_id: profile.id,
-        content: body,
-        activity_type: "whatsapp",
-      });
       await maybeAdvanceStatus(admin, conv.lead_id, "contacted");
     }
 
@@ -736,14 +725,9 @@ export async function sendTemplateMessage(
       .from("conversations")
       .update({ last_outbound_at: new Date().toISOString() })
       .eq("id", conversationId);
+    // La plantilla enviada aparece en la sección Mensajes / Inbox, no en el
+    // historial de actividad. Solo avanzamos el pipeline.
     if (conv.lead_id) {
-      await admin.from("lead_notes").insert({
-        lead_id: conv.lead_id,
-        company_id: profile.company_id!,
-        author_id: profile.id,
-        content: `Plantilla enviada: ${templateName}`,
-        activity_type: "whatsapp",
-      });
       await maybeAdvanceStatus(admin, conv.lead_id, "contacted");
     }
     revalidatePath("/admin/inbox");

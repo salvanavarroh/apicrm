@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActivitySection } from "@/components/leads/activity-section";
+import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import type { LeadNote } from "@/components/leads/notes-section";
 import { StatusChanger } from "@/components/leads/status-changer";
@@ -33,6 +34,7 @@ import {
 import { formatARS } from "@/lib/format";
 import { loadSaleDocs } from "@/lib/sale-docs";
 import { createClient } from "@/lib/supabase/server";
+import { loadLeadConversations } from "@/lib/lead-conversations";
 
 export default async function SalesLeadDetailPage({
   params,
@@ -128,6 +130,8 @@ export default async function SalesLeadDetailPage({
   ]);
 
   if (!lead) notFound();
+
+  const conversations = await loadLeadConversations(id, profile.company_id!);
 
   const templateRows = (templates ?? []).map((t) => ({
     id: t.id,
@@ -465,6 +469,8 @@ export default async function SalesLeadDetailPage({
               referrer: lead.referrer,
             }}
           />
+
+          <LeadConversationCard conversations={conversations} />
 
           <ActivitySection
             leadId={lead.id}

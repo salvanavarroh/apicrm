@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { WhatsappIcon } from "@/components/icons/whatsapp";
 import { ActivitySection } from "@/components/leads/activity-section";
+import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import type { LeadNote } from "@/components/leads/notes-section";
 import { ArchiveLeadButton } from "@/components/leads/archive-lead-button";
@@ -27,6 +28,7 @@ import {
 } from "@/lib/leads";
 import { formatARS } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { loadLeadConversations } from "@/lib/lead-conversations";
 import { getAssignableSalesUsers } from "@/lib/team";
 
 export default async function ManagerLeadDetailPage({
@@ -111,6 +113,8 @@ export default async function ManagerLeadDetailPage({
     ]);
 
   if (!lead) notFound();
+
+  const conversations = await loadLeadConversations(id, profile.company_id!);
 
   const templateRows = (templates ?? []).map((t) => ({
     id: t.id,
@@ -296,6 +300,8 @@ export default async function ManagerLeadDetailPage({
               referrer: lead.referrer,
             }}
           />
+
+          <LeadConversationCard conversations={conversations} />
 
           <ActivitySection
             leadId={lead.id}

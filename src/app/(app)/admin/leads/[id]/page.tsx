@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActivitySection } from "@/components/leads/activity-section";
+import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import type { LeadNote } from "@/components/leads/notes-section";
 import {
@@ -24,6 +25,7 @@ import {
 } from "@/lib/leads";
 import { formatARS } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
+import { loadLeadConversations } from "@/lib/lead-conversations";
 import { getAssignableSalesUsers } from "@/lib/team";
 
 export default async function AdminLeadDetailPage({
@@ -99,6 +101,8 @@ export default async function AdminLeadDetailPage({
     ]);
 
   if (!lead) notFound();
+
+  const conversations = await loadLeadConversations(id, profile.company_id!);
 
   const noteRows: LeadNote[] = (notes ?? []).map((n) => ({
     id: n.id,
@@ -288,6 +292,8 @@ export default async function AdminLeadDetailPage({
               referrer: lead.referrer,
             }}
           />
+
+          <LeadConversationCard conversations={conversations} />
 
           <ActivitySection
             leadId={lead.id}
