@@ -423,7 +423,12 @@ function extractAttribution(message: Json): Json {
   return out;
 }
 
-// --- Delivery status: message.sent/delivered/read/failed --------------------
+// --- Delivery status: message.delivered/read/failed -------------------------
+// OJO con los ids: al ENVIAR, el CRM guarda en `zernio_message_id` el id de
+// PLATAFORMA (wamid en WhatsApp, message id en IG). El webhook trae ese id en
+// `platformMessageId`; `message.id` es el ObjectId interno de Zernio. Por eso
+// matcheamos por CUALQUIERA de los dos (antes se usaba solo message.id y nunca
+// matcheaba → los tildes de entrega no se actualizaban).
 
 const DELIVERY_MAP: Record<string, Database["public"]["Enums"]["message_delivery"]> = {
   "message.sent": "sent",
@@ -431,6 +436,12 @@ const DELIVERY_MAP: Record<string, Database["public"]["Enums"]["message_delivery
   "message.read": "read",
   "message.failed": "failed",
 };
+
+function messageIds(message: Json): string[] {
+  return [str(message.platformMessageId), str(message.id)].filter(
+    (x): x is string => !!x,
+  );
+}
 
 export async function handleDeliveryStatus(
   eventType: string,
@@ -440,8 +451,8 @@ export async function handleDeliveryStatus(
   if (!status) return;
   const admin = createAdminClient();
   const message = (payload.message as Json) ?? {};
-  const zMsgId = str(message.id) ?? str(message.platformMessageId);
-  if (!zMsgId) return;
+  const ids = messageIds(message);
+  if (!ids.length) return;
   const error = (message.error as Json) ?? {};
   await admin
     .from("messages")
@@ -450,7 +461,143 @@ export async function handleDeliveryStatus(
       error_code: str(error.code),
       error_detail: str(error.message) ?? str(error.title),
     })
-    .eq("zernio_message_id", zMsgId);
+    .in("zernio_message_id", ids);
+}
+
+// --- Outbound "echo": message.sent (incluye envíos hechos FUERA del CRM) ------
+// Con la coexistencia de WhatsApp (el número sigue activo en la app del celular
+// además de la Cloud API), Zernio reenvía como `message.sent` los mensajes que el
+// negocio manda desde el teléfono o Business Suite (`source` = "whatsapp_business_app"),
+// con el texto completo. Si el mensaje salió del CRM ya tenemos la fila (match por
+// id de plataforma) → no hacemos nada. Si no lo teníamos, lo creamos como saliente
+// para que la conversación quede completa (aparece la respuesta del vendedor).
+export async function handleOutboundMessage(payload: Json): Promise<void> {
+  const admin = createAdminClient();
+  const message = (payload.message as Json) ?? {};
+  const ids = messageIds(message);
+
+  // 1) ¿Ya lo teníamos? (enviado desde el CRM, o capturado en un evento previo).
+  if (ids.length) {
+    const { data: existing } = await admin
+      .from("messages")
+      .select("id")
+      .in("zernio_message_id", ids)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+  }
+
+  // 2) Envío hecho por fuera del CRM. Requiere id de plataforma, dirección
+  //    saliente e identidad de la conversación.
+  const pmid = str(message.platformMessageId) ?? str(message.id);
+  if (!pmid) return;
+  if (str(message.direction) !== "outgoing") return;
+  const accountId = getAccountId(payload);
+  if (!accountId) return;
+  const channel = await channelByAccount(admin, accountId);
+  if (!channel) return;
+
+  const conversation = (payload.conversation as Json) ?? {};
+  const zConvId = str(message.conversationId) ?? str(conversation.id);
+  if (!zConvId) return;
+
+  // Conversación existente (caso normal: el cliente escribió primero).
+  const { data: existingConv } = await admin
+    .from("conversations")
+    .select("id")
+    .eq("zernio_conversation_id", zConvId)
+    .maybeSingle();
+
+  let conversationId: string;
+  if (existingConv) {
+    conversationId = existingConv.id;
+  } else {
+    // El negocio inició la charla desde el teléfono con un contacto sin
+    // conversación previa: creamos lead + conversación. El PARTICIPANTE es el
+    // CLIENTE (destinatario) — viene en conversation.* porque message.sender
+    // somos nosotros (el número del negocio).
+    const country = await companyCountry(admin, channel.company_id);
+    const isWa = channel.platform === "whatsapp";
+    const waPhone = isWa
+      ? (str(conversation.participantUsername) ?? str(conversation.participantId))
+      : null;
+    const participant: Participant = {
+      phone: waPhone,
+      phone_e164: isWa
+        ? (normalizeWaId(waPhone, country) ?? toE164(waPhone, country))
+        : null,
+      socialId: isWa
+        ? null
+        : (str(conversation.contactId) ?? str(conversation.participantId)),
+      bsuid: isWa ? null : str(conversation.participantId),
+      name: str(conversation.participantName),
+      handle: str(conversation.participantUsername),
+      photo_url: str(conversation.participantPicture),
+      contactId: str(conversation.contactId),
+    };
+    const resolved = await resolveOrCreateLead(admin, channel, participant);
+    if (!resolved) return;
+    const { data: conv, error: convErr } = await admin
+      .from("conversations")
+      .insert({
+        company_id: channel.company_id,
+        channel_id: channel.id,
+        lead_id: resolved.leadId,
+        zernio_conversation_id: zConvId,
+        platform: channel.platform,
+        participant_bsuid: participant.bsuid,
+        participant_phone_e164: participant.phone_e164,
+        participant_name: participant.name,
+        participant_handle: participant.handle,
+        participant_photo_url: participant.photo_url,
+        zernio_contact_id: participant.contactId,
+        assigned_user_id: resolved.assignedUserId,
+        claimed_at: resolved.assignedUserId ? new Date().toISOString() : null,
+      })
+      .select("id")
+      .single();
+    if (convErr || !conv) {
+      console.error("[outbound] no se pudo crear la conversación:", convErr?.message);
+      return;
+    }
+    conversationId = conv.id;
+  }
+
+  const body =
+    typeof message.text === "string"
+      ? (message.text as string)
+      : str((message.text as Json)?.body);
+  const attachments = Array.isArray(message.attachments) ? message.attachments : [];
+  const hasAtt = attachments.length > 0;
+
+  // Idempotente por zernio_message_id (el wamid): si el mismo evento llega dos
+  // veces no duplica.
+  await admin.from("messages").upsert(
+    {
+      company_id: channel.company_id,
+      conversation_id: conversationId,
+      zernio_message_id: pmid,
+      platform_message_id: str(message.platformMessageId),
+      direction: "outbound",
+      sender_type: "agent",
+      sent_by_user_id: null, // enviado por fuera del CRM (celular / Business Suite)
+      message_type: str(message.type) ?? (hasAtt ? "file" : "text"),
+      body,
+      attachments: attachments as never,
+      delivery_status: "sent",
+    },
+    { onConflict: "zernio_message_id", ignoreDuplicates: true },
+  );
+
+  // Preview + marca de saliente. NO abre la ventana de 24h (eso lo hace el cliente
+  // al escribir) ni suma no leídos (es nuestro propio mensaje).
+  await admin
+    .from("conversations")
+    .update({
+      last_outbound_at: new Date().toISOString(),
+      last_message_preview: (body ?? (hasAtt ? "(adjunto)" : "")).slice(0, 120),
+      status: "open",
+    })
+    .eq("id", conversationId);
 }
 
 // --- Meta Lead Ads: lead.received -------------------------------------------

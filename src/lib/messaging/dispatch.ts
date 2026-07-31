@@ -8,6 +8,7 @@ import {
   handleDeliveryStatus,
   handleInboundMessage,
   handleLeadReceived,
+  handleOutboundMessage,
   handleTemplateStatus,
 } from "@/lib/messaging/handlers";
 
@@ -26,6 +27,10 @@ export async function dispatchEvent(
         await handleInboundMessage(payload);
         break;
       case "message.sent":
+        // Incluye el "echo" de mensajes enviados FUERA del CRM (app del celular /
+        // Business Suite): los captura como salientes; si ya los teníamos, no-op.
+        await handleOutboundMessage(payload);
+        break;
       case "message.delivered":
       case "message.read":
       case "message.failed":
