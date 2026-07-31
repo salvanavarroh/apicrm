@@ -38,7 +38,7 @@ export default async function IntegrationsPage({
     supabase
       .from("messaging_channels")
       .select(
-        "id, platform, external_ref, display_name, status, photo_url, quality_rating, messaging_limit_tier, name_status, metadata",
+        "id, platform, external_ref, display_name, status, photo_url, quality_rating, messaging_limit_tier, name_status, metadata, branch_id, product_type_id, campaign_id",
       )
       .eq("company_id", companyId)
       .order("created_at", { ascending: false }),

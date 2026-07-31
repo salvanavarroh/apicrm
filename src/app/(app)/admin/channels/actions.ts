@@ -18,6 +18,37 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; message: string };
 
+/**
+ * Configura el routing por defecto de un canal (número): sucursal + tipo de
+ * producto + campaña. Los leads que entren por ese canal heredan estos valores
+ * (ver resolveOrCreateLead), así "un número por sucursal" clasifica solo. El tipo
+ * puede quedar vacío para clasificarlo cuando entra la conversación.
+ */
+export async function setChannelRouting(
+  channelId: string,
+  routing: {
+    branchId: string | null;
+    productTypeId: string | null;
+    campaignId: string | null;
+  },
+): Promise<Result> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) return { ok: false, message: "Sin empresa" };
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("messaging_channels")
+    .update({
+      branch_id: routing.branchId,
+      product_type_id: routing.productTypeId,
+      campaign_id: routing.campaignId,
+    })
+    .eq("id", channelId)
+    .eq("company_id", profile.company_id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/admin/integraciones");
+  return { ok: true };
+}
+
 /** Trae de Zernio TODAS las cuentas conectadas (incl. metaads) con foto y estado. */
 export async function syncChannels(): Promise<Result<{ synced: number }>> {
   const profile = await requireRole(["admin"]);

@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import {
   disconnectChannel,
   refreshChannelHealth,
+  setChannelRouting,
   startBuyNumber,
   startConnect,
   syncChannels,
@@ -44,7 +45,16 @@ export type Channel = {
   messaging_limit_tier: string | null;
   name_status: string | null;
   metadata: { health?: NumberHealth } | null;
+  branch_id: string | null;
+  product_type_id: string | null;
+  campaign_id: string | null;
 };
+
+export type RoutingOption = { id: string; name: string };
+
+// Canales cuyos leads heredan el routing del canal (mensajería directa). Meta Ads
+// usa el mapeo por formulario (lead_ad_forms), no este.
+const MESSAGING_PLATFORMS = new Set(["whatsapp", "instagram", "facebook"]);
 
 const ORDER = [
   "whatsapp",
@@ -157,7 +167,17 @@ function WhatsappHealth({
   );
 }
 
-export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
+export function ConnectionsGrid({
+  channels,
+  branches,
+  productTypes,
+  campaigns,
+}: {
+  channels: Channel[];
+  branches: RoutingOption[];
+  productTypes: RoutingOption[];
+  campaigns: RoutingOption[];
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [kyc, setKyc] = useState<string | null>(null);
@@ -320,6 +340,14 @@ export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
                         {platform === "whatsapp" && (
                           <WhatsappHealth health={c.metadata?.health} nameStatus={c.name_status} />
                         )}
+                        {MESSAGING_PLATFORMS.has(platform) && c.status === "active" && (
+                          <ChannelRouting
+                            channel={c}
+                            branches={branches}
+                            productTypes={productTypes}
+                            campaigns={campaigns}
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -340,6 +368,105 @@ export function ConnectionsGrid({ channels }: { channels: Channel[] }) {
             </Card>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Routing por defecto del canal (número). Los leads que entran por acá heredan
+// sucursal + tipo + campaña. Auto-guarda al cambiar cualquier selector.
+function ChannelRouting({
+  channel,
+  branches,
+  productTypes,
+  campaigns,
+}: {
+  channel: Channel;
+  branches: RoutingOption[];
+  productTypes: RoutingOption[];
+  campaigns: RoutingOption[];
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [branchId, setBranchId] = useState(channel.branch_id ?? "");
+  const [productTypeId, setProductTypeId] = useState(channel.product_type_id ?? "");
+  const [campaignId, setCampaignId] = useState(channel.campaign_id ?? "");
+
+  function save(next: { b?: string; p?: string; c?: string }) {
+    const payload = {
+      branchId: (next.b ?? branchId) || null,
+      productTypeId: (next.p ?? productTypeId) || null,
+      campaignId: (next.c ?? campaignId) || null,
+    };
+    start(async () => {
+      const res = await setChannelRouting(channel.id, payload);
+      if (res.ok) {
+        toast.success("Routing guardado");
+        router.refresh();
+      } else toast.error(res.message);
+    });
+  }
+
+  const selectCls =
+    "min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-[11px] disabled:opacity-60";
+
+  return (
+    <div className="mt-2 space-y-1.5 border-t pt-2">
+      <p className="text-[11px] font-medium text-muted-foreground">
+        Enrutar leads de este número a:
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        <select
+          value={branchId}
+          disabled={pending}
+          onChange={(e) => {
+            setBranchId(e.target.value);
+            save({ b: e.target.value });
+          }}
+          className={selectCls}
+          title="Sucursal"
+        >
+          <option value="">Sucursal…</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={productTypeId}
+          disabled={pending}
+          onChange={(e) => {
+            setProductTypeId(e.target.value);
+            save({ p: e.target.value });
+          }}
+          className={selectCls}
+          title="Tipo de producto (opcional)"
+        >
+          <option value="">Tipo (se clasifica luego)</option>
+          {productTypes.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={campaignId}
+          disabled={pending}
+          onChange={(e) => {
+            setCampaignId(e.target.value);
+            save({ c: e.target.value });
+          }}
+          className={selectCls}
+          title="Campaña (opcional)"
+        >
+          <option value="">Campaña…</option>
+          {campaigns.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

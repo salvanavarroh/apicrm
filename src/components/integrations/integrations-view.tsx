@@ -45,7 +45,12 @@ export function IntegrationsView({
       </TabsList>
 
       <TabsContent value="connections">
-        <ConnectionsGrid channels={channels} />
+        <ConnectionsGrid
+          channels={channels}
+          branches={branches}
+          productTypes={productTypes}
+          campaigns={campaigns}
+        />
       </TabsContent>
 
       <TabsContent value="templates">

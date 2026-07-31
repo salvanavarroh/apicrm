@@ -310,6 +310,7 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
         lead_id: leadId,
         zernio_conversation_id: zConvId,
         platform: channel.platform,
+        branch_id: channel.branch_id, // routing por defecto del canal (número → sucursal)
         participant_bsuid: participant.bsuid,
         participant_phone_e164: participant.phone_e164,
         participant_name: participant.name,
