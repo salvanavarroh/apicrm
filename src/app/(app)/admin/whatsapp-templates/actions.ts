@@ -8,7 +8,7 @@ import {
   languageForCountry,
   variantForCountry,
 } from "@/lib/messaging/standard-templates";
-import { createTemplate } from "@/lib/messaging/zernio";
+import { createTemplate, listTemplates } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type Result<T = unknown> = ({ ok: true } & T) | { ok: false; message: string };
@@ -92,6 +92,78 @@ export async function createWhatsappTemplate(input: {
     return { ok: true };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Error creando plantilla" };
+  }
+}
+
+/**
+ * Sincroniza el estado de las plantillas desde Meta/Zernio. Es la red de seguridad
+ * por si se perdió el webhook `whatsapp.template.status_updated`: trae la lista real
+ * (`listTemplates`) y actualiza status + motivo de rechazo. También inserta las que
+ * existan en Meta pero no en el CRM (creadas por fuera, en Business Manager).
+ */
+export async function syncTemplates(
+  channelId: string,
+): Promise<Result<{ synced: number }>> {
+  const profile = await requireRole(["admin", "manager"]);
+  const admin = createAdminClient();
+  const channel = await channelOf(profile.company_id!, channelId);
+  if (!channel) return { ok: false, message: "Canal de WhatsApp no encontrado" };
+
+  try {
+    const res = await listTemplates(channel.zernio_account_id);
+    const list = (
+      Array.isArray(res)
+        ? res
+        : ((res as { data?: unknown[]; templates?: unknown[] })?.data ??
+          (res as { templates?: unknown[] })?.templates ??
+          [])
+    ) as Record<string, unknown>[];
+
+    const s = (v: unknown) => (typeof v === "string" && v ? v : null);
+    let synced = 0;
+    for (const raw of list) {
+      const name = s(raw.name);
+      const status = s(raw.status);
+      if (!name || !status) continue;
+      const language = s(raw.language) ?? "es";
+      const category = s(raw.category);
+      const rejection =
+        s(raw.rejectionReason) ?? s(raw.rejected_reason) ?? s(raw.reason);
+
+      const { data: existing } = await admin
+        .from("whatsapp_templates")
+        .select("id")
+        .eq("channel_id", channel.id)
+        .eq("zernio_template_name", name)
+        .eq("language", language)
+        .maybeSingle();
+
+      if (existing) {
+        // No tocamos body_preview / is_standard (los mantiene el CRM).
+        await admin
+          .from("whatsapp_templates")
+          .update({ status, rejection_reason: rejection })
+          .eq("id", existing.id);
+      } else {
+        await admin.from("whatsapp_templates").insert({
+          company_id: profile.company_id!,
+          channel_id: channel.id,
+          zernio_template_name: name,
+          language,
+          category: category ?? "MARKETING",
+          status,
+          rejection_reason: rejection,
+        });
+      }
+      synced++;
+    }
+    revalidatePath("/admin/integraciones");
+    return { ok: true, synced };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Error sincronizando",
+    };
   }
 }
 

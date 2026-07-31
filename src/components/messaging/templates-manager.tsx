@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import {
   createWhatsappTemplate,
   seedStandardTemplates,
+  syncTemplates,
 } from "@/app/(app)/admin/whatsapp-templates/actions";
 
 export type WaChannel = { id: string; display_name: string | null; external_ref: string | null };
@@ -97,6 +98,18 @@ export function TemplatesManager({
     });
   }
 
+  // Trae el estado real desde Meta/Zernio (por si se perdió el webhook de
+  // aprobación) y refresca la vista.
+  function sync() {
+    start(async () => {
+      const res = await syncTemplates(channelId);
+      if (res.ok) {
+        toast.success(`Estado sincronizado (${res.synced} plantillas)`);
+        router.refresh();
+      } else toast.error(res.message);
+    });
+  }
+
   function create() {
     if (!name.trim() || !body.trim()) {
       toast.error("Completá nombre y cuerpo");
@@ -131,6 +144,16 @@ export function TemplatesManager({
           </select>
           <Button size="sm" variant="outline" onClick={seed} disabled={pending}>
             Crear set estándar (6)
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={sync}
+            disabled={pending}
+            title="Traer el estado real de aprobación desde Meta"
+          >
+            <RefreshCw className={`mr-1 size-4 ${pending ? "animate-spin" : ""}`} />
+            Sincronizar estado
           </Button>
         </div>
 
