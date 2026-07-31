@@ -11,6 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -42,6 +43,8 @@ export type KanbanLead = {
   product_type_name: string | null;
   assignee_name: string | null;
   status_changed_at: string | null;
+  // Mensajes sin responder (WhatsApp/IG/FB) del lead. >0 → badge en la tarjeta.
+  unread: number;
 };
 
 const COLUMN_ORDER: LeadStatus[] = [
@@ -296,14 +299,28 @@ function Card({
       style={style}
       {...attributes}
       {...listeners}
-      className={`rounded-md border border-border bg-card p-3 text-xs shadow-sm transition-shadow ${
+      className={`rounded-md border bg-card p-3 text-xs shadow-sm transition-shadow ${
+        lead.unread > 0
+          ? "border-emerald-400 ring-1 ring-emerald-400/50"
+          : "border-border"
+      } ${
         isDragging || dragging ? "opacity-90 shadow-md" : "hover:shadow-md"
       } cursor-grab active:cursor-grabbing`}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-sm font-semibold text-foreground">
-          {fullName(lead.first_name, lead.last_name)}
-        </p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="truncate text-sm font-semibold text-foreground">
+            {fullName(lead.first_name, lead.last_name)}
+          </p>
+          {lead.unread > 0 && (
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+              title={`${lead.unread} mensaje${lead.unread === 1 ? "" : "s"} sin responder`}
+            >
+              <MessageCircle className="size-2.5" /> {lead.unread}
+            </span>
+          )}
+        </div>
         <LeadStatusBadge status={lead.status} className="shrink-0 text-[10px]" />
       </div>
 

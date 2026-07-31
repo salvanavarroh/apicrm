@@ -10,6 +10,7 @@
 
 import { requireRole } from "@/lib/auth";
 import { fullName, type LeadStatus } from "@/lib/leads";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { KanbanLead } from "@/components/leads/kanban-board";
 
@@ -64,7 +65,30 @@ function toKanbanLead(l: KanbanRow): KanbanLead {
     assignee_name: l.assignee
       ? fullName(l.assignee.first_name, l.assignee.last_name)
       : null,
+    unread: 0,
   };
+}
+
+// Marca cuántos mensajes sin responder (unread) tiene cada lead en sus
+// conversaciones. Admin client scopeado a los ids que RLS ya autorizó arriba
+// (el usuario ya puede ver estos leads), así evitamos huecos de RLS en
+// conversations sin exponer nada nuevo.
+async function attachUnread(leads: KanbanLead[]): Promise<void> {
+  const ids = leads.map((l) => l.id);
+  if (ids.length === 0) return;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("conversations")
+    .select("lead_id, unread_count")
+    .in("lead_id", ids)
+    .gt("unread_count", 0);
+  if (!data) return;
+  const byLead = new Map<string, number>();
+  for (const c of data) {
+    if (!c.lead_id) continue;
+    byLead.set(c.lead_id, (byLead.get(c.lead_id) ?? 0) + (c.unread_count ?? 0));
+  }
+  for (const l of leads) l.unread = byLead.get(l.id) ?? 0;
 }
 
 /**
@@ -96,5 +120,7 @@ export async function fetchKanbanColumn(
   }
 
   const { data } = await q;
-  return ((data ?? []) as unknown as KanbanRow[]).map(toKanbanLead);
+  const leads = ((data ?? []) as unknown as KanbanRow[]).map(toKanbanLead);
+  await attachUnread(leads);
+  return leads;
 }
