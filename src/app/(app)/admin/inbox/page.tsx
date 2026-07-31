@@ -7,9 +7,14 @@ import {
 } from "@/components/inbox/inbox-view";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function AdminInboxPage() {
+export default async function AdminInboxPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ c?: string }>;
+}) {
   const profile = await requireRole(["admin", "manager", "supervisor", "sales"]);
   const supabase = await createClient();
+  const { c: initialConversationId } = await searchParams;
 
   const { data } = await supabase
     .from("conversations")
@@ -58,6 +63,7 @@ export default async function AdminInboxPage() {
       currentUserId={profile.id}
       isPriv={isPriv}
       vendors={vendors}
+      initialConversationId={initialConversationId ?? null}
     />
   );
 }

@@ -510,15 +510,23 @@ export function InboxView({
   currentUserId,
   isPriv,
   vendors,
+  initialConversationId,
 }: {
   conversations: ConversationListItem[];
   currentUserId: string;
   isPriv: boolean;
   vendors: VendorOption[];
+  // Deep-link: abre esta conversación al montar (ej. botón "Abrir en Inbox" del
+  // lead). Si no está en la lista cargada, queda sin selección (sin romper).
+  initialConversationId?: string | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"chats" | "insights">("chats");
-  const [selected, setSelected] = useState<ConversationListItem | null>(null);
+  const [selected, setSelected] = useState<ConversationListItem | null>(() =>
+    initialConversationId
+      ? (conversations.find((c) => c.id === initialConversationId) ?? null)
+      : null,
+  );
   const [infoOpen, setInfoOpen] = useState(false);
 
   // Realtime: cuando entra o cambia una conversación (webhook → DB), refrescamos
@@ -1114,6 +1122,9 @@ function Thread({
                   const out = m.direction === "outbound";
                   const sending = m.delivery_status === "sending";
                   const failed = m.delivery_status === "failed";
+                  // Saliente sin usuario del CRM = enviado desde el teléfono
+                  // (app de WhatsApp / Business Suite), capturado por coexistencia.
+                  const fromPhone = out && !m.sent_by_user_id;
                   return (
                     <div
                       className={cn(
@@ -1144,8 +1155,9 @@ function Thread({
                               : "text-muted-foreground",
                         )}
                       >
+                        {fromPhone && <span>desde WhatsApp ·</span>}
                         {msgTime(m.created_at)}
-                        {out && (
+                        {out && !fromPhone && (
                           <span>· {DELIVERY_LABEL[m.delivery_status] ?? m.delivery_status}</span>
                         )}
                       </div>

@@ -500,67 +500,19 @@ export async function handleOutboundMessage(payload: Json): Promise<void> {
   const zConvId = str(message.conversationId) ?? str(conversation.id);
   if (!zConvId) return;
 
-  // Conversación existente (caso normal: el cliente escribió primero).
+  // Solo capturamos si la conversación YA existe en el CRM (el cliente escribió
+  // primero). NO creamos lead/conversación a partir de un saliente: desde el
+  // teléfono el negocio le escribe a muchos contactos que no son leads
+  // (proveedores, personal), y no queremos ensuciar el pipeline con leads
+  // espurios. Si el vendedor arrancó la charla desde el cel, aparecerá en el CRM
+  // recién cuando el cliente responda (ahí se crea la conversación por inbound).
   const { data: existingConv } = await admin
     .from("conversations")
     .select("id")
     .eq("zernio_conversation_id", zConvId)
     .maybeSingle();
-
-  let conversationId: string;
-  if (existingConv) {
-    conversationId = existingConv.id;
-  } else {
-    // El negocio inició la charla desde el teléfono con un contacto sin
-    // conversación previa: creamos lead + conversación. El PARTICIPANTE es el
-    // CLIENTE (destinatario) — viene en conversation.* porque message.sender
-    // somos nosotros (el número del negocio).
-    const country = await companyCountry(admin, channel.company_id);
-    const isWa = channel.platform === "whatsapp";
-    const waPhone = isWa
-      ? (str(conversation.participantUsername) ?? str(conversation.participantId))
-      : null;
-    const participant: Participant = {
-      phone: waPhone,
-      phone_e164: isWa
-        ? (normalizeWaId(waPhone, country) ?? toE164(waPhone, country))
-        : null,
-      socialId: isWa
-        ? null
-        : (str(conversation.contactId) ?? str(conversation.participantId)),
-      bsuid: isWa ? null : str(conversation.participantId),
-      name: str(conversation.participantName),
-      handle: str(conversation.participantUsername),
-      photo_url: str(conversation.participantPicture),
-      contactId: str(conversation.contactId),
-    };
-    const resolved = await resolveOrCreateLead(admin, channel, participant);
-    if (!resolved) return;
-    const { data: conv, error: convErr } = await admin
-      .from("conversations")
-      .insert({
-        company_id: channel.company_id,
-        channel_id: channel.id,
-        lead_id: resolved.leadId,
-        zernio_conversation_id: zConvId,
-        platform: channel.platform,
-        participant_bsuid: participant.bsuid,
-        participant_phone_e164: participant.phone_e164,
-        participant_name: participant.name,
-        participant_handle: participant.handle,
-        participant_photo_url: participant.photo_url,
-        zernio_contact_id: participant.contactId,
-        assigned_user_id: resolved.assignedUserId,
-        claimed_at: resolved.assignedUserId ? new Date().toISOString() : null,
-      })
-      .select("id")
-      .single();
-    if (convErr || !conv) {
-      console.error("[outbound] no se pudo crear la conversación:", convErr?.message);
-      return;
-    }
-    conversationId = conv.id;
-  }
+  if (!existingConv) return;
+  const conversationId = existingConv.id;
 
   const body =
     typeof message.text === "string"
