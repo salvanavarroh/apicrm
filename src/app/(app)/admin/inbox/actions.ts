@@ -325,6 +325,36 @@ export async function getMessages(conversationId: string): Promise<InboxMessage[
 }
 
 /** Toma una conversación del pool (claim atómico + asignación del lead). */
+// --- Call center: presencia ("Activo") -------------------------------------
+
+/** Marca al vendedor como disponible/no para recibir conversaciones (round-robin). */
+export async function setInboxAvailable(available: boolean): Promise<Result> {
+  const profile = await requireRole([...ROLES]);
+  const admin = createAdminClient();
+  await admin
+    .from("profiles")
+    .update({
+      inbox_available: available,
+      inbox_available_at: available ? new Date().toISOString() : null,
+    })
+    .eq("id", profile.id);
+  revalidatePath("/admin/inbox");
+  return { ok: true };
+}
+
+/** Heartbeat: refresca la presencia mientras el vendedor está activo (auto-off por
+ *  inactividad si deja de latir). Solo refresca si sigue marcado activo. */
+export async function inboxHeartbeat(): Promise<Result> {
+  const profile = await requireRole([...ROLES]);
+  const admin = createAdminClient();
+  await admin
+    .from("profiles")
+    .update({ inbox_available_at: new Date().toISOString() })
+    .eq("id", profile.id)
+    .eq("inbox_available", true);
+  return { ok: true };
+}
+
 export async function claimConversation(conversationId: string): Promise<Result> {
   const profile = await requireRole([...ROLES]);
   const admin = createAdminClient();

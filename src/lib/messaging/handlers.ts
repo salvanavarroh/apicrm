@@ -328,6 +328,27 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
       return;
     }
     conversationId = conv.id;
+
+    // Call center: si el lead no tiene dueño (sin sticky-seller), intentamos
+    // asignar la conversación a un vendedor ACTIVO por round-robin (menor carga)
+    // de la sucursal (o cualquiera si es general). Si no hay activos → pool.
+    if (!assignedUserId) {
+      const { data: assigned } = await admin.rpc(
+        "assign_conversation_to_active_vendor",
+        { p_conversation_id: conversationId },
+      );
+      if (assigned) {
+        assignedUserId = assigned;
+        await admin
+          .from("leads")
+          .update({
+            assigned_user_id: assigned,
+            assigned_at: new Date().toISOString(),
+          })
+          .eq("id", leadId)
+          .is("assigned_user_id", null);
+      }
+    }
   }
 
   // Insertar mensaje SOLO si es real (message.received trae message.id).

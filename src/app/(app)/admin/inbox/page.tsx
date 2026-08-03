@@ -6,6 +6,7 @@ import {
   type VendorOption,
 } from "@/components/inbox/inbox-view";
 import { createClient } from "@/lib/supabase/server";
+import { loadInboxPresence } from "@/lib/messaging/presence";
 
 export default async function AdminInboxPage({
   searchParams,
@@ -57,6 +58,12 @@ export default async function AdminInboxPage({
 
   const isPriv = ["admin", "manager", "supervisor"].includes(profile.role);
 
+  // Call center: presencia solo para vendedores (son los que reciben reparto).
+  const presence =
+    profile.role === "sales"
+      ? await loadInboxPresence(profile.id, profile.company_id!)
+      : null;
+
   return (
     <InboxView
       conversations={conversations}
@@ -64,6 +71,7 @@ export default async function AdminInboxPage({
       isPriv={isPriv}
       vendors={vendors}
       initialConversationId={initialConversationId ?? null}
+      presence={presence}
     />
   );
 }

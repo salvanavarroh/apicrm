@@ -3,9 +3,11 @@ import Link from "next/link";
 
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { AgendaCalendar } from "@/components/dashboard/agenda-calendar";
+import { PresenceToggle } from "@/components/inbox/presence-toggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
+import { loadInboxPresence } from "@/lib/messaging/presence";
 import { formatARS } from "@/lib/format";
 import { fullName } from "@/lib/leads";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,10 @@ export default async function SalesHomePage() {
       })
     : [];
   const today = todayDateKey();
+
+  const presence = profile.company_id
+    ? await loadInboxPresence(profile.id, profile.company_id)
+    : { available: false, activeCount: 0 };
 
   const [
     { count: total },
@@ -142,6 +148,22 @@ export default async function SalesHomePage() {
           Tu día arranca con {newCount ?? 0} lead(s) nuevo(s) por contactar.
         </p>
       </header>
+
+      <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">Recepción de conversaciones</p>
+          <p className="text-xs text-muted-foreground">
+            Activate para recibir conversaciones nuevas del inbox por reparto
+            automático (round-robin).
+            {presence.activeCount > 0 &&
+              ` Ahora hay ${presence.activeCount} vendedor(es) activo(s).`}
+          </p>
+        </div>
+        <PresenceToggle
+          initialAvailable={presence.available}
+          activeCount={presence.activeCount}
+        />
+      </Card>
 
       <AgendaCalendar items={agendaItems} todayKey={today} />
 

@@ -1836,6 +1836,8 @@ export type Database = {
           created_at: string
           first_name: string
           id: string
+          inbox_available: boolean
+          inbox_available_at: string | null
           last_name: string
           manager_id: string | null
           phone: string | null
@@ -1854,6 +1856,8 @@ export type Database = {
           created_at?: string
           first_name?: string
           id: string
+          inbox_available?: boolean
+          inbox_available_at?: string | null
           last_name?: string
           manager_id?: string | null
           phone?: string | null
@@ -1872,6 +1876,8 @@ export type Database = {
           created_at?: string
           first_name?: string
           id?: string
+          inbox_available?: boolean
+          inbox_available_at?: string | null
           last_name?: string
           manager_id?: string | null
           phone?: string | null
@@ -2544,6 +2550,10 @@ export type Database = {
           cnt: number
           user_id: string
         }[]
+      }
+      assign_conversation_to_active_vendor: {
+        Args: { p_conversation_id: string }
+        Returns: string
       }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
       bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }

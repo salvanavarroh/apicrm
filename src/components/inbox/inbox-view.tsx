@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { ChannelPill } from "@/components/inbox/channel-pill";
 import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import { InboxInsights } from "@/components/inbox/inbox-insights";
+import { PresenceToggle } from "@/components/inbox/presence-toggle";
 import { LeadInfoPanel } from "@/components/inbox/lead-info-panel";
 import { TemplateSendDialog } from "@/components/inbox/template-send-dialog";
 import { WindowCountdown } from "@/components/inbox/window-countdown";
@@ -511,6 +512,7 @@ export function InboxView({
   isPriv,
   vendors,
   initialConversationId,
+  presence,
 }: {
   conversations: ConversationListItem[];
   currentUserId: string;
@@ -519,6 +521,8 @@ export function InboxView({
   // Deep-link: abre esta conversación al montar (ej. botón "Abrir en Inbox" del
   // lead). Si no está en la lista cargada, queda sin selección (sin romper).
   initialConversationId?: string | null;
+  // Call center: presencia del vendedor (null para roles que no reciben reparto).
+  presence?: { available: boolean; activeCount: number } | null;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"chats" | "insights">("chats");
@@ -595,14 +599,22 @@ export function InboxView({
             Conversaciones de WhatsApp, Instagram y Facebook.
           </p>
         </div>
-        {isPriv && (
-          <Tabs value={tab} onValueChange={(v) => setTab(v as "chats" | "insights")}>
-            <TabsList>
-              <TabsTrigger value="chats">Conversaciones</TabsTrigger>
-              <TabsTrigger value="insights">Insights</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        )}
+        <div className="flex items-center gap-3">
+          {presence && (
+            <PresenceToggle
+              initialAvailable={presence.available}
+              activeCount={presence.activeCount}
+            />
+          )}
+          {isPriv && (
+            <Tabs value={tab} onValueChange={(v) => setTab(v as "chats" | "insights")}>
+              <TabsList>
+                <TabsTrigger value="chats">Conversaciones</TabsTrigger>
+                <TabsTrigger value="insights">Insights</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </div>
       </header>
 
       {tab === "insights" ? (
