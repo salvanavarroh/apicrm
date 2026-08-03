@@ -104,6 +104,27 @@ export async function getConnectUrl(
   return request("GET", `/connect/${platform}?${q.toString()}`);
 }
 
+// Conectar Meta ADS (no la página): `/connect/facebook/ads` conecta el ad account
+// (auto-selecciona la página, pide scopes de ads). Devuelve `authUrl` para OAuth
+// O `alreadyConnected` con los datos de la cuenta si ya estaba conectada. OJO:
+// `/connect/facebook` (el genérico) solo conecta la PÁGINA, no el ad account.
+export type ConnectAdsResult = {
+  authUrl?: string;
+  state?: string;
+  alreadyConnected?: boolean;
+  accountId?: string;
+  platform?: string;
+  username?: string;
+  displayName?: string;
+};
+export async function getConnectFacebookAds(
+  profileId: string,
+  redirectUrl: string,
+): Promise<ConnectAdsResult> {
+  const q = new URLSearchParams({ profileId, redirect_url: redirectUrl });
+  return request("GET", `/connect/facebook/ads?${q.toString()}`);
+}
+
 // --- WhatsApp: salud del número --------------------------------------------
 export type NumberBlocker = {
   entity: string; // PHONE_NUMBER | WABA | BUSINESS | APP

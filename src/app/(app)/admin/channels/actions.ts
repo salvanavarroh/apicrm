@@ -7,6 +7,7 @@ import { publicEnv } from "@/lib/env";
 import {
   createProfile,
   deleteAccount,
+  getConnectFacebookAds,
   getConnectUrl,
   getNumberInfo,
   purchasePhoneNumber,
@@ -116,6 +117,53 @@ export async function startConnect(
     return { ok: true, authUrl };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Error conectando" };
+  }
+}
+
+/**
+ * Conecta Meta ADS. A diferencia de `startConnect('facebook')` (que conecta solo
+ * la página), usa `/connect/facebook/ads` (el ad account). Si Zernio responde
+ * `alreadyConnected`, marca el canal `metaads` activo directo (sin OAuth) — esto
+ * arregla el caso donde el ad account existe en Zernio pero `/accounts` no lo
+ * lista y quedaba pegado en "desconectado".
+ */
+export async function startConnectMetaAds(): Promise<
+  Result<{ authUrl?: string; alreadyConnected?: boolean }>
+> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) return { ok: false, message: "Sin empresa" };
+  try {
+    const profileId = await ensureProfile(profile.company_id);
+    const appUrl = publicEnv.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const res = await getConnectFacebookAds(
+      profileId,
+      `${appUrl}/api/channels/callback`,
+    );
+    if (res.authUrl) return { ok: true, authUrl: res.authUrl };
+    if (res.alreadyConnected && res.accountId) {
+      const admin = createAdminClient();
+      await admin.from("messaging_channels").upsert(
+        {
+          company_id: profile.company_id,
+          zernio_account_id: res.accountId,
+          platform: "metaads",
+          external_ref: res.username ?? null,
+          display_name: res.displayName ?? res.username ?? null,
+          status: "active",
+          connected_by: profile.id,
+          connected_at: new Date().toISOString(),
+        },
+        { onConflict: "zernio_account_id" },
+      );
+      revalidatePath("/admin/integraciones");
+      return { ok: true, alreadyConnected: true };
+    }
+    return { ok: false, message: "Respuesta inesperada de Zernio al conectar Meta Ads" };
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Error conectando Meta Ads",
+    };
   }
 }
 

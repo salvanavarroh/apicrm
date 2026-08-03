@@ -23,6 +23,7 @@ import {
   setChannelRouting,
   startBuyNumber,
   startConnect,
+  startConnectMetaAds,
   syncChannels,
 } from "@/app/(app)/admin/channels/actions";
 
@@ -191,6 +192,50 @@ export function ConnectionsGrid({
       else toast.error(res.message);
     });
   }
+  // Meta Ads: usa /connect/facebook/ads. Si ya estaba conectado, lo activa sin
+  // OAuth; si no, redirige al OAuth de Meta con scopes de ads.
+  function connectMetaAds() {
+    start(async () => {
+      const res = await startConnectMetaAds();
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      if (res.authUrl) {
+        window.location.href = res.authUrl;
+        return;
+      }
+      if (res.alreadyConnected) {
+        toast.success("Meta Ads ya estaba conectado — activado");
+        router.refresh();
+      }
+    });
+  }
+  // Google/TikTok Ads: Zernio NO vuelve a nuestro callback (no propaga el
+  // redirect_url), así que abrimos el OAuth en otra pestaña y ofrecemos
+  // "Ya conecté" para sincronizar cuando el usuario vuelve.
+  function connectAds(platform: string) {
+    const label = PLATFORM_META[platform]?.label ?? platform;
+    start(async () => {
+      const res = await startConnect(CONNECT_AS[platform]);
+      if (!res.ok) {
+        toast.error(res.message);
+        return;
+      }
+      window.open(res.authUrl, "_blank", "noopener,noreferrer");
+      setConfirmState({
+        title: `Conectando ${label} en Zernio`,
+        description: `Se abrió Zernio en otra pestaña para autorizar ${label}. Cuando termines allá, volvé acá y tocá "Ya conecté" para sincronizar la cuenta.`,
+        confirmLabel: "Ya conecté",
+        onConfirm: () => sync(),
+      });
+    });
+  }
+  function startConnectFor(platform: string) {
+    if (platform === "metaads") connectMetaAds();
+    else if (platform === "tiktok" || platform === "google") connectAds(platform);
+    else connect(platform);
+  }
   function buy() {
     setConfirmState({
       title: "Comprar número de WhatsApp",
@@ -247,7 +292,7 @@ export function ConnectionsGrid({
     });
   }
   function reconnect(platform: string) {
-    connect(platform);
+    startConnectFor(platform);
   }
 
   return (
@@ -361,7 +406,7 @@ export function ConnectionsGrid({
 
               {/* Acciones de conexión */}
               <div className="mt-auto flex flex-wrap gap-2 border-t pt-3">
-                <Button size="sm" onClick={() => connect(platform)} disabled={pending}>
+                <Button size="sm" onClick={() => startConnectFor(platform)} disabled={pending}>
                   {accounts.length > 0 ? "Conectar otra" : `Conectar ${meta.label}`}
                 </Button>
                 {platform === "whatsapp" && (
