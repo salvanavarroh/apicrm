@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ChannelPill } from "@/components/inbox/channel-pill";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   getInboxInsights,
   type InboxInsights as Insights,
@@ -51,11 +52,24 @@ export function InboxInsights() {
 
   return (
     <div className="space-y-6 overflow-y-auto p-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <Stat label="Conversaciones abiertas" value={data.total} />
         <Stat label="Sin asignar (pool)" value={data.pool} tone={data.pool ? "warning" : "success"} />
         <Stat label="Asignadas" value={data.assigned} />
         <Stat label="Sin responder" value={data.unanswered} tone={data.unanswered ? "danger" : "success"} />
+        <Stat
+          label="Vendedores activos (call center)"
+          value={data.activeVendors}
+          tone={data.activeVendors ? "success" : "default"}
+        />
+        <Card className="p-4">
+          <div className="text-3xl font-semibold">
+            {data.avgResponseMin != null ? `${data.avgResponseMin}m` : "—"}
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            1ra respuesta (prom. 7 días)
+          </div>
+        </Card>
         <Stat label="Ventana por vencer (menos de 1h)" value={data.windowClosing} tone={data.windowClosing ? "warning" : "default"} />
       </div>
 
@@ -75,7 +89,16 @@ export function InboxInsights() {
               </div>
               {data.byVendor.map((v) => (
                 <div key={v.name} className="flex items-center justify-between py-1 text-sm">
-                  <span className="truncate">{v.name}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 truncate">
+                    <span
+                      className={cn(
+                        "size-2 shrink-0 rounded-full",
+                        v.active ? "bg-emerald-500" : "bg-muted-foreground/30",
+                      )}
+                      title={v.active ? "Activo (call center)" : "Inactivo"}
+                    />
+                    {v.name}
+                  </span>
                   <span className="flex gap-6">
                     <span className="w-16 text-right tabular-nums">{v.assigned}</span>
                     <span

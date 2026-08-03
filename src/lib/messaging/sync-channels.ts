@@ -2,7 +2,8 @@
 // Al conectar Facebook, Zernio crea varias cuentas (facebook, instagram, metaads,
 // whatsapp); esto las trae todas con su foto de perfil y estado. Server-only.
 
-import { listAccounts } from "@/lib/messaging/zernio";
+import { getConnectFacebookAds, listAccounts } from "@/lib/messaging/zernio";
+import { publicEnv } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/database";
 
@@ -54,5 +55,32 @@ export async function syncCompanyChannels(
     );
     synced++;
   }
+
+  // El ad account de Meta (metaads) NO aparece en /accounts?profileId. Lo
+  // detectamos por /connect/facebook/ads: si ya está conectado, lo activamos.
+  try {
+    const appUrl = publicEnv.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const fbAds = await getConnectFacebookAds(
+      profileId,
+      `${appUrl}/api/channels/callback`,
+    );
+    if (fbAds.alreadyConnected && fbAds.accountId) {
+      await admin.from("messaging_channels").upsert(
+        {
+          company_id: companyId,
+          zernio_account_id: fbAds.accountId,
+          platform: "metaads",
+          external_ref: fbAds.username ?? null,
+          display_name: fbAds.displayName ?? fbAds.username ?? null,
+          status: "active",
+        },
+        { onConflict: "zernio_account_id" },
+      );
+      synced++;
+    }
+  } catch {
+    /* best-effort: si no hay Meta conectado, no pasa nada */
+  }
+
   return synced;
 }

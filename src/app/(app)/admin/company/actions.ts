@@ -65,6 +65,39 @@ export async function saveCompanyOperational(
   return { ok: true };
 }
 
+// Config del call center (horario de atención + tope de conversaciones por
+// vendedor). Lo respeta assign_conversation_to_active_vendor().
+export async function setCallCenterSettings(input: {
+  maxOpenPerVendor: number | null;
+  hoursEnabled: boolean;
+  hoursStart: string | null; // "HH:MM"
+  hoursEnd: string | null;
+  hoursDays: number[]; // ISO 1=Lun..7=Dom
+}): Promise<{ ok: true } | { ok: false; message: string }> {
+  const profile = await requireRole(["admin"]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("companies")
+    .update({
+      inbox_max_open_per_vendor:
+        input.maxOpenPerVendor && input.maxOpenPerVendor > 0
+          ? input.maxOpenPerVendor
+          : null,
+      inbox_hours_enabled: input.hoursEnabled,
+      inbox_hours_start: input.hoursEnabled ? input.hoursStart || null : null,
+      inbox_hours_end: input.hoursEnabled ? input.hoursEnd || null : null,
+      inbox_hours_days:
+        input.hoursEnabled && input.hoursDays.length ? input.hoursDays : null,
+    })
+    .eq("id", profile.company_id);
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/admin/company");
+  return { ok: true };
+}
+
 // Sube el logo de la empresa (dataURL base64) a un bucket público y devuelve la
 // URL. Se usa desde el modal de edición para setear logo_url.
 const LOGO_RE = /^data:(image\/(png|jpe?g|webp|svg\+xml));base64,/;

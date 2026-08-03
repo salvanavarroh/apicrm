@@ -388,6 +388,12 @@ export type Database = {
           created_at: string
           cuit: string | null
           id: string
+          inbox_hours_days: number[] | null
+          inbox_hours_enabled: boolean
+          inbox_hours_end: string | null
+          inbox_hours_start: string | null
+          inbox_max_open_per_vendor: number | null
+          inbox_tz: string
           legal_name: string | null
           logo_url: string | null
           monthly_price: number | null
@@ -407,6 +413,12 @@ export type Database = {
           created_at?: string
           cuit?: string | null
           id?: string
+          inbox_hours_days?: number[] | null
+          inbox_hours_enabled?: boolean
+          inbox_hours_end?: string | null
+          inbox_hours_start?: string | null
+          inbox_max_open_per_vendor?: number | null
+          inbox_tz?: string
           legal_name?: string | null
           logo_url?: string | null
           monthly_price?: number | null
@@ -426,6 +438,12 @@ export type Database = {
           created_at?: string
           cuit?: string | null
           id?: string
+          inbox_hours_days?: number[] | null
+          inbox_hours_enabled?: boolean
+          inbox_hours_end?: string | null
+          inbox_hours_start?: string | null
+          inbox_max_open_per_vendor?: number | null
+          inbox_tz?: string
           legal_name?: string | null
           logo_url?: string | null
           monthly_price?: number | null

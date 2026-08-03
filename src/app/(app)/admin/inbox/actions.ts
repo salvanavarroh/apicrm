@@ -196,13 +196,59 @@ export type InboxInsights = {
   assigned: number;
   unanswered: number;
   windowClosing: number;
+  activeVendors: number; // vendedores "Activos" ahora (call center)
+  avgResponseMin: number | null; // tiempo medio de 1ra respuesta (últimos 7 días)
   byPlatform: { platform: string; count: number }[];
-  byVendor: { name: string; assigned: number; unanswered: number }[];
+  byVendor: { name: string; assigned: number; unanswered: number; active: boolean }[];
 };
 
 export async function getInboxInsights(): Promise<InboxInsights | null> {
-  await requireRole([...PRIV_ROLES]);
+  const profile = await requireRole([...PRIV_ROLES]);
   const supabase = await createClient();
+  const admin = createAdminClient();
+
+  // Call center: vendedores activos ahora + tiempo medio de 1ra respuesta (7d).
+  const staleIso = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const sevenDaysIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const [{ data: actives }, { data: recentMsgs }] = await Promise.all([
+    admin
+      .from("profiles")
+      .select("id")
+      .eq("company_id", profile.company_id!)
+      .eq("role", "sales")
+      .eq("status", "active")
+      .eq("inbox_available", true)
+      .gt("inbox_available_at", staleIso),
+    admin
+      .from("messages")
+      .select("conversation_id, direction, created_at")
+      .eq("company_id", profile.company_id!)
+      .gte("created_at", sevenDaysIso)
+      .order("created_at", { ascending: true })
+      .limit(5000),
+  ]);
+  const activeIds = new Set((actives ?? []).map((a) => a.id));
+
+  // 1ra respuesta = primer saliente tras el primer entrante, por conversación.
+  const firstIn = new Map<string, number>();
+  const respGap: number[] = [];
+  const answered = new Set<string>();
+  for (const m of recentMsgs ?? []) {
+    const t = new Date(m.created_at).getTime();
+    if (m.direction === "inbound") {
+      if (!firstIn.has(m.conversation_id)) firstIn.set(m.conversation_id, t);
+    } else if (m.direction === "outbound" && !answered.has(m.conversation_id)) {
+      const inb = firstIn.get(m.conversation_id);
+      if (inb != null && t >= inb) {
+        respGap.push(t - inb);
+        answered.add(m.conversation_id);
+      }
+    }
+  }
+  const avgResponseMin =
+    respGap.length > 0
+      ? Math.round(respGap.reduce((a, b) => a + b, 0) / respGap.length / 60000)
+      : null;
   const { data: convs } = await supabase
     .from("conversations")
     .select("assigned_user_id, platform, unread_count, window_expires_at, status")
@@ -256,6 +302,8 @@ export async function getInboxInsights(): Promise<InboxInsights | null> {
     assigned,
     unanswered,
     windowClosing,
+    activeVendors: activeIds.size,
+    avgResponseMin,
     byPlatform: Array.from(byPlat, ([platform, count]) => ({ platform, count })).sort(
       (a, b) => b.count - a.count,
     ),
@@ -263,6 +311,7 @@ export async function getInboxInsights(): Promise<InboxInsights | null> {
       name: names.get(id) ?? "—",
       assigned: v.assigned,
       unanswered: v.unanswered,
+      active: activeIds.has(id),
     })).sort((a, b) => b.assigned - a.assigned),
   };
 }

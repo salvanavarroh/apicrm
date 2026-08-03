@@ -25,6 +25,8 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { formatARS } from "@/lib/format";
 
+import { CallCenterSettingsCard } from "@/components/inbox/call-center-settings";
+
 import { BranchCardActions } from "./branch-card-actions";
 import { EditCompanyDialog } from "./edit-company-dialog";
 import { RequestBranchDialog } from "./request-branch-dialog";
@@ -59,7 +61,7 @@ export default async function AdminCompanyPage() {
     supabase
       .from("companies")
       .select(
-        "id, name, legal_name, cuit, phone, address, logo_url, quote_legal_text, quote_hide_name, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
+        "id, name, legal_name, cuit, phone, address, logo_url, quote_legal_text, quote_hide_name, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at, inbox_max_open_per_vendor, inbox_hours_enabled, inbox_hours_start, inbox_hours_end, inbox_hours_days",
       )
       .eq("id", profile.company_id)
       .maybeSingle(),
@@ -412,6 +414,16 @@ export default async function AdminCompanyPage() {
           Para modificar estos datos contactá al SuperAdmin.
         </p>
       </Card>
+
+      <CallCenterSettingsCard
+        initial={{
+          maxOpenPerVendor: company.inbox_max_open_per_vendor,
+          hoursEnabled: company.inbox_hours_enabled,
+          hoursStart: company.inbox_hours_start?.slice(0, 5) ?? null,
+          hoursEnd: company.inbox_hours_end?.slice(0, 5) ?? null,
+          hoursDays: company.inbox_hours_days ?? [],
+        }}
+      />
     </div>
   );
 }
