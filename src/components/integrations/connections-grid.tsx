@@ -185,55 +185,66 @@ export function ConnectionsGrid({
   const [kyc, setKyc] = useState<string | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmOptions | null>(null);
 
-  function connect(platform: string) {
-    start(async () => {
-      const res = await startConnect(CONNECT_AS[platform]);
-      if (res.ok) window.location.href = res.authUrl;
-      else toast.error(res.message);
+  // Abre el OAuth de Zernio en una pestaña NUEVA (no saca al usuario del CRM) y
+  // ofrece "Ya conecté" para actualizar al volver. La pestaña se pre-abre en el
+  // mismo clic para que el navegador no la bloquee como popup.
+  function connectedDialog(label: string) {
+    setConfirmState({
+      title: `Conectando ${label} en Zernio`,
+      description: `Se abrió Zernio en otra pestaña para autorizar ${label}. Cuando termines allá, volvé acá y tocá "Ya conecté" para actualizar la cuenta.`,
+      confirmLabel: "Ya conecté",
+      onConfirm: () => sync(),
     });
   }
-  // Meta Ads: usa /connect/facebook/ads. Si ya estaba conectado, lo activa sin
-  // OAuth; si no, redirige al OAuth de Meta con scopes de ads.
+  function openInTab(win: Window | null, url: string) {
+    if (win) {
+      win.opener = null;
+      win.location.href = url;
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }
+  function connect(platform: string) {
+    const label = PLATFORM_META[platform]?.label ?? platform;
+    const win = window.open("about:blank", "_blank");
+    start(async () => {
+      const res = await startConnect(CONNECT_AS[platform]);
+      if (!res.ok) {
+        win?.close();
+        toast.error(res.message);
+        return;
+      }
+      openInTab(win, res.authUrl);
+      connectedDialog(label);
+    });
+  }
+  // Meta Ads: /connect/facebook/ads. Si ya estaba conectado, lo activa sin OAuth;
+  // si no, abre el OAuth (con scopes de ads) en pestaña nueva.
   function connectMetaAds() {
+    const win = window.open("about:blank", "_blank");
     start(async () => {
       const res = await startConnectMetaAds();
       if (!res.ok) {
+        win?.close();
         toast.error(res.message);
-        return;
-      }
-      if (res.authUrl) {
-        window.location.href = res.authUrl;
         return;
       }
       if (res.alreadyConnected) {
+        win?.close();
         toast.success("Meta Ads ya estaba conectado — activado");
         router.refresh();
-      }
-    });
-  }
-  // Google/TikTok Ads: Zernio NO vuelve a nuestro callback (no propaga el
-  // redirect_url), así que abrimos el OAuth en otra pestaña y ofrecemos
-  // "Ya conecté" para sincronizar cuando el usuario vuelve.
-  function connectAds(platform: string) {
-    const label = PLATFORM_META[platform]?.label ?? platform;
-    start(async () => {
-      const res = await startConnect(CONNECT_AS[platform]);
-      if (!res.ok) {
-        toast.error(res.message);
         return;
       }
-      window.open(res.authUrl, "_blank", "noopener,noreferrer");
-      setConfirmState({
-        title: `Conectando ${label} en Zernio`,
-        description: `Se abrió Zernio en otra pestaña para autorizar ${label}. Cuando termines allá, volvé acá y tocá "Ya conecté" para sincronizar la cuenta.`,
-        confirmLabel: "Ya conecté",
-        onConfirm: () => sync(),
-      });
+      if (res.authUrl) {
+        openInTab(win, res.authUrl);
+        connectedDialog("Meta Ads");
+      } else {
+        win?.close();
+      }
     });
   }
   function startConnectFor(platform: string) {
     if (platform === "metaads") connectMetaAds();
-    else if (platform === "tiktok" || platform === "google") connectAds(platform);
     else connect(platform);
   }
   function buy() {
