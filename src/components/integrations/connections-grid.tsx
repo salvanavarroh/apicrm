@@ -5,10 +5,11 @@ import {
   CheckCircle2,
   ChevronDown,
   ExternalLink,
+  Plus,
   RefreshCw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { BrandIcon, PLATFORM_META } from "@/components/integrations/brand-icon";
@@ -17,10 +18,7 @@ import {
   explainNameStatus,
   type HealthExplanation,
 } from "@/lib/messaging/whatsapp-health";
-import { ContactAvatar } from "@/components/inbox/contact-avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ConfirmDialog, type ConfirmOptions } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/utils";
 import {
@@ -64,16 +62,15 @@ export type RoutingOption = { id: string; name: string };
 // usa el mapeo por formulario (lead_ad_forms), no este.
 const MESSAGING_PLATFORMS = new Set(["whatsapp", "instagram", "facebook"]);
 
-const ORDER = [
-  "whatsapp",
-  "instagram",
-  "facebook",
-  "metaads",
-  "tiktok",
-  "google",
+// Grupos del panel: mensajería (entra al Inbox) vs. publicidad (métricas/Lead Ads).
+const GROUPS = [
+  { key: "messaging", label: "Mensajería", platforms: ["whatsapp", "instagram", "facebook"] },
+  { key: "ads", label: "Publicidad", platforms: ["metaads", "tiktok", "google"] },
 ] as const;
-// Cada card → el slug del flujo de conexión de Zernio. Meta Ads va con Facebook
-// (trae los ads); TikTok/Google Ads usan sus flujos de ads (OAuth real).
+const ALL_PLATFORMS = GROUPS.flatMap((g) => g.platforms);
+
+// Cada plataforma → el slug del flujo de conexión de Zernio. Meta Ads va con
+// Facebook (trae los ads); TikTok/Google usan sus flujos de ads (OAuth real).
 const CONNECT_AS: Record<
   string,
   "whatsapp" | "instagram" | "facebook" | "tiktok-ads" | "google-ads"
@@ -86,12 +83,6 @@ const CONNECT_AS: Record<
   google: "google-ads",
 };
 
-const STATUS_TONE: Record<string, string> = {
-  active: "bg-emerald-100 text-emerald-700",
-  connecting: "bg-amber-100 text-amber-700",
-  disconnected: "bg-red-100 text-red-700",
-  error: "bg-red-100 text-red-700",
-};
 const STATUS_LABEL: Record<string, string> = {
   active: "Activo",
   connecting: "Conectando",
@@ -99,25 +90,29 @@ const STATUS_LABEL: Record<string, string> = {
   error: "Error",
 };
 
-// Salud del número de WhatsApp: estado de envío + bloqueos accionables (método
-// de pago, verificación del negocio, nombre sin aprobar).
-function WhatsappHealth({
-  health,
-  nameStatus,
-}: {
-  health?: NumberHealth;
-  nameStatus: string | null;
-}) {
+// Estado de cada canal activo cuando no es WhatsApp (que tiene salud aparte).
+const STATUS_TEXT: Record<string, string> = {
+  instagram: "Recibiendo DMs de Instagram.",
+  facebook: "Recibiendo mensajes de Messenger.",
+  metaads: "Trayendo métricas de anuncios y formularios de Lead Ads.",
+  tiktok: "Trayendo métricas de tus anuncios de TikTok.",
+  google: "Trayendo métricas de tus campañas de Google Ads.",
+};
+
+type HealthTone = "good" | "warn" | "crit";
+// Resuelve la salud del número de WhatsApp: severidad, etiqueta y avisos accionables.
+function computeHealth(
+  health?: NumberHealth,
+  nameStatus?: string | null,
+): { tone: HealthTone; label: string; issues: HealthExplanation[] } {
   const nameExp = nameStatus ? explainNameStatus(nameStatus) : null;
   const csm = health?.canSendMessage ?? undefined;
-  if (!health && !nameExp) return null;
-
-  const tone =
-    csm === "BLOCKED"
-      ? "text-red-600"
-      : csm === "LIMITED"
-        ? "text-amber-600"
-        : "text-emerald-600";
+  const issues: HealthExplanation[] = [
+    ...(nameExp ? [nameExp] : []),
+    ...(health?.blockers ?? []).map((b) => explainBlocker(b.code, b.description, b.solution)),
+  ];
+  const tone: HealthTone =
+    csm === "BLOCKED" ? "crit" : issues.length > 0 || csm === "LIMITED" ? "warn" : "good";
   const label =
     csm === "BLOCKED"
       ? "Envío bloqueado"
@@ -125,68 +120,56 @@ function WhatsappHealth({
         ? "Envío limitado"
         : csm === "AVAILABLE"
           ? "Puede enviar mensajes"
-          : null;
+          : issues.length
+            ? "Con avisos"
+            : "Sin restricciones";
+  return { tone, label, issues };
+}
 
-  const issues: HealthExplanation[] = [
-    ...(nameExp ? [nameExp] : []),
-    ...(health?.blockers ?? []).map((b) => explainBlocker(b.code, b.description, b.solution)),
-  ];
+const HEALTH_CLS: Record<HealthTone, { text: string; dot: string }> = {
+  good: { text: "text-emerald-600", dot: "bg-emerald-500" },
+  warn: { text: "text-amber-600", dot: "bg-amber-500" },
+  crit: { text: "text-red-600", dot: "bg-red-500" },
+};
 
-  // Sin avisos → una sola línea de estado (no ocupa espacio).
-  if (issues.length === 0) {
-    return (
-      <div className="mt-2 flex items-center gap-1.5 border-t pt-2 text-[11px]">
-        {csm === "AVAILABLE" ? (
-          <CheckCircle2 className={cn("size-3.5", tone)} />
-        ) : label ? (
-          <AlertTriangle className={cn("size-3.5", tone)} />
-        ) : null}
-        <span className={cn("font-medium", tone)}>{label ?? "Sin restricciones"}</span>
-        {csm === "AVAILABLE" && (
-          <span className="text-muted-foreground">· todo en orden</span>
-        )}
-      </div>
-    );
-  }
-
-  // Con avisos → colapsable: el resumen muestra severidad + cantidad; el detalle
-  // (qué hacer + link) queda a un clic, para no ocupar toda la tarjeta.
+function StatusPill({ status }: { status: string }) {
+  const active = status === "active";
   return (
-    <details className="group mt-2 border-t pt-2 text-[11px]">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5">
-        <AlertTriangle className={cn("size-3.5 shrink-0", tone)} />
-        <span className={cn("font-medium", tone)}>{label ?? "Avisos"}</span>
-        <span className="text-muted-foreground">
-          · {issues.length} aviso{issues.length === 1 ? "" : "s"} para resolver
-        </span>
-        <ChevronDown className="ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="mt-2 space-y-2">
-        {issues.map((x, i) => (
-          <div key={i} className="rounded-md bg-background/60 p-2">
-            <div className="flex items-start gap-1.5">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-              <span className="text-foreground">{x.title}</span>
-            </div>
-            <div className="mt-1 pl-5 text-muted-foreground">
-              <span className="font-medium text-foreground">Qué hacer: </span>
-              {x.whatToDo}
-            </div>
-            {x.url && (
-              <a
-                href={x.url}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 ml-5 inline-flex items-center gap-1 font-medium text-primary hover:underline"
-              >
-                <ExternalLink className="size-3" />
-                {x.urlLabel ?? "Resolver"}
-              </a>
-            )}
-          </div>
-        ))}
-      </div>
-    </details>
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
+        active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground",
+      )}
+    >
+      <span className={cn("size-1.5 rounded-full", active ? "bg-emerald-500" : "bg-muted-foreground/50")} />
+      {STATUS_LABEL[status] ?? status}
+    </span>
+  );
+}
+
+function HealthChip({ tone, count }: { tone: HealthTone; count: number }) {
+  const c = HEALTH_CLS[tone];
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold", c.text)}>
+      <span className={cn("size-1.5 rounded-full", c.dot)} />
+      {count > 0 ? `${count} aviso${count === 1 ? "" : "s"}` : "Ok"}
+    </span>
+  );
+}
+
+// Íconos de marca en cuadrado con tinte de la plataforma.
+function ChannelIcon({ platform, size = "md" }: { platform: string; size?: "sm" | "md" }) {
+  const meta = PLATFORM_META[platform];
+  return (
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-lg",
+        meta.tint,
+        size === "md" ? "size-9" : "size-7",
+      )}
+    >
+      <BrandIcon platform={platform} className={size === "md" ? "size-5" : "size-4"} />
+    </div>
   );
 }
 
@@ -335,14 +318,36 @@ export function ConnectionsGrid({
     startConnectFor(platform);
   }
 
+  function routeSummary(c: Channel): { text: string; unset: boolean } {
+    const b = branches.find((x) => x.id === c.branch_id)?.name;
+    const p = productTypes.find((x) => x.id === c.product_type_id)?.name;
+    if (!b) return { text: "Sin sucursal — cae al pool", unset: true };
+    return { text: [b, p].filter(Boolean).join(" · "), unset: false };
+  }
+
+  // ---- resumen ----
+  const activeChannels = channels.filter((c) => c.status === "active");
+  const warnCount = channels.filter(
+    (c) => c.platform === "whatsapp" && computeHealth(c.metadata?.health, c.name_status).issues.length > 0,
+  ).length;
+  const notConnected = ALL_PLATFORMS.filter(
+    (p) => !channels.some((c) => c.platform === p && c.status === "active"),
+  ).length;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          Conectá las redes de la concesionaria. Los mensajes entran al Inbox.
-        </p>
+      {/* Resumen */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card p-3 shadow-sm">
+        <Stat n={activeChannels.length} label="conectados" />
+        <div className="border-l pl-4">
+          <Stat n={warnCount} label="con avisos" tone={warnCount ? "warn" : undefined} />
+        </div>
+        <div className="border-l pl-4">
+          <Stat n={notConnected} label="sin conectar" />
+        </div>
+        <div className="flex-1" />
         <Button size="sm" variant="outline" onClick={sync} disabled={pending}>
-          <RefreshCw className="mr-1 size-4" /> Sincronizar
+          <RefreshCw className={cn("mr-1 size-4", pending && "animate-spin")} /> Sincronizar
         </Button>
       </div>
 
@@ -352,116 +357,279 @@ export function ConnectionsGrid({
         </a>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {ORDER.map((platform) => {
-          const meta = PLATFORM_META[platform];
+      {/* Grupos */}
+      {GROUPS.map((g) => {
+        const rows = g.platforms.flatMap((platform) => {
           const accounts = channels.filter((c) => c.platform === platform);
-          return (
-            <Card key={platform} className="flex flex-col gap-3 p-4">
-              <div className="flex items-start gap-3">
-                <div className={cn("flex size-11 items-center justify-center rounded-xl", meta.tint)}>
-                  <BrandIcon platform={platform} className="size-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium">{meta.label}</div>
-                  <div className="text-xs text-muted-foreground">{meta.desc}</div>
-                </div>
-              </div>
+          if (accounts.length === 0) return [{ platform, channel: null as Channel | null }];
+          return accounts.map((channel) => ({ platform, channel }));
+        });
+        const connectedInGroup = g.platforms.filter((p) =>
+          channels.some((c) => c.platform === p && c.status === "active"),
+        ).length;
 
-              {/* Cuentas conectadas */}
-              {accounts.length > 0 && (
-                <div className="space-y-2">
-                  {accounts.map((c) => {
-                    const canReconnect =
-                      c.status === "disconnected" || c.status === "error";
-                    return (
-                      <div
-                        key={c.id}
-                        className="rounded-lg bg-muted/40 p-2"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <ContactAvatar
-                            name={c.display_name ?? c.external_ref}
-                            photoUrl={c.photo_url}
-                            size="sm"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="truncate text-sm font-medium">
-                                {c.display_name ?? c.external_ref ?? meta.label}
-                              </span>
-                              <Badge className={cn("shrink-0 text-[10px]", STATUS_TONE[c.status])}>
-                                {STATUS_LABEL[c.status] ?? c.status}
-                              </Badge>
-                            </div>
-                            {platform === "whatsapp" && (
-                              <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-                                {c.quality_rating && <span>calidad: {c.quality_rating}</span>}
-                                {c.messaging_limit_tier && <span>{c.messaging_limit_tier}</span>}
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex shrink-0 gap-1">
-                            {canReconnect ? (
-                              <Button size="sm" onClick={() => reconnect(platform)} disabled={pending}>
-                                Reconectar
-                              </Button>
-                            ) : (
-                              <>
-                                {platform === "whatsapp" && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => health(c.id)}
-                                    disabled={pending}
-                                    title="Actualizar estado y salud del número"
-                                  >
-                                    <RefreshCw className={cn("mr-1 size-4", pending && "animate-spin")} />
-                                    Salud
-                                  </Button>
-                                )}
-                                <Button size="sm" variant="ghost" onClick={() => disconnect(c.id)} disabled={pending}>
-                                  Desconectar
-                                </Button>
-                              </>
-                            )}
-                          </div>
+        return (
+          <section key={g.key}>
+            <div className="mb-2 mt-4 flex items-center gap-2.5 px-0.5">
+              <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground/70">
+                {g.label}
+              </span>
+              <span className="text-[11px] text-muted-foreground/70">
+                {connectedInGroup} conectado{connectedInGroup === 1 ? "" : "s"}
+              </span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
+            <div className="space-y-2">
+              {rows.map(({ platform, channel }) => {
+                const meta = PLATFORM_META[platform];
+                // Sin cuenta → fila "sin conectar".
+                if (!channel) {
+                  return (
+                    <div
+                      key={platform}
+                      className="flex items-center gap-3 rounded-xl border bg-card p-3 shadow-sm"
+                    >
+                      <ChannelIcon platform={platform} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold">{meta.label}</div>
+                        <div className="truncate text-xs text-muted-foreground">{meta.desc}</div>
+                      </div>
+                      <span className="hidden shrink-0 items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-flex">
+                        <span className="size-1.5 rounded-full bg-muted-foreground/40" /> Sin conectar
+                      </span>
+                      <Button size="sm" onClick={() => startConnectFor(platform)} disabled={pending}>
+                        Conectar
+                      </Button>
+                    </div>
+                  );
+                }
+
+                const c = channel;
+                const isMessaging = MESSAGING_PLATFORMS.has(platform);
+                const isWa = platform === "whatsapp";
+                const canReconnect = c.status === "disconnected" || c.status === "error";
+
+                // Cuenta desconectada/con error → fila compacta con reconectar/quitar.
+                if (canReconnect) {
+                  return (
+                    <div
+                      key={c.id}
+                      className="flex flex-wrap items-center gap-3 rounded-xl border bg-card p-3 shadow-sm"
+                    >
+                      <ChannelIcon platform={platform} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold">
+                          {c.display_name ?? c.external_ref ?? meta.label}
                         </div>
-                        {platform === "whatsapp" && (
-                          <WhatsappHealth health={c.metadata?.health} nameStatus={c.name_status} />
+                        <div className="truncate text-xs text-muted-foreground">{meta.label}</div>
+                      </div>
+                      <StatusPill status={c.status} />
+                      <Button size="sm" onClick={() => reconnect(platform)} disabled={pending}>
+                        Reconectar
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => disconnect(c.id)} disabled={pending}>
+                        Quitar
+                      </Button>
+                    </div>
+                  );
+                }
+
+                const h = isWa ? computeHealth(c.metadata?.health, c.name_status) : null;
+                const route = isMessaging ? routeSummary(c) : null;
+
+                return (
+                  <details
+                    key={c.id}
+                    className="group overflow-hidden rounded-xl border bg-card shadow-sm open:border-border/90"
+                  >
+                    <summary className="flex cursor-pointer list-none items-center gap-3 p-3 hover:bg-muted/40 [&::-webkit-details-marker]:hidden">
+                      <ChannelIcon platform={platform} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold">
+                          {c.display_name ?? c.external_ref ?? meta.label}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {meta.label}
+                          {isWa && c.messaging_limit_tier ? ` · ${c.messaging_limit_tier}` : ""}
+                        </div>
+                      </div>
+                      <StatusPill status={c.status} />
+                      {route && (
+                        <span
+                          className={cn(
+                            "hidden max-w-[190px] items-center gap-1.5 text-xs md:flex",
+                            route.unset ? "text-muted-foreground/70 italic" : "text-muted-foreground",
+                          )}
+                        >
+                          <RefreshCw className="size-3.5 shrink-0 rotate-90 text-muted-foreground/50" />
+                          <span className="truncate">{route.text}</span>
+                        </span>
+                      )}
+                      {h ? (
+                        <HealthChip tone={h.tone} count={h.issues.length} />
+                      ) : (
+                        <HealthChip tone="good" count={0} />
+                      )}
+                      <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                    </summary>
+
+                    <div className="grid gap-3 border-t bg-muted/30 p-3 sm:grid-cols-2">
+                      {/* Salud (WhatsApp) o estado */}
+                      <div className="rounded-lg border bg-card p-3">
+                        <p className="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+                          {isWa ? "Salud del número" : "Estado"}
+                          {h && h.tone !== "good" && (
+                            <span className={cn("normal-case tracking-normal", HEALTH_CLS[h.tone].text)}>
+                              {h.label}
+                            </span>
+                          )}
+                        </p>
+                        {isWa && h && h.issues.length > 0 ? (
+                          <div className="space-y-2">
+                            {h.issues.map((x, i) => (
+                              <div key={i} className="rounded-md border p-2 text-[12px]">
+                                <div className="flex items-start gap-1.5">
+                                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+                                  <span className="font-medium">{x.title}</span>
+                                </div>
+                                <div className="mt-1 pl-5 text-muted-foreground">
+                                  <span className="font-semibold text-foreground">Qué hacer: </span>
+                                  {x.whatToDo}
+                                </div>
+                                {x.url && (
+                                  <a
+                                    href={x.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-1.5 ml-5 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+                                  >
+                                    <ExternalLink className="size-3" />
+                                    {x.urlLabel ?? "Resolver"}
+                                  </a>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-[13px] font-medium text-emerald-600">
+                            <CheckCircle2 className="size-4 shrink-0" />
+                            {isWa ? "Sin restricciones. Todo en orden." : STATUS_TEXT[platform] ?? "Conectado."}
+                          </div>
                         )}
-                        {MESSAGING_PLATFORMS.has(platform) && c.status === "active" && (
+                        {isWa && (c.quality_rating || c.messaging_limit_tier) && (
+                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t pt-2 text-[11px] text-muted-foreground">
+                            {c.quality_rating && <span>Calidad: {c.quality_rating}</span>}
+                            {c.messaging_limit_tier && <span>Límite: {c.messaging_limit_tier}</span>}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Routing (mensajería) */}
+                      {isMessaging ? (
+                        <div className="rounded-lg border bg-card p-3">
+                          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+                            Enrutar leads de este número
+                          </p>
                           <ChannelRouting
                             channel={c}
                             branches={branches}
                             productTypes={productTypes}
                             campaigns={campaigns}
                           />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border bg-card p-3">
+                          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">
+                            Routing
+                          </p>
+                          <p className="text-[12px] text-muted-foreground">
+                            Cada formulario de Lead Ads se mapea a su sucursal/campaña desde la
+                            pestaña <span className="font-semibold text-foreground">Lead Ads</span>.
+                          </p>
+                        </div>
+                      )}
 
-              {/* Acciones de conexión */}
-              <div className="mt-auto flex flex-wrap gap-2 border-t pt-3">
-                <Button size="sm" onClick={() => startConnectFor(platform)} disabled={pending}>
-                  {accounts.length > 0 ? "Conectar otra" : `Conectar ${meta.label}`}
-                </Button>
-                {platform === "whatsapp" && (
-                  <Button size="sm" variant="outline" onClick={buy} disabled={pending}>
-                    Comprar número
-                  </Button>
-                )}
-              </div>
-            </Card>
-          );
-        })}
+                      {/* Acciones */}
+                      <div className="col-span-full flex flex-wrap items-center gap-2 pt-0.5">
+                        {isWa && (
+                          <Button size="sm" variant="outline" onClick={() => health(c.id)} disabled={pending}>
+                            <RefreshCw className={cn("mr-1 size-4", pending && "animate-spin")} />
+                            Actualizar salud
+                          </Button>
+                        )}
+                        <span className="flex-1" />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => disconnect(c.id)}
+                          disabled={pending}
+                        >
+                          Desconectar
+                        </Button>
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+
+      {/* Conectar un canal nuevo */}
+      <div className="mt-4 rounded-xl border border-dashed bg-card p-4">
+        <p className="text-sm font-semibold">
+          Conectar un canal nuevo{" "}
+          <span className="font-normal text-muted-foreground">
+            · los mensajes entran al Inbox y los anuncios al panel de Ads
+          </span>
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {ALL_PLATFORMS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => startConnectFor(p)}
+              disabled={pending}
+              className="inline-flex items-center gap-2 rounded-lg border py-1.5 pl-1.5 pr-3 text-[12.5px] font-medium transition-colors hover:border-border/80 hover:bg-muted/50 disabled:opacity-60"
+            >
+              <ChannelIcon platform={p} size="sm" />
+              {PLATFORM_META[p].label}
+              <Plus className="size-3.5 text-muted-foreground" />
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={buy}
+            disabled={pending}
+            className="inline-flex items-center gap-2 rounded-lg border border-dashed py-1.5 pl-2.5 pr-3 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-muted/50 disabled:opacity-60"
+          >
+            Comprar número de WhatsApp
+            <span className="text-muted-foreground">→</span>
+          </button>
+        </div>
       </div>
 
       <ConfirmDialog state={confirmState} onClose={() => setConfirmState(null)} />
     </div>
+  );
+}
+
+function Stat({ n, label, tone }: { n: number; label: string; tone?: "warn" }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <b
+        className={cn(
+          "text-lg font-bold tabular-nums leading-none tracking-tight",
+          tone === "warn" && n > 0 && "text-amber-600",
+        )}
+      >
+        {n}
+      </b>
+      <span className="text-xs text-muted-foreground">{label}</span>
+    </span>
   );
 }
 
@@ -500,14 +668,11 @@ function ChannelRouting({
   }
 
   const selectCls =
-    "min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-[11px] disabled:opacity-60";
+    "w-full rounded-md border bg-background px-2.5 py-1.5 text-[13px] disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-accent/40";
 
   return (
-    <div className="mt-2 space-y-1.5 border-t pt-2">
-      <p className="text-[11px] font-medium text-muted-foreground">
-        Enrutar leads de este número a:
-      </p>
-      <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-col gap-2">
+      <Field label="Sucursal">
         <select
           value={branchId}
           disabled={pending}
@@ -516,15 +681,16 @@ function ChannelRouting({
             save({ b: e.target.value });
           }}
           className={selectCls}
-          title="Sucursal"
         >
-          <option value="">Sucursal…</option>
+          <option value="">Sin asignar — pool general</option>
           {branches.map((b) => (
             <option key={b.id} value={b.id}>
               {b.name}
             </option>
           ))}
         </select>
+      </Field>
+      <Field label="Tipo de producto · opcional">
         <select
           value={productTypeId}
           disabled={pending}
@@ -533,15 +699,16 @@ function ChannelRouting({
             save({ p: e.target.value });
           }}
           className={selectCls}
-          title="Tipo de producto (opcional)"
         >
-          <option value="">Tipo (se clasifica luego)</option>
+          <option value="">Se clasifica al entrar</option>
           {productTypes.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
         </select>
+      </Field>
+      <Field label="Campaña · opcional">
         <select
           value={campaignId}
           disabled={pending}
@@ -550,16 +717,28 @@ function ChannelRouting({
             save({ c: e.target.value });
           }}
           className={selectCls}
-          title="Campaña (opcional)"
         >
-          <option value="">Campaña…</option>
+          <option value="">Sin campaña</option>
           {campaigns.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
           ))}
         </select>
-      </div>
+      </Field>
+      <p className="text-[11px] text-muted-foreground">
+        Con sucursal + tipo, los leads se reparten por round-robin a los vendedores
+        activos.
+      </p>
     </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[11.5px] font-medium text-muted-foreground">{label}</span>
+      {children}
+    </label>
   );
 }
