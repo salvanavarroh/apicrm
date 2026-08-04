@@ -38,9 +38,14 @@ export async function syncCompanyChannels(
     if (!platform) continue;
     const accId = a._id ?? a.accountId;
     if (!accId) continue;
-    const active = a.needsReconnection
-      ? false
-      : (a.isActive ?? a.enabled ?? true);
+    // `enabled: false` = Zernio la tiene deshabilitada: NO es una conexión de
+    // usuario, sino un arrastre (ej. la página de Facebook que trae un connect de
+    // Instagram/Meta Ads, sin capacidad de inbox). El dashboard de Zernio tampoco
+    // la muestra → la marcamos desconectada para no decir "conectado" de más.
+    const active =
+      !a.needsReconnection &&
+      a.enabled !== false &&
+      (a.isActive ?? a.enabled ?? true);
     await admin.from("messaging_channels").upsert(
       {
         company_id: companyId,
