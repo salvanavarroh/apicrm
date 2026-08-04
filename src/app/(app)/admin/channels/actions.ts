@@ -157,6 +157,13 @@ export async function startConnectMetaAds(): Promise<
         },
         { onConflict: "zernio_account_id" },
       );
+      // Re-sync: refleja bien el resto de las cuentas (respeta `enabled`, así el
+      // Facebook "arrastrado" enabled:false queda desconectado, no "conectado").
+      try {
+        await syncCompanyChannels(profile.company_id, profileId);
+      } catch {
+        /* best-effort */
+      }
       revalidatePath("/admin/integraciones");
       return { ok: true, alreadyConnected: true };
     }

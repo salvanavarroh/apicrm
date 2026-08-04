@@ -301,6 +301,17 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     if (!resolved) return; // sin identificador (teléfono/email/social) no se crea
     leadId = resolved.leadId;
     assignedUserId = resolved.assignedUserId; // sticky-seller: si el lead ya tiene dueño, la conv va a él
+    // ...pero el sticky-seller SOLO vale si el dueño es un VENDEDOR (sales). Si el
+    // lead lo tiene un admin/manager/supervisor (que no atienden conversaciones),
+    // no lo pegamos a ellos: la conversación va al reparto de vendedores activos.
+    if (assignedUserId) {
+      const { data: owner } = await admin
+        .from("profiles")
+        .select("role")
+        .eq("id", assignedUserId)
+        .maybeSingle();
+      if (owner?.role !== "sales") assignedUserId = null;
+    }
     const attribution = extractAttribution(message);
     const { data: conv, error: convErr } = await admin
       .from("conversations")
@@ -339,14 +350,15 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
       );
       if (assigned) {
         assignedUserId = assigned;
+        // El lead sigue a la conversación (aunque lo tuviera un admin/manager, que
+        // acá ya descartamos como dueño válido). Sin `.is null` para poder overridear.
         await admin
           .from("leads")
           .update({
             assigned_user_id: assigned,
             assigned_at: new Date().toISOString(),
           })
-          .eq("id", leadId)
-          .is("assigned_user_id", null);
+          .eq("id", leadId);
       }
     }
   }
