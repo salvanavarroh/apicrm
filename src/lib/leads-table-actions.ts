@@ -62,6 +62,7 @@ export type LeadsTableFilters = {
   product_type_id?: string;
   campaign_id?: string;
   assigned_user_id?: string; // uuid | "unassigned"
+  form_id?: string; // metadata->>formId — leads de un formulario de Lead Ads
 };
 
 type TableRow = {
@@ -146,6 +147,7 @@ function applyFilters(query: Query, f: LeadsTableFilters): Query {
   if (f.branch_id) q = q.eq("branch_id", f.branch_id);
   if (f.product_type_id) q = q.eq("product_type_id", f.product_type_id);
   if (f.campaign_id) q = q.eq("campaign_id", f.campaign_id);
+  if (f.form_id) q = q.eq("metadata->>formId", f.form_id);
   if (f.assigned_user_id === "unassigned") {
     q = q.is("assigned_user_id", null);
   } else if (f.assigned_user_id) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Download, Plus, RefreshCw, Search, X } from "lucide-react";
+import { Check, Download, ExternalLink, Plus, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -12,12 +12,11 @@ import { cn } from "@/lib/utils";
 import {
   createCampaignFromForm,
   deleteLeadAdForm,
-  getFormLeads,
+  getFormStatuses,
   pullLeadForms,
   startFormImport,
   upsertLeadAdForm,
   type FormImportJob,
-  type FormLeadRow,
   type PulledForm,
 } from "@/app/(app)/admin/lead-ads/actions";
 
@@ -51,13 +50,52 @@ export function LeadAdsManager({
   const [campaignId, setCampaignId] = useState("");
   const [pulled, setPulled] = useState<PulledForm[] | null>(null);
   const [pullSearch, setPullSearch] = useState("");
-  const [detail, setDetail] = useState<LeadAdFormRow | null>(null);
   const [localCampaigns, setLocalCampaigns] = useState(campaigns);
+  // Estado del job de import por formulario (para el botón Importar/Continuar).
+  const [statuses, setStatuses] = useState<Record<string, FormImportJob>>({});
+  const [importingId, setImportingId] = useState<string | null>(null);
   const mappingRef = useRef<HTMLDivElement>(null);
 
   const nameOf = (opts: Opt[], id: string | null) =>
     opts.find((o) => o.id === id)?.name ?? "—";
   const mappedIds = new Set(forms.map((f) => f.meta_form_id));
+
+  // Cargamos el estado de import de los formularios mapeados al montar.
+  const mappedKey = forms.map((f) => f.meta_form_id).join(",");
+  useEffect(() => {
+    const ids = mappedKey ? mappedKey.split(",") : [];
+    if (ids.length === 0) return;
+    let alive = true;
+    getFormStatuses(ids).then((s) => {
+      if (alive) setStatuses(s);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [mappedKey]);
+
+  function runImport(metaFormId: string) {
+    setImportingId(metaFormId);
+    start(async () => {
+      try {
+        const res = await startFormImport(metaFormId);
+        if (!res.ok) {
+          toast.error(res.message);
+        } else if (res.status === "done") {
+          toast.success(
+            `Import terminado: ${res.imported} nuevos${res.duplicates ? `, ${res.duplicates} ya existían` : ""}`,
+          );
+        } else {
+          toast.info(`Importados ${res.imported}. Faltan más — tocá "Continuar".`);
+        }
+        const s = await getFormStatuses([metaFormId]);
+        setStatuses((prev) => ({ ...prev, ...s }));
+        router.refresh();
+      } finally {
+        setImportingId(null);
+      }
+    });
+  }
 
   const filteredPulled = useMemo(() => {
     if (!pulled) return [];
@@ -307,203 +345,75 @@ export function LeadAdsManager({
             Todavía no mapeaste ningún formulario.
           </p>
         ) : (
-          forms.map((f) => (
-            <Card key={f.id} className="p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <button
-                  type="button"
-                  onClick={() => setDetail(f)}
-                  className="min-w-0 flex-1 text-left"
-                >
-                  <div className="truncate font-medium hover:underline">
-                    {f.form_name ?? f.meta_form_id}
+          forms.map((f) => {
+            const job = statuses[f.meta_form_id];
+            const paused = job?.status === "paused" || job?.status === "error";
+            const isImporting = importingId === f.meta_form_id;
+            return (
+              <Card key={f.id} className="p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">
+                      {f.form_name ?? f.meta_form_id}
+                    </div>
+                    <div className="truncate text-xs text-muted-foreground">
+                      <span className="font-mono">{f.meta_form_id}</span> ·{" "}
+                      {nameOf(branches, f.branch_id)} / {nameOf(productTypes, f.product_type_id)}
+                      {f.campaign_id ? ` · ${nameOf(localCampaigns, f.campaign_id)}` : ""}
+                    </div>
+                    {job && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 font-medium",
+                            job.status === "done"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : job.status === "error"
+                                ? "bg-red-100 text-red-700"
+                                : job.status === "running"
+                                  ? "bg-sky-100 text-sky-700"
+                                  : "bg-amber-100 text-amber-700",
+                          )}
+                        >
+                          {job.status === "done"
+                            ? "Import completado"
+                            : job.status === "paused"
+                              ? "Pausado"
+                              : job.status === "error"
+                                ? "Con error"
+                                : "En curso"}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {job.imported} importados
+                          {job.duplicates ? ` · ${job.duplicates} ya existían` : ""}
+                        </span>
+                        {job.error && <span className="text-red-600">{job.error}</span>}
+                      </div>
+                    )}
                   </div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    <span className="font-mono">{f.meta_form_id}</span> ·{" "}
-                    {nameOf(branches, f.branch_id)} / {nameOf(productTypes, f.product_type_id)}
-                    {f.campaign_id ? ` · ${nameOf(localCampaigns, f.campaign_id)}` : ""}
+                  <div className="flex shrink-0 flex-wrap gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={() => runImport(f.meta_form_id)}
+                      disabled={pending || job?.status === "running"}
+                    >
+                      <Download className={cn("mr-1 size-4", isImporting && "animate-pulse")} />
+                      {paused ? "Continuar" : isImporting ? "Importando…" : "Importar"}
+                    </Button>
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/admin/leads?form=${f.meta_form_id}`}>
+                        <ExternalLink className="mr-1 size-4" /> Ver leads
+                      </Link>
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => remove(f.id)} disabled={pending}>
+                      Borrar
+                    </Button>
                   </div>
-                </button>
-                <div className="flex shrink-0 gap-1.5">
-                  <Button size="sm" variant="outline" onClick={() => setDetail(f)}>
-                    Ver leads
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => remove(f.id)} disabled={pending}>
-                    Borrar
-                  </Button>
                 </div>
-              </div>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
-      </div>
-
-      {detail && <FormLeadsDrawer form={detail} onClose={() => setDetail(null)} />}
-    </div>
-  );
-}
-
-// Detalle de un formulario mapeado: importar leads históricos (backend, reanudable)
-// + ver los leads ya ingresados (histórico + los que entran por webhook).
-function FormLeadsDrawer({
-  form,
-  onClose,
-}: {
-  form: LeadAdFormRow;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const [data, setData] = useState<{
-    leads: FormLeadRow[];
-    total: number;
-    job: FormImportJob;
-  } | null>(null);
-  const [importing, setImporting] = useState(false);
-
-  async function load() {
-    const res = await getFormLeads(form.meta_form_id);
-    if (res.ok) setData({ leads: res.leads, total: res.total, job: res.job });
-  }
-  useEffect(() => {
-    let alive = true;
-    getFormLeads(form.meta_form_id).then((res) => {
-      if (alive && res.ok) setData({ leads: res.leads, total: res.total, job: res.job });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [form.meta_form_id]);
-
-  async function runImport() {
-    setImporting(true);
-    try {
-      const res = await startFormImport(form.meta_form_id);
-      if (!res.ok) {
-        toast.error(res.message);
-      } else if (res.status === "done") {
-        toast.success(`Import terminado: ${res.imported} nuevos, ${res.duplicates} ya existían`);
-      } else {
-        toast.info(
-          `Importados ${res.imported} hasta ahora. Faltan más — tocá "Continuar".`,
-        );
-      }
-      await load();
-      router.refresh();
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  const job = data?.job;
-  const paused = job?.status === "paused" || job?.status === "error";
-  const running = importing || job?.status === "running";
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
-      <div
-        className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-card shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-2 border-b p-4">
-          <div className="min-w-0">
-            <div className="truncate font-semibold">{form.form_name ?? form.meta_form_id}</div>
-            <div className="truncate font-mono text-xs text-muted-foreground">
-              {form.meta_form_id}
-            </div>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            <X className="size-5" />
-          </button>
-        </div>
-
-        {/* Import histórico */}
-        <div className="border-b p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-medium">Importar leads históricos</p>
-              <p className="text-xs text-muted-foreground">
-                Trae los leads ya enviados a este formulario. Corre en el backend y
-                te avisa al terminar.
-              </p>
-            </div>
-            <Button size="sm" onClick={runImport} disabled={running}>
-              <Download className={cn("mr-1 size-4", importing && "animate-pulse")} />
-              {paused ? "Continuar" : importing ? "Importando…" : "Importar"}
-            </Button>
-          </div>
-          {job && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-              <span
-                className={cn(
-                  "rounded-full px-2 py-0.5 font-medium",
-                  job.status === "done"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : job.status === "error"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-amber-100 text-amber-700",
-                )}
-              >
-                {job.status === "done"
-                  ? "Completado"
-                  : job.status === "paused"
-                    ? "Pausado (tocá Continuar)"
-                    : job.status === "error"
-                      ? "Con error"
-                      : "En curso"}
-              </span>
-              <span className="text-muted-foreground">
-                {job.imported} importados
-                {job.duplicates ? ` · ${job.duplicates} ya existían` : ""}
-              </span>
-              {job.error && <span className="text-red-600">{job.error}</span>}
-            </div>
-          )}
-        </div>
-
-        {/* Leads del formulario */}
-        <div className="flex-1 p-4">
-          <p className="mb-2 text-sm font-medium">
-            Leads de este formulario{" "}
-            <span className="font-normal text-muted-foreground">
-              ({data?.total ?? "…"})
-            </span>
-          </p>
-          {!data ? (
-            <p className="text-sm text-muted-foreground">Cargando…</p>
-          ) : data.leads.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Todavía no ingresó ningún lead. Importá los históricos o esperá a que
-              entren nuevos.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {data.leads.map((l) => (
-                <Link
-                  key={l.id}
-                  href={`/admin/leads/${l.id}`}
-                  className="rounded-md border bg-card px-3 py-2 text-sm hover:bg-muted/40"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-medium">
-                      {[l.first_name, l.last_name].filter(Boolean).join(" ") || "Sin nombre"}
-                    </span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
-                      {new Date(l.created_at).toLocaleDateString("es-AR")}
-                    </span>
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">
-                    {l.phone ?? l.email ?? "—"}
-                  </div>
-                </Link>
-              ))}
-              {data.total > data.leads.length && (
-                <p className="pt-1 text-center text-xs text-muted-foreground">
-                  Mostrando {data.leads.length} de {data.total}. Vé el resto en Leads.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

@@ -13,11 +13,29 @@ import { getAssignableSalesUsers } from "@/lib/team";
 export default async function AdminLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string }>;
+  searchParams: Promise<{ archived?: string; form?: string }>;
 }) {
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
-  const archived = (await searchParams).archived === "1";
+  const sp = await searchParams;
+  const archived = sp.archived === "1";
+  const formId = sp.form?.trim() || undefined;
+
+  // Si venís de Lead Ads con ?form=, filtramos por ese formulario y mostramos su
+  // nombre en el aviso.
+  const formRow = formId
+    ? (
+        await supabase
+          .from("lead_ad_forms")
+          .select("form_name")
+          .eq("company_id", profile.company_id!)
+          .eq("meta_form_id", formId)
+          .maybeSingle()
+      ).data
+    : null;
+  const formFilter = formId
+    ? { id: formId, label: formRow?.form_name ?? formId }
+    : undefined;
 
   const [assignableUsers, poolRes, initial] = await Promise.all([
     getAssignableSalesUsers({ companyId: profile.company_id! }),
@@ -28,7 +46,7 @@ export default async function AdminLeadsPage({
       .eq("company_id", profile.company_id!)
       .is("archived_at", null)
       .or("branch_id.is.null,product_type_id.is.null"),
-    fetchLeadsTable({ archived }, {}, 1),
+    fetchLeadsTable({ archived }, { form_id: formId }, 1),
   ]);
 
   const filterOptions = await loadLeadFilterOptions(
@@ -103,6 +121,7 @@ export default async function AdminLeadsPage({
         productTypeOptions={filterOptions.productTypes}
         vendorOptions={filterOptions.vendors}
         campaignOptions={filterOptions.campaigns}
+        formFilter={formFilter}
       />
     </div>
   );

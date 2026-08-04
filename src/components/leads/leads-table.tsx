@@ -1,6 +1,7 @@
 "use client";
 
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -85,6 +86,9 @@ type Props = {
   productTypeOptions?: FilterOption[];
   vendorOptions?: FilterOption[];
   campaignOptions?: FilterOption[];
+  // Filtro fijo por formulario de Lead Ads (llega vía ?form=). Se aplica siempre
+  // y muestra un aviso con "Ver todos" para limpiarlo.
+  formFilter?: { id: string; label: string };
 };
 
 export type FilterOption = { id: string; label: string };
@@ -152,6 +156,7 @@ export function LeadsTable({
   productTypeOptions,
   vendorOptions,
   campaignOptions,
+  formFilter,
 }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<LeadsTableRow[]>(initialRows);
@@ -198,6 +203,7 @@ export function LeadsTable({
     product_type_id: productTypeId === "all" ? undefined : productTypeId,
     campaign_id: campaignId === "all" ? undefined : campaignId,
     assigned_user_id: vendorId === "all" ? undefined : vendorId,
+    form_id: formFilter?.id,
   };
 
   // Reset a la página 1 cuando cambia cualquier filtro (ajuste en render).
@@ -353,6 +359,18 @@ export function LeadsTable({
 
   return (
     <div className="flex flex-col gap-3">
+      {formFilter && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Leads del formulario</span>
+          <span className="font-medium">{formFilter.label}</span>
+          <Link
+            href={detailHrefPrefix}
+            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3.5" /> Ver todos
+          </Link>
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Input
           placeholder="Buscar por nombre, tel, email…"

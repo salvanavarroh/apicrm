@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
-import { handleLeadReceived } from "@/lib/messaging/handlers";
 import { notify } from "@/lib/notifications";
+import { toE164 } from "@/lib/phone";
 import { listFormLeads, listLeadForms } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -127,14 +127,38 @@ export async function deleteLeadAdForm(id: string): Promise<Result> {
   return { ok: true };
 }
 
-const IMPORT_TIME_BUDGET_MS = 35_000;
+const IMPORT_TIME_BUDGET_MS = 45_000;
 const IMPORT_PAGE = 100;
+
+// Toma el primer valor no vacío entre varias claves, respetando el field_map del
+// formulario (clave real de Meta → clave canónica del CRM).
+function fieldGetter(fields: Record<string, unknown>, fieldMap: Record<string, string>) {
+  return (keys: string[]): string | null => {
+    for (const k of keys) {
+      const v = fields[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+      const src = Object.entries(fieldMap).find(([, dest]) => dest === k)?.[0];
+      if (src) {
+        const mv = fields[src];
+        if (typeof mv === "string" && mv.trim()) return mv.trim();
+      }
+    }
+    return null;
+  };
+}
 
 /**
  * Import histórico (reanudable) de los leads de un formulario de Meta Lead Ads.
- * Corre server-side por tandas acotadas en tiempo: si quedan más, deja el job en
- * "paused" con el cursor guardado y el front ofrece "Continuar". Al terminar
- * avisa por notificación. Idempotente (dedup por leadgenId en handleLeadReceived).
+ * Resuelve el contexto (routing del canal + mapeo del form + país + dedup) UNA
+ * sola vez y luego inserta por tandas en bloque (sin re-consultar por lead), así
+ * entran miles por tanda. Corre server-side acotado en tiempo: si quedan más,
+ * deja el job en "paused" con el cursor y el front ofrece "Continuar". Al
+ * terminar avisa por notificación. Idempotente (dedup por leadgenId).
+ *
+ * Los leads importados quedan clasificados por sucursal/tipo/campaña del mapeo
+ * pero SIN asignar a un vendedor (van al pool): es historial, no conviene
+ * inundar a los vendedores con miles de leads viejos por round-robin. Los leads
+ * nuevos (webhook en vivo) sí se auto-asignan.
  */
 export async function startFormImport(metaFormId: string): Promise<
   | { ok: true; status: "done" | "paused"; imported: number; duplicates: number }
@@ -147,6 +171,41 @@ export async function startFormImport(metaFormId: string): Promise<
   if (!accountId) {
     return { ok: false, message: "Conectá primero una Página de Facebook (Meta Ads → Conexión)." };
   }
+
+  // Contexto una sola vez: routing por defecto del canal, mapeo del formulario,
+  // país de la empresa (para E.164) y los leadgenId ya importados (dedup).
+  const [{ data: chan }, { data: mapping }, { data: co }, { data: existingLeads }] =
+    await Promise.all([
+      admin
+        .from("messaging_channels")
+        .select("branch_id, product_type_id, campaign_id")
+        .eq("company_id", companyId)
+        .eq("platform", "facebook")
+        .not("zernio_account_id", "like", "mock%")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("lead_ad_forms")
+        .select("branch_id, product_type_id, campaign_id, field_map")
+        .eq("company_id", companyId)
+        .eq("meta_form_id", metaFormId)
+        .maybeSingle(),
+      admin.from("companies").select("country").eq("id", companyId).maybeSingle(),
+      admin
+        .from("leads")
+        .select("external_id")
+        .eq("company_id", companyId)
+        .eq("metadata->>formId", metaFormId),
+    ]);
+
+  const branchId = mapping?.branch_id ?? chan?.branch_id ?? null;
+  const productTypeId = mapping?.product_type_id ?? chan?.product_type_id ?? null;
+  const campaignId = mapping?.campaign_id ?? chan?.campaign_id ?? null;
+  const fieldMap = (mapping?.field_map as Record<string, string> | null) ?? {};
+  const country = co?.country ?? null;
+  const seen = new Set<string>();
+  for (const r of existingLeads ?? []) if (r.external_id) seen.add(r.external_id);
 
   // Reanudar el job existente (salvo que estuviera "done" → re-importa de cero).
   const { data: existing } = await admin
@@ -183,22 +242,41 @@ export async function startFormImport(metaFormId: string): Promise<
   try {
     for (;;) {
       const page = await listFormLeads({ formId: metaFormId, accountId, cursor, limit: IMPORT_PAGE });
+      const rows: Record<string, unknown>[] = [];
       for (const z of page.leads) {
-        const r = await handleLeadReceived(
-          {
-            account: { id: accountId, accountId },
-            lead: {
-              id: z.id,
-              formId: z.formId ?? metaFormId,
-              adId: z.adId ?? null,
-              fields: z.fields ?? {},
-              createdTime: z.createdTime ?? null,
-            },
-          },
-          { silent: true },
-        );
-        if (r === "created") imported++;
-        else if (r === "duplicate") duplicates++;
+        if (!z.id || seen.has(z.id)) {
+          if (z.id) duplicates++;
+          continue;
+        }
+        seen.add(z.id);
+        const fields = (z.fields ?? {}) as Record<string, unknown>;
+        const get = fieldGetter(fields, fieldMap);
+        const fullName = get(["full_name", "name", "nombre", "first_name"]) ?? "";
+        const parts = fullName.split(/\s+/).filter(Boolean);
+        const rawPhone = get(["phone", "phone_number", "telefono", "teléfono"]);
+        rows.push({
+          company_id: companyId,
+          first_name: parts[0] ?? null,
+          last_name: parts.length > 1 ? parts.slice(1).join(" ") : null,
+          email: get(["email", "correo", "e-mail"]),
+          phone: rawPhone,
+          phone_e164: rawPhone ? toE164(rawPhone, country) : null,
+          city: get(["city", "ciudad"]),
+          vehicle_model: get(["vehicle", "vehicle_model", "modelo", "vehículo"]),
+          source: "Meta Lead Ads",
+          external_id: z.id,
+          source_created_at: z.createdTime ?? null,
+          metadata: { adId: z.adId ?? null, formId: metaFormId },
+          branch_id: branchId,
+          product_type_id: productTypeId,
+          campaign_id: campaignId,
+          status: "new",
+        });
+      }
+      if (rows.length) {
+        const { error } = await admin.from("leads").insert(rows as never);
+        if (error) throw new Error(error.message);
+        imported += rows.length;
       }
       cursor = page.cursor;
       await admin
@@ -208,6 +286,7 @@ export async function startFormImport(metaFormId: string): Promise<
 
       if (!page.hasMore) {
         await admin.from("lead_ad_imports").update({ status: "done" }).eq("id", jobId);
+        revalidatePath("/admin/leads");
         await notify(
           [
             {
@@ -217,7 +296,7 @@ export async function startFormImport(metaFormId: string): Promise<
               type: "lead_ad_received",
               title: "Importación de Lead Ads terminada",
               body: `${imported} leads nuevos${duplicates ? ` · ${duplicates} ya existían` : ""}`,
-              link: "/admin/integraciones?tab=leadads",
+              link: `/admin/leads?form=${metaFormId}`,
             },
           ],
           admin,
@@ -252,6 +331,31 @@ export type FormImportJob = {
   error: string | null;
   updated_at: string;
 } | null;
+
+/** Estado del job de import de varios formularios (para las filas mapeadas). */
+export async function getFormStatuses(
+  metaFormIds: string[],
+): Promise<Record<string, FormImportJob>> {
+  if (metaFormIds.length === 0) return {};
+  const profile = await requireRole(["admin", "manager"]);
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("lead_ad_imports")
+    .select("meta_form_id, status, imported, duplicates, error, updated_at")
+    .eq("company_id", profile.company_id!)
+    .in("meta_form_id", metaFormIds);
+  const map: Record<string, FormImportJob> = {};
+  for (const r of data ?? []) {
+    map[r.meta_form_id] = {
+      status: r.status,
+      imported: r.imported,
+      duplicates: r.duplicates,
+      error: r.error,
+      updated_at: r.updated_at,
+    };
+  }
+  return map;
+}
 
 /** Leads ya ingresados de un formulario (por webhook o import) + estado del job. */
 export async function getFormLeads(metaFormId: string): Promise<
