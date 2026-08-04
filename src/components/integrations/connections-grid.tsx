@@ -1,6 +1,12 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, ExternalLink, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ExternalLink,
+  RefreshCw,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -125,47 +131,62 @@ function WhatsappHealth({
     ...(nameExp ? [nameExp] : []),
     ...(health?.blockers ?? []).map((b) => explainBlocker(b.code, b.description, b.solution)),
   ];
-  const clean = issues.length === 0 && csm === "AVAILABLE";
 
+  // Sin avisos → una sola línea de estado (no ocupa espacio).
+  if (issues.length === 0) {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 border-t pt-2 text-[11px]">
+        {csm === "AVAILABLE" ? (
+          <CheckCircle2 className={cn("size-3.5", tone)} />
+        ) : label ? (
+          <AlertTriangle className={cn("size-3.5", tone)} />
+        ) : null}
+        <span className={cn("font-medium", tone)}>{label ?? "Sin restricciones"}</span>
+        {csm === "AVAILABLE" && (
+          <span className="text-muted-foreground">· todo en orden</span>
+        )}
+      </div>
+    );
+  }
+
+  // Con avisos → colapsable: el resumen muestra severidad + cantidad; el detalle
+  // (qué hacer + link) queda a un clic, para no ocupar toda la tarjeta.
   return (
-    <div className="mt-2 space-y-2 border-t pt-2 text-[11px]">
-      {label && (
-        <div className={cn("flex items-center gap-1.5 font-medium", tone)}>
-          {csm === "AVAILABLE" ? (
-            <CheckCircle2 className="size-3.5" />
-          ) : (
-            <AlertTriangle className="size-3.5" />
-          )}
-          {label}
-        </div>
-      )}
-      {clean && (
-        <div className="text-muted-foreground">Sin restricciones. Todo en orden.</div>
-      )}
-      {issues.map((x, i) => (
-        <div key={i} className="rounded-md bg-background/60 p-2">
-          <div className="flex items-start gap-1.5">
-            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
-            <span className="text-foreground">{x.title}</span>
+    <details className="group mt-2 border-t pt-2 text-[11px]">
+      <summary className="flex cursor-pointer list-none items-center gap-1.5">
+        <AlertTriangle className={cn("size-3.5 shrink-0", tone)} />
+        <span className={cn("font-medium", tone)}>{label ?? "Avisos"}</span>
+        <span className="text-muted-foreground">
+          · {issues.length} aviso{issues.length === 1 ? "" : "s"} para resolver
+        </span>
+        <ChevronDown className="ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-2 space-y-2">
+        {issues.map((x, i) => (
+          <div key={i} className="rounded-md bg-background/60 p-2">
+            <div className="flex items-start gap-1.5">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" />
+              <span className="text-foreground">{x.title}</span>
+            </div>
+            <div className="mt-1 pl-5 text-muted-foreground">
+              <span className="font-medium text-foreground">Qué hacer: </span>
+              {x.whatToDo}
+            </div>
+            {x.url && (
+              <a
+                href={x.url}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 ml-5 inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
+                <ExternalLink className="size-3" />
+                {x.urlLabel ?? "Resolver"}
+              </a>
+            )}
           </div>
-          <div className="mt-1 pl-5 text-muted-foreground">
-            <span className="font-medium text-foreground">Qué hacer: </span>
-            {x.whatToDo}
-          </div>
-          {x.url && (
-            <a
-              href={x.url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-1 ml-5 inline-flex items-center gap-1 font-medium text-primary hover:underline"
-            >
-              <ExternalLink className="size-3" />
-              {x.urlLabel ?? "Resolver"}
-            </a>
-          )}
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
