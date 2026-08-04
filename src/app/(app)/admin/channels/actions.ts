@@ -100,10 +100,12 @@ async function ensureProfile(companyId: string): Promise<string> {
   return profileId;
 }
 
-/** Inicia el connect flow de una plataforma. Devuelve la authUrl para redirigir. */
+/** Inicia el connect flow de una plataforma. Devuelve la authUrl para redirigir,
+ *  o `authUrl` ausente si Zernio responde que ya estaba vinculada (el caller
+ *  sincroniza en ese caso). */
 export async function startConnect(
   platform: ZernioPlatform,
-): Promise<Result<{ authUrl: string }>> {
+): Promise<Result<{ authUrl?: string }>> {
   const profile = await requireRole(["admin"]);
   if (!profile.company_id) return { ok: false, message: "Sin empresa" };
   try {

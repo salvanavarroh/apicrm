@@ -214,6 +214,14 @@ export function ConnectionsGrid({
         toast.error(res.message);
         return;
       }
+      // Zernio a veces responde sin authUrl (la cuenta ya estaba vinculada) →
+      // no abrimos OAuth, solo sincronizamos.
+      if (!res.authUrl) {
+        win?.close();
+        toast.success("La cuenta ya estaba vinculada — sincronizando");
+        sync();
+        return;
+      }
       openInTab(win, res.authUrl);
       connectedDialog(label);
     });

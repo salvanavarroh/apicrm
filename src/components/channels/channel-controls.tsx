@@ -28,8 +28,8 @@ export function PlatformConnect({ platform }: { platform: Platform }) {
   function connect() {
     start(async () => {
       const res = await startConnect(platform);
-      if (res.ok) window.location.href = res.authUrl;
-      else toast.error(res.message);
+      if (!res.ok) toast.error(res.message);
+      else if (res.authUrl) window.location.href = res.authUrl;
     });
   }
 
@@ -120,8 +120,8 @@ export function ChannelRowActions({
   function reconnect() {
     start(async () => {
       const res = await startConnect(platform as Platform);
-      if (res.ok) window.location.href = res.authUrl;
-      else toast.error(res.message);
+      if (!res.ok) toast.error(res.message);
+      else if (res.authUrl) window.location.href = res.authUrl;
     });
   }
 

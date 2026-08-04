@@ -99,7 +99,9 @@ export async function getConnectUrl(
   platform: ZernioPlatform,
   profileId: string,
   redirectUrl: string,
-): Promise<{ authUrl: string; state?: string }> {
+): Promise<{ authUrl?: string; state?: string; message?: string }> {
+  // Ojo: Zernio a veces responde { message, account } (ya vinculada) en vez de
+  // { authUrl } — el caller debe tolerar authUrl ausente.
   const q = new URLSearchParams({ profileId, redirect_url: redirectUrl });
   return request("GET", `/connect/${platform}?${q.toString()}`);
 }
