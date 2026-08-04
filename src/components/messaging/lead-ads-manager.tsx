@@ -1,17 +1,23 @@
 "use client";
 
-import { Check, RefreshCw, Search } from "lucide-react";
+import { Check, Download, Plus, RefreshCw, Search, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
+  createCampaignFromForm,
   deleteLeadAdForm,
+  getFormLeads,
   pullLeadForms,
+  startFormImport,
   upsertLeadAdForm,
+  type FormImportJob,
+  type FormLeadRow,
   type PulledForm,
 } from "@/app/(app)/admin/lead-ads/actions";
 
@@ -45,6 +51,8 @@ export function LeadAdsManager({
   const [campaignId, setCampaignId] = useState("");
   const [pulled, setPulled] = useState<PulledForm[] | null>(null);
   const [pullSearch, setPullSearch] = useState("");
+  const [detail, setDetail] = useState<LeadAdFormRow | null>(null);
+  const [localCampaigns, setLocalCampaigns] = useState(campaigns);
   const mappingRef = useRef<HTMLDivElement>(null);
 
   const nameOf = (opts: Opt[], id: string | null) =>
@@ -99,6 +107,22 @@ export function LeadAdsManager({
         setProductTypeId("");
         setCampaignId("");
         router.refresh();
+      } else toast.error(res.message);
+    });
+  }
+
+  function createCampaign() {
+    const name = (formName || metaFormId).trim();
+    if (!name) {
+      toast.error("Elegí un formulario primero");
+      return;
+    }
+    start(async () => {
+      const res = await createCampaignFromForm({ name, branchId, productTypeId });
+      if (res.ok) {
+        setLocalCampaigns((p) => [{ id: res.campaignId, name: res.name }, ...p]);
+        setCampaignId(res.campaignId);
+        toast.success(`Campaña “${res.name}” creada y asignada`);
       } else toast.error(res.message);
     });
   }
@@ -243,13 +267,29 @@ export function LeadAdsManager({
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
-            <select value={campaignId} onChange={(e) => setCampaignId(e.target.value)} className={selectCls}>
-              <option value="">Campaña (opcional)…</option>
-              {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            <div className="flex items-center">
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <select
+                value={campaignId}
+                onChange={(e) => setCampaignId(e.target.value)}
+                className={cn(selectCls, "min-w-0 flex-1")}
+              >
+                <option value="">Campaña (opcional)…</option>
+                {localCampaigns.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                onClick={createCampaign}
+                disabled={!metaFormId || pending}
+                title="Crear una campaña nueva con el nombre del formulario"
+              >
+                <Plus className="mr-1 size-4" /> Crear campaña del form
+              </Button>
+            </div>
+            <div className="flex items-center sm:col-span-2">
               <Button onClick={add} disabled={pending}>Guardar mapeo</Button>
             </div>
           </div>
@@ -270,23 +310,200 @@ export function LeadAdsManager({
           forms.map((f) => (
             <Card key={f.id} className="p-3">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">
+                <button
+                  type="button"
+                  onClick={() => setDetail(f)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <div className="truncate font-medium hover:underline">
                     {f.form_name ?? f.meta_form_id}
                   </div>
                   <div className="truncate text-xs text-muted-foreground">
                     <span className="font-mono">{f.meta_form_id}</span> ·{" "}
                     {nameOf(branches, f.branch_id)} / {nameOf(productTypes, f.product_type_id)}
-                    {f.campaign_id ? ` · ${nameOf(campaigns, f.campaign_id)}` : ""}
+                    {f.campaign_id ? ` · ${nameOf(localCampaigns, f.campaign_id)}` : ""}
                   </div>
+                </button>
+                <div className="flex shrink-0 gap-1.5">
+                  <Button size="sm" variant="outline" onClick={() => setDetail(f)}>
+                    Ver leads
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => remove(f.id)} disabled={pending}>
+                    Borrar
+                  </Button>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => remove(f.id)} disabled={pending}>
-                  Borrar
-                </Button>
               </div>
             </Card>
           ))
         )}
+      </div>
+
+      {detail && <FormLeadsDrawer form={detail} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+// Detalle de un formulario mapeado: importar leads históricos (backend, reanudable)
+// + ver los leads ya ingresados (histórico + los que entran por webhook).
+function FormLeadsDrawer({
+  form,
+  onClose,
+}: {
+  form: LeadAdFormRow;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [data, setData] = useState<{
+    leads: FormLeadRow[];
+    total: number;
+    job: FormImportJob;
+  } | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  async function load() {
+    const res = await getFormLeads(form.meta_form_id);
+    if (res.ok) setData({ leads: res.leads, total: res.total, job: res.job });
+  }
+  useEffect(() => {
+    let alive = true;
+    getFormLeads(form.meta_form_id).then((res) => {
+      if (alive && res.ok) setData({ leads: res.leads, total: res.total, job: res.job });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [form.meta_form_id]);
+
+  async function runImport() {
+    setImporting(true);
+    try {
+      const res = await startFormImport(form.meta_form_id);
+      if (!res.ok) {
+        toast.error(res.message);
+      } else if (res.status === "done") {
+        toast.success(`Import terminado: ${res.imported} nuevos, ${res.duplicates} ya existían`);
+      } else {
+        toast.info(
+          `Importados ${res.imported} hasta ahora. Faltan más — tocá "Continuar".`,
+        );
+      }
+      await load();
+      router.refresh();
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const job = data?.job;
+  const paused = job?.status === "paused" || job?.status === "error";
+  const running = importing || job?.status === "running";
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
+      <div
+        className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-card shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-2 border-b p-4">
+          <div className="min-w-0">
+            <div className="truncate font-semibold">{form.form_name ?? form.meta_form_id}</div>
+            <div className="truncate font-mono text-xs text-muted-foreground">
+              {form.meta_form_id}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+            <X className="size-5" />
+          </button>
+        </div>
+
+        {/* Import histórico */}
+        <div className="border-b p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Importar leads históricos</p>
+              <p className="text-xs text-muted-foreground">
+                Trae los leads ya enviados a este formulario. Corre en el backend y
+                te avisa al terminar.
+              </p>
+            </div>
+            <Button size="sm" onClick={runImport} disabled={running}>
+              <Download className={cn("mr-1 size-4", importing && "animate-pulse")} />
+              {paused ? "Continuar" : importing ? "Importando…" : "Importar"}
+            </Button>
+          </div>
+          {job && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 font-medium",
+                  job.status === "done"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : job.status === "error"
+                      ? "bg-red-100 text-red-700"
+                      : "bg-amber-100 text-amber-700",
+                )}
+              >
+                {job.status === "done"
+                  ? "Completado"
+                  : job.status === "paused"
+                    ? "Pausado (tocá Continuar)"
+                    : job.status === "error"
+                      ? "Con error"
+                      : "En curso"}
+              </span>
+              <span className="text-muted-foreground">
+                {job.imported} importados
+                {job.duplicates ? ` · ${job.duplicates} ya existían` : ""}
+              </span>
+              {job.error && <span className="text-red-600">{job.error}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* Leads del formulario */}
+        <div className="flex-1 p-4">
+          <p className="mb-2 text-sm font-medium">
+            Leads de este formulario{" "}
+            <span className="font-normal text-muted-foreground">
+              ({data?.total ?? "…"})
+            </span>
+          </p>
+          {!data ? (
+            <p className="text-sm text-muted-foreground">Cargando…</p>
+          ) : data.leads.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Todavía no ingresó ningún lead. Importá los históricos o esperá a que
+              entren nuevos.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {data.leads.map((l) => (
+                <Link
+                  key={l.id}
+                  href={`/admin/leads/${l.id}`}
+                  className="rounded-md border bg-card px-3 py-2 text-sm hover:bg-muted/40"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium">
+                      {[l.first_name, l.last_name].filter(Boolean).join(" ") || "Sin nombre"}
+                    </span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {new Date(l.created_at).toLocaleDateString("es-AR")}
+                    </span>
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {l.phone ?? l.email ?? "—"}
+                  </div>
+                </Link>
+              ))}
+              {data.total > data.leads.length && (
+                <p className="pt-1 text-center text-xs text-muted-foreground">
+                  Mostrando {data.leads.length} de {data.total}. Vé el resto en Leads.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

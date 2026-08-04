@@ -588,18 +588,22 @@ export async function handleOutboundMessage(payload: Json): Promise<void> {
 
 // --- Meta Lead Ads: lead.received -------------------------------------------
 
-export async function handleLeadReceived(payload: Json): Promise<void> {
+export async function handleLeadReceived(
+  payload: Json,
+  opts?: { silent?: boolean },
+): Promise<"created" | "duplicate" | "skipped"> {
   const admin = createAdminClient();
   const accountId = getAccountId(payload);
   const lead = (payload.lead as Json) ?? {};
   const leadgenId = str(lead.leadgenId) ?? str(lead.id);
   const formId = str(lead.formId);
-  if (!accountId) return;
+  if (!accountId) return "skipped";
 
   const channel = await channelByAccount(admin, accountId);
-  if (!channel) return;
+  if (!channel) return "skipped";
 
-  // Dedup por leadgenId → leads.external_id.
+  // Dedup por leadgenId → leads.external_id. Hace el import idempotente (reanudar
+  // o re-correr no duplica).
   if (leadgenId) {
     const { data: dup } = await admin
       .from("leads")
@@ -607,7 +611,7 @@ export async function handleLeadReceived(payload: Json): Promise<void> {
       .eq("company_id", channel.company_id)
       .eq("external_id", leadgenId)
       .maybeSingle();
-    if (dup) return; // ya ingresado
+    if (dup) return "duplicate";
   }
 
   // Mapeo del formulario (routing + labels de opción múltiple).
@@ -675,29 +679,34 @@ export async function handleLeadReceived(payload: Json): Promise<void> {
     .select("id")
     .single();
 
-  if (!newLead) return;
+  if (!newLead) return "skipped";
 
   // Routing: si hay sucursal+tipo, auto-asigna; si no, pool.
   if (branchId && productTypeId) {
     await admin.rpc("auto_assign_lead", { p_lead_id: newLead.id });
   }
 
-  const recipients = await poolRecipients(admin, channel.company_id);
-  await notify(
-    recipients.map((uid) => ({
-      companyId: channel.company_id,
-      userId: uid,
-      category: "leads" as const,
-      type: "lead_ad_received",
-      title: "Nuevo lead de Meta Lead Ads",
-      body: fullName ?? rawPhone ?? null,
-      link: `/admin/leads/${newLead.id}`,
-      entityType: "lead",
-      entityId: newLead.id,
-    })),
-    admin,
-  );
+  // En import masivo NO notificamos por cada lead (spam); el import manda un aviso
+  // resumen al terminar.
+  if (!opts?.silent) {
+    const recipients = await poolRecipients(admin, channel.company_id);
+    await notify(
+      recipients.map((uid) => ({
+        companyId: channel.company_id,
+        userId: uid,
+        category: "leads" as const,
+        type: "lead_ad_received",
+        title: "Nuevo lead de Meta Lead Ads",
+        body: fullName ?? rawPhone ?? null,
+        link: `/admin/leads/${newLead.id}`,
+        entityType: "lead",
+        entityId: newLead.id,
+      })),
+      admin,
+    );
+  }
   void getLeadForm; // reservado para cachear labels de opción múltiple
+  return "created";
 }
 
 // --- Account connected / disconnected ---------------------------------------

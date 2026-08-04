@@ -335,6 +335,35 @@ export async function listLeadForms(
   return request("GET", `/ads/lead-forms?accountId=${encodeURIComponent(accountId)}`);
 }
 
+// Leads históricos ya enviados a un formulario de Lead Ads (paginado por cursor).
+// Cada lead trae `id` (leadgenId), `adId`, `formId` y `fields` (nombre→valor).
+export type ZernioFormLead = {
+  id: string;
+  createdTime?: string;
+  adId?: string;
+  formId?: string;
+  fields?: Record<string, unknown>;
+};
+export async function listFormLeads(params: {
+  formId: string;
+  accountId: string;
+  cursor?: string;
+  limit?: number;
+}): Promise<{ leads: ZernioFormLead[]; hasMore: boolean; cursor?: string }> {
+  const q = new URLSearchParams({ accountId: params.accountId });
+  if (params.limit) q.set("limit", String(params.limit));
+  if (params.cursor) q.set("cursor", params.cursor);
+  const res = await request<{
+    leads?: ZernioFormLead[];
+    pagination?: { hasMore?: boolean; cursor?: string };
+  }>("GET", `/ads/lead-forms/${encodeURIComponent(params.formId)}/leads?${q.toString()}`);
+  return {
+    leads: res.leads ?? [],
+    hasMore: !!res.pagination?.hasMore,
+    cursor: res.pagination?.cursor,
+  };
+}
+
 // --- Ads insights (rendimiento por anuncio) --------------------------------
 // GET /ads devuelve los anuncios de las cuentas conectadas (Meta/TikTok/Google…)
 // con métricas reales por ad: inversión, impresiones, clics, CTR, CPC, ROAS, etc.

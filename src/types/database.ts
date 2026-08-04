@@ -921,6 +921,45 @@ export type Database = {
           },
         ]
       }
+      lead_ad_imports: {
+        Row: {
+          company_id: string
+          created_at: string
+          cursor: string | null
+          duplicates: number
+          error: string | null
+          id: string
+          imported: number
+          meta_form_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          cursor?: string | null
+          duplicates?: number
+          error?: string | null
+          id?: string
+          imported?: number
+          meta_form_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          cursor?: string | null
+          duplicates?: number
+          error?: string | null
+          id?: string
+          imported?: number
+          meta_form_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       lead_notes: {
         Row: {
           activity_type: Database["public"]["Enums"]["note_activity"] | null
