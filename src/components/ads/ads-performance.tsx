@@ -42,11 +42,18 @@ const PRESETS = [
   { label: "30 días", days: 30 },
   { label: "90 días", days: 90 },
 ];
-const PLATFORMS = [
-  { value: "", label: "Todas" },
-  { value: "facebook", label: "Meta (FB/IG)" },
-  { value: "tiktok", label: "TikTok" },
+// Pestañas de plataforma: "General" = todas juntas, o una sola.
+const PLATFORM_TABS = [
+  { value: "", label: "General" },
+  { value: "facebook", label: "Meta" },
   { value: "google", label: "Google" },
+  { value: "tiktok", label: "TikTok" },
+];
+type StatusFilter = "active" | "paused" | "all";
+const STATUS_TABS: { value: StatusFilter; label: string }[] = [
+  { value: "active", label: "Activas" },
+  { value: "paused", label: "Pausadas" },
+  { value: "all", label: "Todas" },
 ];
 const PLATFORM_COLOR: Record<string, string> = {
   Meta: "#1877F2",
@@ -111,6 +118,14 @@ function relTime(iso: string): string {
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+// Helpers de "hoy" a nivel módulo: aíslan la llamada impura (new Date()/Date.now)
+// del cuerpo del componente, que la regla react-hooks/purity no permite.
+function todayYmd(): string {
+  return ymd(new Date());
+}
+function daysAgoYmd(d: number): string {
+  return ymd(new Date(Date.now() - d * 24 * 60 * 60 * 1000));
+}
 function dayLabel(d: string): string {
   const [, m, day] = d.split("-");
   return `${day}/${m}`;
@@ -125,16 +140,36 @@ const STATUS_TONE: Record<string, string> = {
 
 export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
   const [data, setData] = useState(initial);
-  const [days, setDays] = useState(30);
+  const [from, setFrom] = useState(initial.range.from);
+  const [to, setTo] = useState(initial.range.to);
+  const [preset, setPreset] = useState<number | null>(30);
   const [platform, setPlatform] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [groupMode, setGroupMode] = useState<GroupMode>("ad");
   const [detail, setDetail] = useState<AdRow | null>(null);
   const [pending, start] = useTransition();
+  const today = todayYmd();
+  // Largo del rango en días (para el rótulo del período anterior).
+  const days = Math.max(
+    1,
+    Math.round(
+      (new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) /
+        86400000,
+    ) + 1,
+  );
 
-  // Filas de la tabla según el agrupamiento (anuncio / adset / campaña).
+  // Filtro por estado (activas / pausadas / todas) sobre los anuncios crudos,
+  // antes de agrupar por anuncio / adset / campaña.
+  const filteredRows = useMemo(() => {
+    if (statusFilter === "all") return data.rows;
+    return data.rows.filter((r) => {
+      const s = (r.status ?? "").toUpperCase();
+      return statusFilter === "active" ? s === "ACTIVE" : s.includes("PAUSED");
+    });
+  }, [data.rows, statusFilter]);
   const displayRows = useMemo(
-    () => aggregateRows(data.rows, groupMode),
-    [data.rows, groupMode],
+    () => aggregateRows(filteredRows, groupMode),
+    [filteredRows, groupMode],
   );
   // Los charts (recharts) se montan solo en el cliente para evitar problemas de
   // hidratación (miden el ancho del contenedor con ResizeObserver).
@@ -144,18 +179,36 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  function reload(nextDays: number, nextPlatform: string) {
-    setDays(nextDays);
-    setPlatform(nextPlatform);
+  function reload(next: { from?: string; to?: string; platform?: string }) {
+    const f = next.from ?? from;
+    const tt = next.to ?? to;
+    const pl = next.platform ?? platform;
+    setFrom(f);
+    setTo(tt);
+    setPlatform(pl);
     start(async () => {
-      const to = ymd(new Date());
-      const from = ymd(new Date(Date.now() - nextDays * 24 * 60 * 60 * 1000));
       try {
-        setData(await getAdsPerformance({ from, to, platform: nextPlatform }));
+        setData(await getAdsPerformance({ from: f, to: tt, platform: pl }));
       } catch {
         toast.error("No se pudieron cargar las métricas");
       }
     });
+  }
+  // Presets (últimos N días): fijan el rango y quedan resaltados.
+  function applyPreset(d: number) {
+    setPreset(d);
+    reload({ from: daysAgoYmd(d), to: todayYmd() });
+  }
+  // Rango manual: al tocar una fecha se desactiva el preset.
+  function onFrom(v: string) {
+    if (!v) return;
+    setPreset(null);
+    reload({ from: v });
+  }
+  function onTo(v: string) {
+    if (!v) return;
+    setPreset(null);
+    reload({ to: v });
   }
 
   if (!data.connected) {
@@ -181,44 +234,91 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
 
   return (
     <div className={cn("flex flex-col gap-4", pending && "opacity-70")}>
-      {/* Filtros */}
+      {/* Plataforma (pestañas) + "actualizado hace X" */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-lg border p-0.5">
-          {PRESETS.map((x) => (
+          {PLATFORM_TABS.map((x) => (
             <button
-              key={x.days}
-              onClick={() => reload(x.days, platform)}
+              key={x.value}
+              onClick={() => reload({ platform: x.value })}
               disabled={pending}
               className={cn(
                 "rounded-md px-3 py-1 text-sm transition-colors",
-                days === x.days ? "bg-primary text-primary-foreground" : "hover:bg-muted",
+                platform === x.value
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted",
               )}
             >
               {x.label}
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
-          {mounted && (
-            <span
-              className="text-xs text-muted-foreground"
-              title={new Date(data.generatedAt).toLocaleString("es-AR")}
-            >
-              Actualizado {relTime(data.generatedAt)}
-            </span>
-          )}
-          <select
-            value={platform}
-            onChange={(e) => reload(days, e.target.value)}
-            disabled={pending}
-            className="rounded-lg border bg-background px-3 py-1.5 text-sm"
+        {mounted && (
+          <span
+            className="text-xs text-muted-foreground"
+            title={new Date(data.generatedAt).toLocaleString("es-AR")}
           >
-            {PLATFORMS.map((x) => (
-              <option key={x.value} value={x.value}>
-                {x.label}
-              </option>
-            ))}
-          </select>
+            Actualizado {relTime(data.generatedAt)}
+          </span>
+        )}
+      </div>
+
+      {/* Rango de fechas (presets + manual) + estado */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border p-0.5">
+          {PRESETS.map((x) => (
+            <button
+              key={x.days}
+              onClick={() => applyPreset(x.days)}
+              disabled={pending}
+              className={cn(
+                "rounded-md px-3 py-1 text-sm transition-colors",
+                preset === x.days
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted",
+              )}
+            >
+              {x.label}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-sm">
+          <input
+            type="date"
+            value={from}
+            max={to}
+            onChange={(e) => onFrom(e.target.value)}
+            disabled={pending}
+            className="bg-transparent tabular-nums outline-none"
+            aria-label="Desde"
+          />
+          <span className="text-muted-foreground">→</span>
+          <input
+            type="date"
+            value={to}
+            min={from}
+            max={today}
+            onChange={(e) => onTo(e.target.value)}
+            disabled={pending}
+            className="bg-transparent tabular-nums outline-none"
+            aria-label="Hasta"
+          />
+        </div>
+        <div className="ml-auto inline-flex rounded-lg border p-0.5">
+          {STATUS_TABS.map((x) => (
+            <button
+              key={x.value}
+              onClick={() => setStatusFilter(x.value)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs transition-colors",
+                statusFilter === x.value
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted",
+              )}
+            >
+              {x.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -231,7 +331,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
           delta={delta(t.spend, p.spend)}
           mood="neutral"
         />
-        <Kpi label="Leads" value={int(t.leads)} icon={Users} delta={delta(t.leads, p.leads)} />
+        <Kpi label="Leads" value={int(t.metaLeads)} icon={Users} delta={delta(t.metaLeads, p.metaLeads)} />
         <Kpi label="Ventas" value={int(t.sales)} icon={TrendingUp} delta={delta(t.sales, p.sales)} />
         <Kpi label="Facturación" value={money(t.revenue)} icon={DollarSign} delta={delta(t.revenue, p.revenue)} />
         <Kpi
@@ -395,9 +495,9 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
             </Button>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[600px] overflow-auto">
           <table className="w-full min-w-[1000px] text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th className="px-3 py-2.5 font-medium">
                   {groupMode === "adset" ? "Adset" : groupMode === "campaign" ? "Campaña" : "Anuncio"}
@@ -443,7 +543,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
                     <td className="px-3 py-2.5 text-right tabular-nums">{money(r.spend, r.currency)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{int(r.clicks)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{pct(r.ctr)}</td>
-                    <td className="border-l px-3 py-2.5 text-right font-medium tabular-nums">{int(r.leads)}</td>
+                    <td className="border-l px-3 py-2.5 text-right font-medium tabular-nums">{int(r.metaLeads)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{int(r.sales)}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{money(r.revenue, r.currency)}</td>
                     <td className="border-l px-3 py-2.5 text-right tabular-nums">
@@ -507,6 +607,7 @@ function aggregateRows(rows: AdRow[], mode: GroupMode): AdRow[] {
         cpc: 0,
         conversions: 0,
         roas: 0,
+        metaLeads: 0,
         leads: 0,
         contacted: 0,
         interested: 0,
@@ -524,6 +625,7 @@ function aggregateRows(rows: AdRow[], mode: GroupMode): AdRow[] {
     g.impressions += r.impressions;
     g.clicks += r.clicks;
     g.conversions += r.conversions;
+    g.metaLeads += r.metaLeads;
     g.leads += r.leads;
     g.contacted += r.contacted;
     g.interested += r.interested;
@@ -536,7 +638,7 @@ function aggregateRows(rows: AdRow[], mode: GroupMode): AdRow[] {
     g.ctr = g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0;
     g.cpc = g.clicks > 0 ? g.spend / g.clicks : 0;
     g.roas = g.spend > 0 ? (wRoas.get(key) ?? 0) / g.spend : 0;
-    g.costPerLead = g.spend > 0 && g.leads > 0 ? g.spend / g.leads : null;
+    g.costPerLead = g.spend > 0 && g.metaLeads > 0 ? g.spend / g.metaLeads : null;
     g.costPerSale = g.spend > 0 && g.sales > 0 ? g.spend / g.sales : null;
     g.realRoas = g.spend > 0 ? g.revenue / g.spend : null;
   }
@@ -558,7 +660,8 @@ function exportCsv(rows: AdRow[], range: { from: string; to: string }, mode: Gro
     "CTR %",
     "CPC",
     "ROAS plataforma",
-    "Leads",
+    "Leads (Meta)",
+    "Leads (CRM)",
     "Contactados",
     "Interesados",
     "Presupuestados",
@@ -586,6 +689,7 @@ function exportCsv(rows: AdRow[], range: { from: string; to: string }, mode: Gro
         n(r.ctr),
         n(r.cpc),
         n(r.roas),
+        n(r.metaLeads),
         n(r.leads),
         n(r.contacted),
         n(r.interested),

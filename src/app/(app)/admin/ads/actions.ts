@@ -23,6 +23,7 @@ export type AdRow = {
   cpc: number;
   conversions: number;
   roas: number;
+  metaLeads: number; // leads reportados por la plataforma (Meta actions.lead)
   leads: number;
   contacted: number;
   interested: number;
@@ -36,6 +37,7 @@ export type AdRow = {
 
 export type Totals = {
   spend: number;
+  metaLeads: number;
   leads: number;
   contacted: number;
   interested: number;
@@ -63,6 +65,7 @@ export type PreviousTotals = {
   spend: number;
   impressions: number;
   clicks: number;
+  metaLeads: number;
   leads: number;
   sales: number;
   revenue: number;
@@ -270,13 +273,14 @@ export async function getAdsPerformance(input?: {
         cpc: num(m.cpc),
         conversions: num(m.conversions),
         roas: num(m.roas),
+        metaLeads: metaLeadsOf(m),
         leads: agg.leads,
         contacted: agg.contacted,
         interested: agg.interested,
         quoted: agg.quoted,
         sales: agg.sales,
         revenue: agg.revenue,
-        costPerLead: spend > 0 && agg.leads > 0 ? spend / agg.leads : null,
+        costPerLead: spend > 0 && metaLeadsOf(m) > 0 ? spend / metaLeadsOf(m) : null,
         costPerSale: spend > 0 && agg.sales > 0 ? spend / agg.sales : null,
         realRoas: spend > 0 ? agg.revenue / spend : null,
       };
@@ -287,6 +291,7 @@ export async function getAdsPerformance(input?: {
   const totals = emptyTotals();
   for (const r of rows) {
     totals.spend += r.spend;
+    totals.metaLeads += r.metaLeads;
     totals.leads += r.leads;
     totals.contacted += r.contacted;
     totals.interested += r.interested;
@@ -296,7 +301,8 @@ export async function getAdsPerformance(input?: {
     totals.impressions += r.impressions;
     totals.clicks += r.clicks;
   }
-  totals.costPerLead = totals.spend > 0 && totals.leads > 0 ? totals.spend / totals.leads : null;
+  totals.costPerLead =
+    totals.spend > 0 && totals.metaLeads > 0 ? totals.spend / totals.metaLeads : null;
   totals.costPerSale = totals.spend > 0 && totals.sales > 0 ? totals.spend / totals.sales : null;
   totals.realRoas = totals.spend > 0 ? totals.revenue / totals.spend : null;
 
@@ -316,6 +322,7 @@ export async function getAdsPerformance(input?: {
     spend: 0,
     impressions: 0,
     clicks: 0,
+    metaLeads: 0,
     leads: 0,
     sales: 0,
     revenue: 0,
@@ -328,6 +335,7 @@ export async function getAdsPerformance(input?: {
     previous.spend += num(m.spend);
     previous.impressions += num(m.impressions);
     previous.clicks += num(m.clicks);
+    previous.metaLeads += metaLeadsOf(m);
   }
   const { data: prevLeads } = await supabase
     .from("leads")
@@ -356,7 +364,7 @@ export async function getAdsPerformance(input?: {
     }
   }
   previous.costPerLead =
-    previous.spend > 0 && previous.leads > 0 ? previous.spend / previous.leads : null;
+    previous.spend > 0 && previous.metaLeads > 0 ? previous.spend / previous.metaLeads : null;
   previous.realRoas = previous.spend > 0 ? previous.revenue / previous.spend : null;
 
   return {
@@ -382,41 +390,46 @@ async function collectAds(
   platform: string | undefined,
   maxPages: number,
 ): Promise<ZernioAd[]> {
-  const ads: ZernioAd[] = [];
-  for (const acc of accounts) {
-    const accountId = acc.zernio_account_id;
-    if (!accountId) continue;
-    try {
-      const first = await listAds({
-        accountId,
-        fromDate: from,
-        toDate: to,
-        platform: platform || undefined,
-        limit: 100,
-        page: 1,
-      });
-      ads.push(...(first.ads ?? []));
-      const pages = Math.min(first.pagination?.pages ?? 1, maxPages);
-      if (pages > 1) {
-        const rest = await Promise.all(
-          Array.from({ length: pages - 1 }, (_, i) =>
-            listAds({
-              accountId,
-              fromDate: from,
-              toDate: to,
-              platform: platform || undefined,
-              limit: 100,
-              page: i + 2,
-            }).catch(() => ({ ads: [] as ZernioAd[] })),
-          ),
-        );
-        for (const r of rest) ads.push(...(r.ads ?? []));
+  // Todas las cuentas en paralelo (antes era secuencial → era la causa real de la
+  // demora al entrar al dashboard).
+  const perAccount = await Promise.all(
+    accounts.map(async (acc) => {
+      const accountId = acc.zernio_account_id;
+      if (!accountId) return [] as ZernioAd[];
+      const out: ZernioAd[] = [];
+      try {
+        const first = await listAds({
+          accountId,
+          fromDate: from,
+          toDate: to,
+          platform: platform || undefined,
+          limit: 100,
+          page: 1,
+        });
+        out.push(...(first.ads ?? []));
+        const pages = Math.min(first.pagination?.pages ?? 1, maxPages);
+        if (pages > 1) {
+          const rest = await Promise.all(
+            Array.from({ length: pages - 1 }, (_, i) =>
+              listAds({
+                accountId,
+                fromDate: from,
+                toDate: to,
+                platform: platform || undefined,
+                limit: 100,
+                page: i + 2,
+              }).catch(() => ({ ads: [] as ZernioAd[] })),
+            ),
+          );
+          for (const r of rest) out.push(...(r.ads ?? []));
+        }
+      } catch {
+        /* seguimos con lo que haya */
       }
-    } catch {
-      /* seguimos con lo que haya */
-    }
-  }
-  return ads;
+      return out;
+    }),
+  );
+  return perAccount.flat();
 }
 
 function groupBy(rows: AdRow[], keyOf: (r: AdRow) => string): GroupRow[] {
@@ -437,11 +450,25 @@ function num(v: unknown): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
 }
+// Leads reportados por la plataforma. Meta los pone en metrics.actions.lead (o
+// onsite_conversion.lead_grouped); metrics.conversions viene 0 en campañas de
+// "Clientes potenciales" / click-to-WhatsApp, por eso NO alcanza con conversions.
+function metaLeadsOf(m: import("@/lib/messaging/zernio").ZernioAdMetrics): number {
+  const a = m.actions ?? {};
+  return num(
+    a["lead"] ??
+      a["onsite_conversion.lead_grouped"] ??
+      a["leadgen_grouped"] ??
+      a["onsite_conversion.lead"] ??
+      0,
+  );
+}
 function emptyPrevious(): PreviousTotals {
   return {
     spend: 0,
     impressions: 0,
     clicks: 0,
+    metaLeads: 0,
     leads: 0,
     sales: 0,
     revenue: 0,
@@ -452,6 +479,7 @@ function emptyPrevious(): PreviousTotals {
 function emptyTotals(): Totals {
   return {
     spend: 0,
+    metaLeads: 0,
     leads: 0,
     contacted: 0,
     interested: 0,

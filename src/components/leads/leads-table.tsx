@@ -123,7 +123,13 @@ function exportRows(rows: LeadsTableRow[]) {
     Vendedor: r.assignee_name ?? "",
     Estado: LEAD_STATUS_LABELS[r.status],
     Temperatura: r.temperature ? LEAD_TEMPERATURE_LABELS[r.temperature] : "",
-    "Fecha alta": new Date(r.created_at).toLocaleDateString("es-AR"),
+    "Fecha alta": new Date(r.created_at).toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
     "Últ. contacto": r.last_contacted_at
       ? new Date(r.last_contacted_at).toLocaleDateString("es-AR")
       : "",
@@ -141,6 +147,15 @@ function exportRows(rows: LeadsTableRow[]) {
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("es-AR");
+}
+// Fecha + hora (dd/mm HH:mm) — para ver a qué hora entró el lead de un vistazo.
+function fmtDateTime(iso: string | null | undefined): { date: string; time: string } {
+  if (!iso) return { date: "—", time: "" };
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" }),
+    time: d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+  };
 }
 
 export function LeadsTable({
@@ -354,7 +369,7 @@ export function LeadsTable({
       .finally(() => setExporting(false));
   }
 
-  const baseCols = showAssignee ? 9 : 8;
+  const baseCols = showAssignee ? 10 : 9;
   const colSpan = baseCols + (selectable ? 1 : 0);
 
   return (
@@ -589,6 +604,7 @@ export function LeadsTable({
               <TableHead>Campaña</TableHead>
               {showAssignee && <TableHead>Vendedor</TableHead>}
               <TableHead>Estado</TableHead>
+              <TableHead>Ingresó</TableHead>
               <TableHead>Últ. contacto</TableHead>
               <TableHead>Temperatura</TableHead>
             </TableRow>
@@ -665,6 +681,17 @@ export function LeadsTable({
                 )}
                 <TableCell>
                   <LeadStatusBadge status={row.status} />
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {(() => {
+                    const { date, time } = fmtDateTime(row.created_at);
+                    return (
+                      <div className="whitespace-nowrap">
+                        <span className="text-foreground">{date}</span>
+                        {time && <span className="ml-1.5 tabular-nums">{time}</span>}
+                      </div>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {fmtDate(row.last_contacted_at)}

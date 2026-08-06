@@ -380,6 +380,10 @@ export type ZernioAdMetrics = {
   costPerConversion?: number;
   roas?: number;
   purchaseValue?: number;
+  // Desglose de acciones que Meta reporta por anuncio (lead, link_click, etc.).
+  // Los leads de campañas de "Clientes potenciales" / click-to-WhatsApp viven acá
+  // (metrics.conversions suele venir en 0 para estas campañas).
+  actions?: Record<string, number> | null;
 };
 export type ZernioAd = {
   _id?: string;
