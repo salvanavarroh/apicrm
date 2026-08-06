@@ -18,6 +18,7 @@ type Campaign = {
   origin_other: string | null;
   product_type_id: string | null;
   branch_id: string | null;
+  branch_ids?: string[];
   status: "active" | "inactive";
 };
 

@@ -46,6 +46,7 @@ type Campaign = {
   origin_other: string | null;
   product_type_id: string | null;
   branch_id: string | null;
+  branch_ids?: string[] | null;
   status: "active" | "inactive";
 };
 
@@ -104,9 +105,13 @@ export function CampaignDialog({
   const [productTypeId, setProductTypeId] = useState<string>(
     campaign?.product_type_id ?? NONE,
   );
-  const [branchId, setBranchId] = useState<string>(
-    campaign?.branch_id ?? NONE,
-  );
+  const initialBranchIds =
+    campaign?.branch_ids?.length
+      ? campaign.branch_ids
+      : campaign?.branch_id
+        ? [campaign.branch_id]
+        : [];
+  const [branchIds, setBranchIds] = useState<string[]>(initialBranchIds);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -116,10 +121,15 @@ export function CampaignDialog({
       setOrigin(campaign?.origin ?? "meta_ads");
       setOriginOther(campaign?.origin_other ?? "");
       setProductTypeId(campaign?.product_type_id ?? NONE);
-      setBranchId(campaign?.branch_id ?? NONE);
+      setBranchIds(initialBranchIds);
       setError(null);
     }
     setOpen(next);
+  }
+  function toggleBranch(id: string) {
+    setBranchIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
   function submit() {
@@ -134,7 +144,7 @@ export function CampaignDialog({
         origin,
         origin_other: origin === "other" ? originOther.trim() : "",
         product_type_id: productTypeId === NONE ? "" : productTypeId,
-        branch_id: branchId === NONE ? "" : branchId,
+        branch_ids: branchIds,
         status: campaign?.status ?? "active",
       });
       if (!result.ok) {
@@ -226,20 +236,33 @@ export function CampaignDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label>Sucursal (opcional)</Label>
-            <Select value={branchId} onValueChange={setBranchId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Todas las sucursales" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>Todas las sucursales</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
+            <Label>Sucursales (opcional)</Label>
+            <p className="text-xs text-muted-foreground">
+              Sin marcar = todas. Con 2 o más, los leads de la campaña se reparten
+              en round-robin entre las sucursales elegidas.
+            </p>
+            <div className="flex max-h-44 flex-col gap-0.5 overflow-auto rounded-md border p-1.5">
+              {branches.length === 0 ? (
+                <span className="px-1.5 py-1 text-sm text-muted-foreground">
+                  No hay sucursales.
+                </span>
+              ) : (
+                branches.map((b) => (
+                  <label
+                    key={b.id}
+                    className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-muted/50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={branchIds.includes(b.id)}
+                      onChange={() => toggleBranch(b.id)}
+                      className="size-4 rounded border-input"
+                    />
                     {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  </label>
+                ))
+              )}
+            </div>
           </div>
 
           {error && (

@@ -1,4 +1,4 @@
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { DownloadSampleCsv } from "@/components/download-sample-csv";
@@ -68,6 +68,19 @@ export default async function AdminPricesImportPage() {
           filename="ejemplo-precios.csv"
         />
       </header>
+
+      <Link href="/admin/prices/import-ai">
+        <Card className="flex flex-row items-center gap-3 border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
+          <Sparkles className="size-5 shrink-0 text-primary" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">Nuevo: carga con IA</p>
+            <p className="text-xs text-muted-foreground">
+              Subí cualquier archivo (aunque las columnas no coincidan) y la IA
+              las mapea sola. Ideal para listas de precios de fábrica o mayoristas.
+            </p>
+          </div>
+        </Card>
+      </Link>
 
       <Card className="flex flex-col gap-1 p-4 text-xs text-muted-foreground">
         <p className="font-semibold text-foreground">

@@ -171,6 +171,46 @@ export type Database = {
           },
         ]
       }
+      campaign_branches: {
+        Row: {
+          branch_id: string
+          campaign_id: string
+          company_id: string
+        }
+        Insert: {
+          branch_id: string
+          campaign_id: string
+          company_id: string
+        }
+        Update: {
+          branch_id?: string
+          campaign_id?: string
+          company_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_branches_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_branches_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_branches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           branch_id: string | null
@@ -2648,6 +2688,7 @@ export type Database = {
         Args: { p_absorbed: string[]; p_reason?: string; p_survivor: string }
         Returns: Json
       }
+      pick_campaign_branch: { Args: { p_campaign_id: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }

@@ -4,6 +4,15 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import {
+  applyPriceMapping,
+  type PriceMappedRow,
+  type PriceMapping,
+  type PriceMappingStats,
+  type PriceRowData,
+} from "@/lib/price-import";
+import { createOpenAiPriceMapper } from "@/lib/price-mapper";
+import { sampleRows } from "@/lib/lead-import-parse";
 import { createClient } from "@/lib/supabase/server";
 
 const priceSchema = z.object({
@@ -182,4 +191,84 @@ export async function bulkImportPrices(
   if (error) return { ok: false, message: error.message };
   revalidatePrices();
   return { ok: true, inserted: data?.length ?? 0, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Carga de precios con IA: la IA mapea las columnas del archivo → campos de la
+// lista de precios. El cliente parsea el archivo (headers + filas) y las manda
+// acá; devolvemos el mapeo, stats, preview y las filas listas para bulkImportPrices.
+// ---------------------------------------------------------------------------
+
+export type PriceAnalyzeResult =
+  | {
+      ok: true;
+      mapping: PriceMapping;
+      stats: PriceMappingStats;
+      preview: PriceMappedRow[];
+      okRows: PriceRowData[];
+    }
+  | { ok: false; message: string };
+
+function buildPriceResult(
+  rawRows: Record<string, string>[],
+  mapping: PriceMapping,
+): PriceAnalyzeResult {
+  const { rows, stats } = applyPriceMapping(rawRows, mapping);
+  return {
+    ok: true,
+    mapping,
+    stats,
+    preview: rows.slice(0, 50),
+    okRows: rows.filter((r) => r.status === "ok").map((r) => r.data),
+  };
+}
+
+export async function analyzePriceImport(input: {
+  headers: string[];
+  rows: Record<string, string>[];
+}): Promise<PriceAnalyzeResult> {
+  await requireRole(["admin"]);
+  if (input.headers.length === 0 || input.rows.length === 0) {
+    return { ok: false, message: "El archivo no tiene columnas o filas válidas" };
+  }
+  try {
+    const mapper = createOpenAiPriceMapper();
+    const mapping = await mapper.map({
+      headers: input.headers,
+      sample: sampleRows(input.rows, 30),
+    });
+    return buildPriceResult(input.rows, mapping);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Error analizando con IA" };
+  }
+}
+
+export async function regeneratePriceMapping(input: {
+  headers: string[];
+  rows: Record<string, string>[];
+  instruction: string;
+}): Promise<PriceAnalyzeResult> {
+  await requireRole(["admin"]);
+  if (!input.instruction.trim()) {
+    return { ok: false, message: "Escribí una instrucción para regenerar" };
+  }
+  try {
+    const mapper = createOpenAiPriceMapper();
+    const mapping = await mapper.map({
+      headers: input.headers,
+      sample: sampleRows(input.rows, 30),
+      instruction: input.instruction,
+    });
+    return buildPriceResult(input.rows, mapping);
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Error regenerando el mapeo" };
+  }
+}
+
+export async function reapplyPriceMapping(input: {
+  rows: Record<string, string>[];
+  mapping: PriceMapping;
+}): Promise<PriceAnalyzeResult> {
+  await requireRole(["admin"]);
+  return buildPriceResult(input.rows, input.mapping);
 }

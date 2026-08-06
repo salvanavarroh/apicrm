@@ -110,6 +110,14 @@ export async function createCampaignFromForm(input: {
     .single();
   if (error || !data)
     return { ok: false, message: error?.message ?? "Error creando campaña" };
+  // Sembramos la relación campaña↔sucursal (para el reparto round-robin).
+  if (input.branchId) {
+    await admin.from("campaign_branches").insert({
+      campaign_id: data.id,
+      branch_id: input.branchId,
+      company_id: profile.company_id!,
+    });
+  }
   revalidatePath("/admin/integraciones");
   return { ok: true, campaignId: data.id, name: data.name };
 }
@@ -238,6 +246,21 @@ export async function startFormImport(metaFormId: string): Promise<
   const jobId = job?.id;
   if (!jobId) return { ok: false, message: "No se pudo crear el job de import" };
 
+  // Reparto multi-sucursal: si la campaña tiene ≥2 sucursales, los leads del
+  // import se distribuyen en round-robin entre ellas (en vez de la única del
+  // form/canal). rrIdx arranca en `imported` para continuar la rotación al reanudar.
+  let campBranches: string[] = [];
+  if (campaignId) {
+    const { data: cb } = await admin
+      .from("campaign_branches")
+      .select("branch_id")
+      .eq("campaign_id", campaignId)
+      .order("branch_id");
+    campBranches = (cb ?? []).map((r) => r.branch_id);
+  }
+  const multiBranch = campBranches.length >= 2;
+  let rrIdx = imported;
+
   const started = Date.now();
   try {
     for (;;) {
@@ -254,6 +277,9 @@ export async function startFormImport(metaFormId: string): Promise<
         const fullName = get(["full_name", "name", "nombre", "first_name"]) ?? "";
         const parts = fullName.split(/\s+/).filter(Boolean);
         const rawPhone = get(["phone", "phone_number", "telefono", "teléfono"]);
+        const rowBranch = multiBranch
+          ? campBranches[rrIdx++ % campBranches.length]
+          : branchId;
         rows.push({
           company_id: companyId,
           first_name: parts[0] ?? null,
@@ -267,7 +293,7 @@ export async function startFormImport(metaFormId: string): Promise<
           external_id: z.id,
           source_created_at: z.createdTime ?? null,
           metadata: { adId: z.adId ?? null, formId: metaFormId },
-          branch_id: branchId,
+          branch_id: rowBranch,
           product_type_id: productTypeId,
           campaign_id: campaignId,
           status: "new",

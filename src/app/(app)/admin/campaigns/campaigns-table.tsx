@@ -23,9 +23,10 @@ export type CampaignRow = {
   origin_other: string | null;
   product_type_id: string | null;
   branch_id: string | null;
+  branch_ids: string[];
   status: "active" | "inactive";
   ptName: string | null;
-  branchName: string | null;
+  branchNames: string[];
 };
 
 // Etiqueta a mostrar: si es "Otros", el texto libre cargado.
@@ -138,7 +139,11 @@ export function CampaignsTable({
                   {c.ptName ?? "—"}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
-                  {c.branchName ?? "Todas"}
+                  {c.branchNames.length === 0
+                    ? "Todas"
+                    : c.branchNames.length <= 2
+                      ? c.branchNames.join(", ")
+                      : `${c.branchNames.slice(0, 2).join(", ")} +${c.branchNames.length - 2}`}
                 </td>
                 <td className="px-4 py-3">
                   <span
@@ -160,6 +165,7 @@ export function CampaignsTable({
                       origin_other: c.origin_other,
                       product_type_id: c.product_type_id,
                       branch_id: c.branch_id,
+                      branch_ids: c.branch_ids,
                       status: c.status,
                     }}
                     branches={branches}

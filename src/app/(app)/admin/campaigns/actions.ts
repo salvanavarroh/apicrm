@@ -30,6 +30,8 @@ const inputSchema = z
     origin_other: z.string().optional().or(z.literal("")),
     product_type_id: z.string().uuid().optional().or(z.literal("")),
     branch_id: z.string().uuid().optional().or(z.literal("")),
+    // Varias sucursales (reparto round-robin). Si viene, manda sobre branch_id.
+    branch_ids: z.array(z.string().uuid()).optional(),
     status: z.enum(["active", "inactive"]).default("active"),
   })
   .refine((d) => d.origin !== "other" || Boolean(d.origin_other?.trim()), {
@@ -53,6 +55,11 @@ export async function upsertCampaign(
   }
 
   const supabase = await createClient();
+  const branchIds = parsed.data.branch_ids?.length
+    ? parsed.data.branch_ids
+    : parsed.data.branch_id
+      ? [parsed.data.branch_id]
+      : [];
   const payload = {
     company_id: profile.company_id,
     name: parsed.data.name.trim(),
@@ -62,15 +69,40 @@ export async function upsertCampaign(
         ? (parsed.data.origin_other?.trim() ?? null)
         : null,
     product_type_id: parsed.data.product_type_id || null,
-    branch_id: parsed.data.branch_id || null,
+    // Sucursal "primaria" (compat/display); el set completo va a campaign_branches.
+    branch_id: branchIds[0] ?? null,
     status: parsed.data.status,
   };
 
-  const { error } = parsed.data.id
-    ? await supabase.from("campaigns").update(payload).eq("id", parsed.data.id)
-    : await supabase.from("campaigns").insert(payload);
+  let campaignId = parsed.data.id;
+  if (campaignId) {
+    const { error } = await supabase
+      .from("campaigns")
+      .update(payload)
+      .eq("id", campaignId);
+    if (error) return { ok: false, message: error.message };
+  } else {
+    const { data, error } = await supabase
+      .from("campaigns")
+      .insert(payload)
+      .select("id")
+      .single();
+    if (error || !data) return { ok: false, message: error?.message ?? "No se pudo crear" };
+    campaignId = data.id;
+  }
 
-  if (error) return { ok: false, message: error.message };
+  // Reemplaza el set de sucursales de la campaña (para el reparto round-robin).
+  await supabase.from("campaign_branches").delete().eq("campaign_id", campaignId);
+  if (branchIds.length) {
+    const { error: jerr } = await supabase.from("campaign_branches").insert(
+      branchIds.map((b) => ({
+        campaign_id: campaignId!,
+        branch_id: b,
+        company_id: profile.company_id!,
+      })),
+    );
+    if (jerr) return { ok: false, message: jerr.message };
+  }
 
   revalidatePath("/admin/campaigns");
   return { ok: true };

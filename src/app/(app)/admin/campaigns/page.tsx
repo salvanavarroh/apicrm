@@ -14,7 +14,7 @@ export default async function CampaignsPage() {
   if (!profile.company_id) return null;
 
   const supabase = await createClient();
-  const [campaignsRes, branchesRes, ptsRes] = await Promise.all([
+  const [campaignsRes, branchesRes, ptsRes, cbRes] = await Promise.all([
     supabase
       .from("campaigns")
       .select("*")
@@ -27,11 +27,21 @@ export default async function CampaignsPage() {
       .from("product_types")
       .select("id, name")
       .order("name", { ascending: true }),
+    supabase.from("campaign_branches").select("campaign_id, branch_id"),
   ]);
 
   const campaigns = campaignsRes.data ?? [];
   const branches = branchesRes.data ?? [];
   const productTypes = ptsRes.data ?? [];
+
+  // Sucursales por campaña (para el reparto multi-sucursal round-robin).
+  const branchIdsByCampaign = new Map<string, string[]>();
+  for (const cb of cbRes.data ?? []) {
+    const arr = branchIdsByCampaign.get(cb.campaign_id) ?? [];
+    arr.push(cb.branch_id);
+    branchIdsByCampaign.set(cb.campaign_id, arr);
+  }
+  const branchName = (id: string) => branches.find((b) => b.id === id)?.name ?? null;
 
   // Orígenes "Otros" ya cargados (distintos) → reutilizables en el diálogo.
   const customOrigins = Array.from(
@@ -42,21 +52,23 @@ export default async function CampaignsPage() {
     ),
   ).sort((a, b) => a.localeCompare(b));
 
-  const rows: CampaignRow[] = campaigns.map((c) => ({
-    id: c.id,
-    name: c.name,
-    origin: c.origin as Origin,
-    origin_other: c.origin_other,
-    product_type_id: c.product_type_id,
-    branch_id: c.branch_id,
-    status: c.status as "active" | "inactive",
-    ptName: c.product_type_id
-      ? (productTypes.find((p) => p.id === c.product_type_id)?.name ?? null)
-      : null,
-    branchName: c.branch_id
-      ? (branches.find((b) => b.id === c.branch_id)?.name ?? null)
-      : null,
-  }));
+  const rows: CampaignRow[] = campaigns.map((c) => {
+    const bIds = branchIdsByCampaign.get(c.id) ?? (c.branch_id ? [c.branch_id] : []);
+    return {
+      id: c.id,
+      name: c.name,
+      origin: c.origin as Origin,
+      origin_other: c.origin_other,
+      product_type_id: c.product_type_id,
+      branch_id: c.branch_id,
+      branch_ids: bIds,
+      status: c.status as "active" | "inactive",
+      ptName: c.product_type_id
+        ? (productTypes.find((p) => p.id === c.product_type_id)?.name ?? null)
+        : null,
+      branchNames: bIds.map(branchName).filter(Boolean) as string[],
+    };
+  });
 
   return (
     <div className="flex flex-col gap-6">

@@ -93,6 +93,7 @@ async function resolveOrCreateLead(
   admin: Admin,
   channel: ChannelRow,
   p: Participant,
+  adId?: string | null,
 ): Promise<{ leadId: string; assignedUserId: string | null } | null> {
   const isWa = channel.platform === "whatsapp";
 
@@ -148,9 +149,15 @@ async function resolveOrCreateLead(
       product_type_id: channel.product_type_id,
       campaign_id: channel.campaign_id,
       status: "new",
-      metadata: (p.bsuid || p.contactId
-        ? { bsuid: p.bsuid, zernio_contact_id: p.contactId }
-        : {}) as never,
+      metadata: (() => {
+        const md: Record<string, unknown> = {};
+        if (p.bsuid) md.bsuid = p.bsuid;
+        if (p.contactId) md.zernio_contact_id = p.contactId;
+        // adId = atribución del anuncio → el dashboard de Ads cruza Ventas/ROAS
+        // real por `metadata.adId` == platformAdId.
+        if (adId) md.adId = adId;
+        return md;
+      })() as never,
     })
     .select("id, assigned_user_id")
     .single();
@@ -297,7 +304,12 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
       }
     }
   } else {
-    const resolved = await resolveOrCreateLead(admin, channel, participant);
+    // Atribución de anuncio de la conversación (IG/FB DM ads traen source_id/ad_id;
+    // click-to-WhatsApp NO lo reenvía Zernio). Se calcula antes de crear el lead
+    // para grabar el adId en su metadata → habilita Ventas/ROAS real por anuncio.
+    const attribution = extractAttribution(message);
+    const adId = str((attribution as { ad_id?: unknown }).ad_id);
+    const resolved = await resolveOrCreateLead(admin, channel, participant, adId);
     if (!resolved) return; // sin identificador (teléfono/email/social) no se crea
     leadId = resolved.leadId;
     assignedUserId = resolved.assignedUserId; // sticky-seller: si el lead ya tiene dueño, la conv va a él
@@ -312,7 +324,6 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
         .maybeSingle();
       if (owner?.role !== "sales") assignedUserId = null;
     }
-    const attribution = extractAttribution(message);
     const { data: conv, error: convErr } = await admin
       .from("conversations")
       .insert({
@@ -631,6 +642,21 @@ export async function handleLeadReceived(
       productTypeId = mapping.product_type_id ?? productTypeId;
       campaignId = mapping.campaign_id ?? campaignId;
       fieldMap = (mapping.field_map as Record<string, string>) ?? {};
+    }
+  }
+
+  // Si la campaña reparte entre varias sucursales, el round-robin (menor carga)
+  // manda sobre la sucursal del form/canal.
+  if (campaignId) {
+    const { count } = await admin
+      .from("campaign_branches")
+      .select("branch_id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId);
+    if ((count ?? 0) >= 2) {
+      const { data: picked } = await admin.rpc("pick_campaign_branch", {
+        p_campaign_id: campaignId,
+      });
+      if (picked) branchId = picked as string;
     }
   }
 
