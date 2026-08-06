@@ -82,6 +82,12 @@ export type AdsPerformance = {
   byPlatform: GroupRow[];
   byCampaign: GroupRow[];
   daily: { date: string; leads: number; sales: number }[];
+  // Cobertura de atribución: cuántos de los leads del período están atados a un
+  // anuncio (metadata.adId) vs. el total. El resto (mayormente click-to-WhatsApp)
+  // Zernio no lo reenvía con atribución.
+  attribution: { attributed: number; total: number };
+  // Heatmap "cuándo entran los leads": 7 (lun→dom) × 24 (hora) en hora AR.
+  leadsByHour: number[][];
   range: { from: string; to: string };
   generatedAt: string; // ISO — cuándo se trajo esta data (para "actualizado hace X")
 };
@@ -152,6 +158,8 @@ export async function getAdsPerformance(input?: {
       byPlatform: [],
       byCampaign: [],
       daily: [],
+      attribution: { attributed: 0, total: 0 },
+      leadsByHour: emptyHeat(),
       range,
       generatedAt: new Date().toISOString(),
     };
@@ -177,6 +185,28 @@ export async function getAdsPerformance(input?: {
     created_at: string;
   }>;
   const leadIds = leadRows.map((l) => l.id);
+
+  // Todos los leads del período (con y sin atribución de ad) → cobertura de
+  // atribución + heatmap de horarios de ingreso.
+  const { data: allLeads } = await supabase
+    .from("leads")
+    .select("created_at")
+    .eq("company_id", companyId)
+    .gte("created_at", `${from}T00:00:00`)
+    .lte("created_at", `${to}T23:59:59`)
+    .is("merged_into_id", null)
+    .is("archived_at", null);
+  const leadsByHour = emptyHeat();
+  for (const l of allLeads ?? []) {
+    // Hora AR (UTC-3): desplazamos y leemos con métodos UTC.
+    const d = new Date(new Date(l.created_at).getTime() - 3 * 3600 * 1000);
+    const wd = (d.getUTCDay() + 6) % 7; // 0=lunes … 6=domingo
+    leadsByHour[wd][d.getUTCHours()] += 1;
+  }
+  const attribution = {
+    attributed: leadRows.length,
+    total: (allLeads ?? []).length,
+  };
 
   const revenueByLead = new Map<string, number>();
   if (leadIds.length) {
@@ -376,9 +406,16 @@ export async function getAdsPerformance(input?: {
     byPlatform,
     byCampaign,
     daily,
+    attribution,
+    leadsByHour,
     range,
     generatedAt: new Date().toISOString(),
   };
+}
+
+// Matriz 7×24 (lun→dom × hora) inicializada en 0.
+function emptyHeat(): number[][] {
+  return Array.from({ length: 7 }, () => new Array(24).fill(0) as number[]);
 }
 
 // Baja los anuncios de todas las cuentas conectadas para un rango (paginado, con

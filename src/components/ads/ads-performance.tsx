@@ -4,13 +4,15 @@ import {
   BarChart3,
   DollarSign,
   Download,
+  Flame,
   MousePointerClick,
+  Star,
   TrendingDown,
   TrendingUp,
   Users,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   Area,
@@ -19,7 +21,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -35,6 +36,9 @@ import {
   getAdsPerformance,
   type AdRow,
   type AdsPerformance,
+  type GroupRow,
+  type PreviousTotals,
+  type Totals,
 } from "@/app/(app)/admin/ads/actions";
 
 const PRESETS = [
@@ -231,6 +235,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
 
   const t = data.totals;
   const p = data.previous;
+  const insights = computeInsights(filteredRows, t, p);
 
   return (
     <div className={cn("flex flex-col gap-4", pending && "opacity-70")}>
@@ -394,24 +399,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
         <ChartCard title="Inversión por plataforma">
           {mounted &&
             (data.byPlatform.some((x) => x.spend > 0) ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={data.byPlatform}
-                    dataKey="spend"
-                    nameKey="key"
-                    innerRadius={48}
-                    outerRadius={78}
-                    paddingAngle={2}
-                  >
-                    {data.byPlatform.map((x) => (
-                      <Cell key={x.key} fill={PLATFORM_COLOR[x.key] ?? "#94A3B8"} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
+              <PlatformDonut data={data.byPlatform} />
             ) : (
               <EmptyChart />
             ))}
@@ -422,6 +410,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
       <div className="grid gap-3 lg:grid-cols-3">
         <ChartCard title="Embudo (leads con atribución de ad)">
           <Funnel funnel={data.funnel} />
+          <AttributionCoverage a={data.attribution} />
         </ChartCard>
 
         <ChartCard title="Comparación por campaña" className="lg:col-span-2">
@@ -456,6 +445,20 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
             ))}
         </ChartCard>
       </div>
+
+      {/* Heatmap: cuándo entran los leads */}
+      <ChartCard title="Cuándo entran los leads (por día y hora, AR)">
+        <Heatmap grid={data.leadsByHour} />
+      </ChartCard>
+
+      {/* Insights accionables — justo antes de la tabla */}
+      {insights.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {insights.map((it, i) => (
+            <InsightCard key={i} {...it} />
+          ))}
+        </div>
+      )}
 
       {/* Tabla con agrupamiento + export */}
       <Card className="overflow-hidden p-0">
@@ -506,54 +509,85 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
                 <th className="px-3 py-2.5 text-right font-medium">Clics</th>
                 <th className="px-3 py-2.5 text-right font-medium">CTR</th>
                 <th className="border-l px-3 py-2.5 text-right font-medium">Leads</th>
+                <th
+                  className="px-3 py-2.5 text-right font-medium"
+                  title="Ventas del CRM sobre los leads reportados por la plataforma"
+                >
+                  Conv.
+                </th>
                 <th className="px-3 py-2.5 text-right font-medium">Ventas</th>
-                <th className="px-3 py-2.5 text-right font-medium">Facturación</th>
                 <th className="border-l px-3 py-2.5 text-right font-medium">Costo/lead</th>
+                <th className="px-3 py-2.5 text-right font-medium">Costo/venta</th>
                 <th className="px-3 py-2.5 text-right font-medium">ROAS real</th>
+                <th className="px-2 py-2.5" />
               </tr>
             </thead>
             <tbody>
               {displayRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                  <td colSpan={11} className="px-3 py-10 text-center text-sm text-muted-foreground">
                     No hay anuncios con datos en este período.
                   </td>
                 </tr>
               ) : (
-                displayRows.map((r) => (
-                  <tr
-                    key={r.adId}
-                    onClick={() => setDetail(r)}
-                    className="cursor-pointer border-b last:border-0 hover:bg-muted/40"
-                  >
-                    <td className="px-3 py-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <PlatformBadge platform={r.platform} />
-                        <span className="max-w-[220px] truncate font-medium">
-                          {r.adName ?? r.adSetName ?? r.adId}
-                        </span>
-                        {r.status && (
-                          <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_TONE[r.status] ?? "bg-muted text-muted-foreground")}>
-                            {r.status.toLowerCase()}
+                displayRows.map((r) => {
+                  const h = rowHealth(r);
+                  const conv = r.metaLeads > 0 ? (r.sales / r.metaLeads) * 100 : null;
+                  return (
+                    <tr
+                      key={r.adId}
+                      onClick={() => setDetail(r)}
+                      className={cn(
+                        "cursor-pointer border-b last:border-0 hover:bg-muted/40",
+                        h === "bad" && "bg-destructive/5",
+                      )}
+                    >
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <PlatformBadge platform={r.platform} />
+                          <span className="max-w-[220px] truncate font-medium">
+                            {r.adName ?? r.adSetName ?? r.adId}
                           </span>
-                        )}
-                      </div>
-                      <div className="truncate text-xs text-muted-foreground">{r.campaignName ?? "—"}</div>
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{money(r.spend, r.currency)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{int(r.clicks)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{pct(r.ctr)}</td>
-                    <td className="border-l px-3 py-2.5 text-right font-medium tabular-nums">{int(r.metaLeads)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{int(r.sales)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{money(r.revenue, r.currency)}</td>
-                    <td className="border-l px-3 py-2.5 text-right tabular-nums">
-                      {r.costPerLead != null ? money(r.costPerLead, r.currency) : "—"}
-                    </td>
-                    <td className={cn("px-3 py-2.5 text-right font-medium tabular-nums", roasTone(r))}>
-                      {r.realRoas != null ? `${r.realRoas.toFixed(2)}x` : "—"}
-                    </td>
-                  </tr>
-                ))
+                          {r.status && (
+                            <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", STATUS_TONE[r.status] ?? "bg-muted text-muted-foreground")}>
+                              {r.status.toLowerCase()}
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">{r.campaignName ?? "—"}</div>
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{money(r.spend, r.currency)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{int(r.clicks)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{pct(r.ctr)}</td>
+                      <td className="border-l px-3 py-2.5 text-right font-medium tabular-nums">{int(r.metaLeads)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
+                        {conv != null ? pct(conv) : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{int(r.sales)}</td>
+                      <td className="border-l px-3 py-2.5 text-right tabular-nums">
+                        {r.costPerLead != null ? money(r.costPerLead, r.currency) : "—"}
+                      </td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">
+                        {r.costPerSale != null ? money(r.costPerSale, r.currency) : "—"}
+                      </td>
+                      <td className={cn("px-3 py-2.5 text-right font-medium tabular-nums", roasTone(r))}>
+                        {r.realRoas != null ? `${r.realRoas.toFixed(2)}x` : "—"}
+                      </td>
+                      <td className="px-2 py-2.5 text-center">
+                        <span
+                          title={HEALTH_LABEL[h]}
+                          className={cn(
+                            "inline-block size-2 rounded-full",
+                            h === "good" && "bg-success",
+                            h === "watch" && "bg-warning",
+                            h === "bad" && "bg-destructive",
+                            h === "idle" && "bg-muted-foreground/40",
+                          )}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -578,6 +612,226 @@ function roasTone(r: AdRow): string {
   if (r.realRoas >= 1) return "text-emerald-600";
   if (r.spend > 0) return "text-red-600";
   return "";
+}
+
+type Insight = { tone: "crit" | "warn" | "good"; label: string; text: ReactNode };
+
+const HEALTH_LABEL: Record<"good" | "watch" | "bad" | "idle", string> = {
+  good: "Genera ventas",
+  watch: "Trae leads, sin ventas todavía",
+  bad: "Gasta sin generar leads",
+  idle: "Sin inversión en el período",
+};
+
+// Salud del anuncio para el semáforo de la tabla.
+function rowHealth(r: AdRow): "good" | "watch" | "bad" | "idle" {
+  if (r.spend <= 0) return "idle";
+  if (r.metaLeads === 0) return "bad"; // plata quemada
+  if (r.sales > 0) return "good";
+  return "watch";
+}
+
+// Insights accionables a partir de las filas + totales del período.
+function computeInsights(rows: AdRow[], t: Totals, p: PreviousTotals): Insight[] {
+  const out: Insight[] = [];
+  const burned = rows.filter((r) => r.spend > 0 && r.metaLeads === 0);
+  if (burned.length) {
+    const spent = burned.reduce((s, r) => s + r.spend, 0);
+    out.push({
+      tone: "crit",
+      label: "Plata quemada",
+      text: (
+        <>
+          <b>{burned.length} anuncio{burned.length > 1 ? "s" : ""}</b> gastaron{" "}
+          <b>{money(spent)}</b> sin generar leads.
+        </>
+      ),
+    });
+  }
+  if (t.costPerLead != null && p.costPerLead != null && p.costPerLead > 0) {
+    const d = ((t.costPerLead - p.costPerLead) / p.costPerLead) * 100;
+    if (d >= 15) {
+      out.push({
+        tone: "warn",
+        label: "Costo por lead",
+        text: (
+          <>
+            El costo por lead subió <b>{d.toFixed(0)}%</b> ({money(p.costPerLead)} →{" "}
+            {money(t.costPerLead)}).
+          </>
+        ),
+      });
+    }
+  }
+  const best = rows
+    .filter((r) => r.sales > 0 && r.realRoas != null)
+    .sort((a, b) => (b.realRoas ?? 0) - (a.realRoas ?? 0))[0];
+  if (best) {
+    out.push({
+      tone: "good",
+      label: "Mejor retorno",
+      text: (
+        <>
+          <b>{best.campaignName ?? best.adName ?? "Un anuncio"}</b>:{" "}
+          {(best.realRoas ?? 0).toFixed(1)}× ROAS
+          {best.costPerLead != null ? ` · ${money(best.costPerLead)}/lead` : ""}.
+        </>
+      ),
+    });
+  }
+  return out.slice(0, 3);
+}
+
+function InsightCard({ tone, label, text }: Insight) {
+  const Icon = tone === "crit" ? Flame : tone === "warn" ? TrendingUp : Star;
+  const bar =
+    tone === "crit"
+      ? "border-l-destructive"
+      : tone === "warn"
+        ? "border-l-warning"
+        : "border-l-success";
+  const ic =
+    tone === "crit"
+      ? "bg-destructive/10 text-destructive"
+      : tone === "warn"
+        ? "bg-warning/15 text-warning"
+        : "bg-success/10 text-success";
+  return (
+    <div className={cn("flex items-start gap-3 rounded-lg border border-l-[3px] bg-card p-3.5 shadow-sm", bar)}>
+      <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", ic)}>
+        <Icon className="size-4" />
+      </span>
+      <div className="text-[13px]">
+        <div className="text-[10.5px] font-bold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </div>
+        <div className="mt-0.5">{text}</div>
+      </div>
+    </div>
+  );
+}
+
+// Donut de inversión por plataforma: total al centro + leyenda con montos y %.
+function PlatformDonut({ data }: { data: GroupRow[] }) {
+  const items = data.filter((x) => x.spend > 0).sort((a, b) => b.spend - a.spend);
+  const total = items.reduce((s, x) => s + x.spend, 0);
+  return (
+    <div className="flex h-full flex-wrap items-center justify-center gap-6 py-2">
+      <div className="relative size-[184px] shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={items}
+              dataKey="spend"
+              nameKey="key"
+              innerRadius={60}
+              outerRadius={86}
+              paddingAngle={2}
+              cornerRadius={4}
+              strokeWidth={0}
+            >
+              {items.map((x) => (
+                <Cell key={x.key} fill={PLATFORM_COLOR[x.key] ?? "#94A3B8"} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(v) => money(Number(v))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xl font-bold tabular-nums">{money(total)}</span>
+          <span className="text-[11px] text-muted-foreground">total</span>
+        </div>
+      </div>
+      <div className="flex min-w-[150px] flex-col gap-2.5">
+        {items.map((x) => {
+          const pctv = total > 0 ? Math.round((x.spend / total) * 100) : 0;
+          return (
+            <div key={x.key} className="flex items-center gap-2 text-sm">
+              <span className="size-2.5 rounded-sm" style={{ background: PLATFORM_COLOR[x.key] ?? "#94A3B8" }} />
+              <span>{x.key}</span>
+              <span className="ml-auto font-semibold tabular-nums">{money(x.spend)}</span>
+              <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">{pctv}%</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AttributionCoverage({ a }: { a: { attributed: number; total: number } }) {
+  const pctv = a.total > 0 ? Math.round((a.attributed / a.total) * 100) : 0;
+  return (
+    <div className="mt-3 border-t border-dashed pt-3 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between">
+        <span>
+          <b className="text-foreground">{pctv}%</b> de {int(a.total)} leads atribuidos a un anuncio
+        </span>
+        <span>{100 - pctv}% sin atribuir</span>
+      </div>
+      <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-muted">
+        <span className="h-full bg-success" style={{ width: `${pctv}%` }} />
+        <span className="h-full bg-muted-foreground/40" style={{ width: `${100 - pctv}%` }} />
+      </div>
+      <p className="mt-1.5">El resto entra por click-to-WhatsApp, que Zernio no reenvía con atribución.</p>
+    </div>
+  );
+}
+
+// Heatmap 7×franjas de 2h: cuándo entran los leads (para pauta y turnos).
+function Heatmap({ grid }: { grid: number[][] }) {
+  const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const buckets = [6, 8, 10, 12, 14, 16, 18, 20, 22];
+  const val = (d: number, h: number) => (grid[d]?.[h] ?? 0) + (grid[d]?.[h + 1] ?? 0);
+  let max = 1;
+  const peak = { d: 0, h: 6, v: -1 };
+  for (let d = 0; d < 7; d++) {
+    for (const h of buckets) {
+      const v = val(d, h);
+      if (v > max) max = v;
+      if (v > peak.v) {
+        peak.d = d;
+        peak.h = h;
+        peak.v = v;
+      }
+    }
+  }
+  return (
+    <div className="py-1">
+      <div className="grid gap-[3px]" style={{ gridTemplateColumns: `34px repeat(${buckets.length}, 1fr)` }}>
+        <div />
+        {buckets.map((h) => (
+          <div key={h} className="text-center text-[9.5px] text-muted-foreground">{h}h</div>
+        ))}
+        {days.map((dl, d) => (
+          <Fragment key={dl}>
+            <div className="self-center text-[10.5px] text-muted-foreground">{dl}</div>
+            {buckets.map((h) => {
+              const v = val(d, h);
+              return (
+                <div
+                  key={h}
+                  className="rounded-sm"
+                  style={{
+                    aspectRatio: "1.7 / 1",
+                    background: "var(--color-accent)",
+                    opacity: 0.1 + (v / max) * 0.9,
+                  }}
+                  title={`${dl} ${h}–${h + 2}h · ${v} lead${v === 1 ? "" : "s"}`}
+                />
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
+      {peak.v > 0 && (
+        <p className="mt-3 text-[11.5px] text-muted-foreground">
+          Pico: <b className="text-foreground">{days[peak.d]} {peak.h}–{peak.h + 2}h</b> · útil para
+          programar pauta y turnos de vendedores.
+        </p>
+      )}
+    </div>
+  );
 }
 
 // Agrupa las filas por adset o campaña (o las deja tal cual en modo "ad").
