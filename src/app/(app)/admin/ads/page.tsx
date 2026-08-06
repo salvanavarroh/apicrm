@@ -9,11 +9,10 @@ export default async function AdsPage() {
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard de Ads</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Rendimiento de Ads</h1>
         <p className="text-sm text-muted-foreground">
-          Resumen y rendimiento anuncio por anuncio: métricas reales de Meta/TikTok/
-          Google (inversión, clics, CTR, CPC) cruzadas con el embudo del CRM (leads,
-          ventas y facturación), con gráficos, comparaciones y costo/lead + ROAS real.
+          Qué anuncio te trae ventas reales y a qué costo. Cruza el gasto de Meta /
+          Google / TikTok con tu embudo del CRM.
         </p>
       </header>
       <AdsPerformanceView initial={initial} />

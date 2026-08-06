@@ -2,14 +2,11 @@
 
 import {
   BarChart3,
-  DollarSign,
   Download,
   Flame,
-  MousePointerClick,
   Star,
   TrendingDown,
   TrendingUp,
-  Users,
   X,
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
@@ -17,8 +14,6 @@ import { toast } from "sonner";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
   Pie,
@@ -153,14 +148,6 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
   const [detail, setDetail] = useState<AdRow | null>(null);
   const [pending, start] = useTransition();
   const today = todayYmd();
-  // Largo del rango en días (para el rótulo del período anterior).
-  const days = Math.max(
-    1,
-    Math.round(
-      (new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) /
-        86400000,
-    ) + 1,
-  );
 
   // Filtro por estado (activas / pausadas / todas) sobre los anuncios crudos,
   // antes de agrupar por anuncio / adset / campaña.
@@ -327,22 +314,18 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
         </div>
       </div>
 
-      {/* KPIs con deltas vs. período anterior */}
+      {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <Kpi label="Inversión" value={money(t.spend)} delta={delta(t.spend, p.spend)} mood="neutral" />
         <Kpi
-          label="Inversión"
-          value={money(t.spend)}
-          icon={DollarSign}
-          delta={delta(t.spend, p.spend)}
-          mood="neutral"
+          label="Leads"
+          value={int(t.metaLeads)}
+          delta={delta(t.metaLeads, p.metaLeads)}
+          spark={data.daily.map((d) => d.leads)}
         />
-        <Kpi label="Leads" value={int(t.metaLeads)} icon={Users} delta={delta(t.metaLeads, p.metaLeads)} />
-        <Kpi label="Ventas" value={int(t.sales)} icon={TrendingUp} delta={delta(t.sales, p.sales)} />
-        <Kpi label="Facturación" value={money(t.revenue)} icon={DollarSign} delta={delta(t.revenue, p.revenue)} />
         <Kpi
-          label="Costo por lead"
+          label="Costo / lead"
           value={t.costPerLead != null ? money(t.costPerLead) : "—"}
-          icon={MousePointerClick}
           delta={
             t.costPerLead != null && p.costPerLead != null
               ? delta(t.costPerLead, p.costPerLead)
@@ -351,18 +334,24 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
           mood="down"
         />
         <Kpi
+          label="Ventas"
+          value={int(t.sales)}
+          delta={delta(t.sales, p.sales)}
+          spark={data.daily.map((d) => d.sales)}
+        />
+        <Kpi
+          label="Costo / venta"
+          value={t.costPerSale != null ? money(t.costPerSale) : "—"}
+          mood="down"
+        />
+        <Kpi
           label="ROAS real"
           value={t.realRoas != null ? `${t.realRoas.toFixed(2)}x` : "—"}
-          icon={TrendingUp}
-          caption="facturación / inversión"
           delta={
             t.realRoas != null && p.realRoas != null ? delta(t.realRoas, p.realRoas) : null
           }
         />
       </div>
-
-      {/* Comparación con período anterior */}
-      <PeriodComparison t={t} p={p} days={days} />
 
       {/* Gráficos */}
       <div className="grid gap-3 lg:grid-cols-3">
@@ -406,50 +395,16 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
         </ChartCard>
       </div>
 
-      {/* Embudo + comparación por campaña */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        <ChartCard title="Embudo (leads con atribución de ad)">
+      {/* Embudo real + heatmap de horarios */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ChartCard title="Embudo real">
           <Funnel funnel={data.funnel} />
           <AttributionCoverage a={data.attribution} />
         </ChartCard>
-
-        <ChartCard title="Comparación por campaña" className="lg:col-span-2">
-          {mounted &&
-            (data.byCampaign.length ? (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={data.byCampaign} margin={{ left: -12, right: 8, top: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                  <XAxis
-                    dataKey="key"
-                    tick={{ fontSize: 10 }}
-                    interval={0}
-                    tickFormatter={(s) => {
-                      const str = String(s);
-                      return str.length > 12 ? str.slice(0, 11) + "…" : str;
-                    }}
-                  />
-                  <YAxis yAxisId="l" tick={{ fontSize: 11 }} width={38} tickFormatter={(v) => money(Number(v))} />
-                  <YAxis yAxisId="r" orientation="right" allowDecimals={false} tick={{ fontSize: 11 }} width={26} />
-                  <Tooltip
-                    formatter={(v, n) =>
-                      n === "spend" ? [money(Number(v)), "Inversión"] : [int(Number(v)), "Leads"]
-                    }
-                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                  />
-                  <Bar yAxisId="l" dataKey="spend" fill={C.spend} radius={[4, 4, 0, 0]} maxBarSize={34} />
-                  <Bar yAxisId="r" dataKey="leads" fill={C.leads} radius={[4, 4, 0, 0]} maxBarSize={34} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyChart />
-            ))}
+        <ChartCard title="Cuándo entran los leads (por día y hora, AR)">
+          <Heatmap grid={data.leadsByHour} />
         </ChartCard>
       </div>
-
-      {/* Heatmap: cuándo entran los leads */}
-      <ChartCard title="Cuándo entran los leads (por día y hora, AR)">
-        <Heatmap grid={data.leadsByHour} />
-      </ChartCard>
 
       {/* Insights accionables — justo antes de la tabla */}
       {insights.length > 0 && (
@@ -968,153 +923,71 @@ function exportCsv(rows: AdRow[], range: { from: string; to: string }, mode: Gro
   URL.revokeObjectURL(url);
 }
 
-// Comparación del período actual vs. el anterior (mismo largo, inmediatamente
-// previo): valor actual, valor anterior y variación coloreada por "mood".
-function PeriodComparison({
-  t,
-  p,
-  days,
-}: {
-  t: AdsPerformance["totals"];
-  p: AdsPerformance["previous"];
-  days: number;
-}) {
-  const rows: {
-    label: string;
-    cur: number | null;
-    prev: number | null;
-    fmt: (n: number) => string;
-    mood: DeltaMood;
-  }[] = [
-    { label: "Inversión", cur: t.spend, prev: p.spend, fmt: (n) => money(n), mood: "neutral" },
-    { label: "Leads", cur: t.leads, prev: p.leads, fmt: int, mood: "up" },
-    { label: "Ventas", cur: t.sales, prev: p.sales, fmt: int, mood: "up" },
-    { label: "Facturación", cur: t.revenue, prev: p.revenue, fmt: (n) => money(n), mood: "up" },
-    { label: "Clics", cur: t.clicks, prev: p.clicks, fmt: int, mood: "up" },
-    {
-      label: "Costo por lead",
-      cur: t.costPerLead,
-      prev: p.costPerLead,
-      fmt: (n) => money(n),
-      mood: "down",
-    },
-    {
-      label: "ROAS real",
-      cur: t.realRoas,
-      prev: p.realRoas,
-      fmt: (n) => `${n.toFixed(2)}x`,
-      mood: "up",
-    },
-  ];
-
-  return (
-    <Card className="overflow-hidden p-0">
-      <div className="border-b px-4 py-2.5 text-sm font-medium">
-        Comparación con período anterior{" "}
-        <span className="font-normal text-muted-foreground">
-          (últimos {days} días vs. {days} anteriores)
-        </span>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-sm">
-          <thead>
-            <tr className="border-b text-xs text-muted-foreground">
-              <th className="px-4 py-2 text-left font-medium">Métrica</th>
-              <th className="px-4 py-2 text-right font-medium">Actual</th>
-              <th className="px-4 py-2 text-right font-medium">Anterior</th>
-              <th className="px-4 py-2 text-right font-medium">Variación</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const d =
-                r.cur != null && r.prev != null ? delta(r.cur, r.prev) : null;
-              return (
-                <tr key={r.label} className="border-b last:border-0">
-                  <td className="px-4 py-2 text-muted-foreground">{r.label}</td>
-                  <td className="px-4 py-2 text-right font-medium tabular-nums">
-                    {r.cur != null ? r.fmt(r.cur) : "—"}
-                  </td>
-                  <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
-                    {r.prev != null ? r.fmt(r.prev) : "—"}
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {d ? (
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
-                          deltaTone(d.up, r.mood),
-                        )}
-                      >
-                        {d.up ? (
-                          <TrendingUp className="size-3" />
-                        ) : (
-                          <TrendingDown className="size-3" />
-                        )}
-                        {d.pctText}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
 // mood: cómo colorear el delta. "up" = subir es bueno (leads, ROAS); "down" =
 // bajar es bueno (costo por lead); "neutral" = informativo (inversión).
 type DeltaMood = "up" | "down" | "neutral";
 
-function deltaTone(up: boolean, mood: DeltaMood): string {
-  if (mood === "neutral") return "bg-muted text-muted-foreground";
-  const good = mood === "down" ? !up : up;
-  return good ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700";
-}
-
 function Kpi({
   label,
   value,
-  caption,
-  icon: Icon,
   delta,
   mood = "up",
+  spark,
 }: {
   label: string;
   value: string;
-  caption?: string;
-  icon: typeof DollarSign;
   delta?: { pctText: string; up: boolean } | null;
   mood?: DeltaMood;
+  spark?: number[];
 }) {
   return (
-    <Card className="flex flex-col gap-1.5 p-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <Icon className="size-4 text-accent" />
-          {label}
-        </div>
-        {delta && (
+    <Card className="flex flex-col gap-1 p-4">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <p className="text-2xl font-bold leading-none tracking-tight tabular-nums">{value}</p>
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        {delta ? (
           <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-              deltaTone(delta.up, mood),
+              "inline-flex items-center gap-0.5 text-[11px] font-semibold",
+              deltaTextTone(delta.up, mood),
             )}
           >
             {delta.up ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
             {delta.pctText}
           </span>
+        ) : (
+          <span />
         )}
+        {spark && spark.some((v) => v > 0) && <Sparkline data={spark} up={delta?.up ?? true} mood={mood} />}
       </div>
-      <p className="text-3xl font-bold leading-none tracking-tight">{value}</p>
-      {caption && <p className="text-xs text-muted-foreground">{caption}</p>}
     </Card>
   );
+}
+
+function Sparkline({ data, up, mood }: { data: number[]; up: boolean; mood: DeltaMood }) {
+  const w = 62;
+  const h = 20;
+  const max = Math.max(1, ...data);
+  const min = Math.min(0, ...data);
+  const range = max - min || 1;
+  const n = Math.max(1, data.length - 1);
+  const pts = data
+    .map((v, i) => `${((i / n) * w).toFixed(1)},${(h - 1 - ((v - min) / range) * (h - 2)).toFixed(1)}`)
+    .join(" ");
+  const good = mood === "neutral" ? null : mood === "down" ? !up : up;
+  const stroke = good == null ? "var(--color-muted-foreground)" : good ? "#16a34a" : "#dc2626";
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="none" className="shrink-0">
+      <polyline points={pts} stroke={stroke} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Color de texto del delta según "mood" (up=subir bueno, down=bajar bueno, neutral=informativo).
+function deltaTextTone(up: boolean, mood: DeltaMood): string {
+  if (mood === "neutral") return "text-muted-foreground";
+  const good = mood === "down" ? !up : up;
+  return good ? "text-emerald-600" : "text-red-600";
 }
 
 function ChartCard({
@@ -1143,11 +1016,11 @@ function EmptyChart() {
 }
 
 const FUNNEL_STAGES: { key: keyof AdsPerformance["funnel"]; label: string; color: string }[] = [
-  { key: "leads", label: "Leads", color: "#0EA5E9" },
-  { key: "contacted", label: "Contactados", color: "#6366F1" },
-  { key: "interested", label: "Interesados", color: "#8B5CF6" },
-  { key: "quoted", label: "Presupuestados", color: "#A855F7" },
-  { key: "sales", label: "Ventas", color: "#22C55E" },
+  { key: "leads", label: "Leads", color: "var(--color-accent)" },
+  { key: "contacted", label: "Contactados", color: "var(--color-accent)" },
+  { key: "interested", label: "Interesados", color: "var(--color-accent)" },
+  { key: "quoted", label: "Presupuestados", color: "var(--color-accent)" },
+  { key: "sales", label: "Ventas", color: "var(--color-accent)" },
 ];
 
 function Funnel({ funnel }: { funnel: AdsPerformance["funnel"] }) {
