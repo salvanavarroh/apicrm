@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   BarChart3,
   Blocks,
@@ -41,112 +41,155 @@ import { signOut } from "@/app/auth/actions";
 import type { Profile, UserRole } from "@/lib/auth";
 
 type Item = { href: string; label: string; icon: LucideIcon; match?: string };
+// Sección del menú. `title` opcional: los roles con un solo bloque (vendedor,
+// proveedor) no muestran encabezado.
+type Section = { title?: string; items: Item[] };
 
-const SUPER_ADMIN_NAV: Item[] = [
-  { href: "/super-admin", label: "Inicio", icon: Home, match: "exact" },
-  { href: "/super-admin/reports", label: "Reportes", icon: BarChart3 },
-  { href: "/super-admin/leads", label: "Leads", icon: Inbox },
-  { href: "/super-admin/companies", label: "Concesionarias", icon: Building2 },
+// Inbox vive bajo /admin/inbox e Integraciones bajo /admin/integraciones — Fase 1
+// NO mueve rutas, sólo reordena. Inbox entra a "Operación" en cada rol que lo usa;
+// Integraciones, a "Configuración" del admin.
+const INBOX_ITEM: Item = { href: "/admin/inbox", label: "Inbox", icon: MessageSquare };
+
+const SUPER_ADMIN_NAV: Section[] = [
   {
-    href: "/super-admin/branch-requests",
-    label: "Solicitudes",
-    icon: Layers,
+    title: "Plataforma",
+    items: [
+      { href: "/super-admin", label: "Inicio", icon: Home, match: "exact" },
+      { href: "/super-admin/reports", label: "Reportes", icon: BarChart3 },
+    ],
   },
-  { href: "/super-admin/templates", label: "Plantillas", icon: MessageCircle },
-  { href: "/super-admin/billing", label: "Facturación", icon: Receipt },
+  {
+    title: "Concesionarias",
+    items: [
+      { href: "/super-admin/companies", label: "Concesionarias", icon: Building2 },
+      { href: "/super-admin/branch-requests", label: "Solicitudes", icon: Layers },
+    ],
+  },
+  {
+    title: "Comercial",
+    items: [
+      { href: "/super-admin/leads", label: "Leads", icon: Inbox },
+      { href: "/super-admin/templates", label: "Plantillas", icon: MessageCircle },
+      { href: "/super-admin/billing", label: "Facturación", icon: Receipt },
+    ],
+  },
 ];
 
-const ADMIN_NAV: Item[] = [
-  { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
-  { href: "/admin/company", label: "Mi empresa", icon: Building2 },
-  { href: "/admin/leads", label: "Leads", icon: Inbox },
-  { href: "/admin/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
-  { href: "/admin/forms", label: "Formularios", icon: FileInput },
-  { href: "/admin/sales", label: "Ventas", icon: ShoppingBag },
-  { href: "/admin/prices", label: "Precios", icon: Receipt },
+const ADMIN_NAV: Section[] = [
   {
-    href: "/admin/product-types",
-    label: "Tipos de producto",
-    icon: Briefcase,
+    title: "Operación",
+    items: [
+      { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
+      INBOX_ITEM,
+      { href: "/admin/leads", label: "Leads", icon: Inbox },
+      { href: "/admin/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
+      { href: "/admin/sales", label: "Ventas", icon: ShoppingBag },
+    ],
   },
-  { href: "/admin/campaigns", label: "Campañas", icon: Megaphone },
-  { href: "/admin/ads", label: "Rendimiento Ads", icon: BarChart3 },
-  { href: "/admin/users", label: "Usuarios", icon: UsersRound },
+  {
+    title: "Marketing",
+    items: [
+      { href: "/admin/campaigns", label: "Campañas", icon: Megaphone },
+      { href: "/admin/ads", label: "Rendimiento Ads", icon: BarChart3 },
+      { href: "/admin/forms", label: "Formularios", icon: FileInput },
+    ],
+  },
+  {
+    title: "Catálogo",
+    items: [
+      { href: "/admin/product-types", label: "Tipos de producto", icon: Briefcase },
+      { href: "/admin/prices", label: "Precios", icon: Receipt },
+    ],
+  },
+  {
+    title: "Configuración",
+    items: [
+      { href: "/admin/company", label: "Mi empresa", icon: Building2 },
+      { href: "/admin/users", label: "Usuarios", icon: UsersRound },
+      { href: "/admin/integraciones", label: "Integraciones", icon: Blocks },
+    ],
+  },
 ];
 
-const MANAGER_NAV: Item[] = [
-  { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
-  { href: "/manager/leads", label: "Leads", icon: Inbox },
-  { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
-  { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
-  { href: "/manager/forms", label: "Formularios", icon: FileInput },
-  { href: "/manager/team", label: "Equipo", icon: Users },
-  { href: "/manager/managements", label: "Gerencias", icon: Settings2 },
+const MANAGER_NAV: Section[] = [
+  {
+    title: "Operación",
+    items: [
+      { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
+      INBOX_ITEM,
+      { href: "/manager/leads", label: "Leads", icon: Inbox },
+      { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
+      { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
+    ],
+  },
+  {
+    title: "Marketing",
+    items: [
+      { href: "/manager/forms", label: "Formularios", icon: FileInput },
+      { href: "/admin/ads", label: "Rendimiento Ads", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Equipo",
+    items: [
+      { href: "/manager/team", label: "Equipo", icon: Users },
+      { href: "/manager/managements", label: "Gerencias", icon: Settings2 },
+    ],
+  },
 ];
 
 // El Supervisor (sub-gerente) reutiliza las pantallas del gerente, pero no
-// gestiona Gerencias (eso es exclusivo del gerente dueño).
-const SUPERVISOR_NAV: Item[] = [
-  { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
-  { href: "/manager/leads", label: "Leads", icon: Inbox },
-  { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
-  { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
-  { href: "/manager/forms", label: "Formularios", icon: FileInput },
-  { href: "/manager/team", label: "Equipo", icon: Users },
-];
-
-const PROVIDER_NAV: Item[] = [
-  { href: "/data-provider", label: "Inicio", icon: Home, match: "exact" },
-  { href: "/data-provider/leads", label: "Mis cargas", icon: Inbox },
-  { href: "/data-provider/pool", label: "Sin clasificar", icon: Layers },
+// gestiona Gerencias ni ve Rendimiento Ads (permiso admin/gerente).
+const SUPERVISOR_NAV: Section[] = [
   {
-    href: "/data-provider/leads/new",
-    label: "Nuevo lead",
-    icon: UserPlus,
+    title: "Operación",
+    items: [
+      { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
+      INBOX_ITEM,
+      { href: "/manager/leads", label: "Leads", icon: Inbox },
+      { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
+      { href: "/manager/sales", label: "Ventas", icon: ShoppingBag },
+    ],
+  },
+  {
+    title: "Equipo",
+    items: [
+      { href: "/manager/team", label: "Equipo", icon: Users },
+      { href: "/manager/forms", label: "Formularios", icon: FileInput },
+    ],
   },
 ];
 
-const SALES_NAV: Item[] = [
-  { href: "/sales", label: "Inicio", icon: Home, match: "exact" },
-  { href: "/sales/leads", label: "Mis leads", icon: Inbox },
-  { href: "/sales/leads/new", label: "Nuevo lead", icon: UserPlus },
+// Vendedor y proveedor: menú corto, una sola sección sin encabezado.
+const SALES_NAV: Section[] = [
   {
-    href: "/sales/tasks-visits",
-    label: "Tareas y Visitas",
-    icon: CalendarCheck,
+    items: [
+      { href: "/sales", label: "Inicio", icon: Home, match: "exact" },
+      INBOX_ITEM,
+      { href: "/sales/leads", label: "Mis leads", icon: Inbox },
+      { href: "/sales/leads/new", label: "Nuevo lead", icon: UserPlus },
+      { href: "/sales/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
+      { href: "/sales/sales", label: "Mis ventas", icon: ShoppingBag },
+    ],
   },
-  { href: "/sales/sales", label: "Mis ventas", icon: ShoppingBag },
 ];
 
-const APP_NAV: Item[] = [
-  { href: "/dashboard", label: "Inicio", icon: Home, match: "exact" },
+const PROVIDER_NAV: Section[] = [
+  {
+    items: [
+      { href: "/data-provider", label: "Inicio", icon: Home, match: "exact" },
+      { href: "/data-provider/leads", label: "Mis cargas", icon: Inbox },
+      { href: "/data-provider/pool", label: "Sin clasificar", icon: Layers },
+      { href: "/data-provider/leads/new", label: "Nuevo lead", icon: UserPlus },
+    ],
+  },
 ];
 
-// --- Mensajería: Inbox + una única pantalla "Integraciones" (todas las conexiones) ---
-const INBOX_ITEM: Item = { href: "/admin/inbox", label: "Inbox", icon: MessageSquare };
-const INTEGRATIONS_ITEM: Item = {
-  href: "/admin/integraciones",
-  label: "Integraciones",
-  icon: Blocks,
-};
+const APP_NAV: Section[] = [
+  { items: [{ href: "/dashboard", label: "Inicio", icon: Home, match: "exact" }] },
+];
 
-// Admin gestiona conexiones; gerente/supervisor/vendedor sólo atienden el Inbox.
-const ADMIN_MESSAGING: Item[] = [INBOX_ITEM, INTEGRATIONS_ITEM];
-const INBOX_ONLY: Item[] = [INBOX_ITEM];
-
-function messagingForRole(role: UserRole): Item[] | null {
-  if (role === "admin") return ADMIN_MESSAGING;
-  if (role === "manager" || role === "supervisor" || role === "sales")
-    return INBOX_ONLY;
-  return null;
-}
-
-// Todos los hrefs (menú + mensajería) para calcular el ítem activo.
-function allHrefItems(items: Item[], messaging: Item[] | null): Item[] {
-  return messaging ? [...items, ...messaging] : items;
-}
-
-function navForRole(role: UserRole): Item[] {
+function navForRole(role: UserRole): Section[] {
   if (role === "super_admin") return SUPER_ADMIN_NAV;
   if (role === "admin") return ADMIN_NAV;
   if (role === "manager") return MANAGER_NAV;
@@ -154,6 +197,11 @@ function navForRole(role: UserRole): Item[] {
   if (role === "sales") return SALES_NAV;
   if (role === "data_provider") return PROVIDER_NAV;
   return APP_NAV;
+}
+
+// Todos los hrefs (aplanados) para calcular el ítem activo.
+function flatItems(sections: Section[]): Item[] {
+  return sections.flatMap((s) => s.items);
 }
 
 function activeHref(pathname: string, items: Item[]): string | null {
@@ -180,9 +228,8 @@ export function AppSidebar({
   badges?: Record<string, number>;
 }) {
   const pathname = usePathname();
-  const items = navForRole(profile.role);
-  const messaging = messagingForRole(profile.role);
-  const activeItemHref = activeHref(pathname, allHrefItems(items, messaging));
+  const sections = navForRole(profile.role);
+  const activeItemHref = activeHref(pathname, flatItems(sections));
 
   // Menú acoplado (solo íconos + logo). Auto en el inbox; con botón para togglear.
   // El override manual se resetea al cruzar el borde del inbox (entrar/salir),
@@ -294,20 +341,23 @@ export function AppSidebar({
           collapsed ? "px-2" : "px-3",
         )}
       >
-        {items.map((item) => renderLink(item))}
-
-        {messaging && (
-          <>
-            {collapsed ? (
-              <Separator className="my-2 bg-sidebar-border" />
-            ) : (
-              <div className="mt-5 mb-1 px-3 text-[10px] font-semibold tracking-wider text-sidebar-muted uppercase">
-                Mensajería
-              </div>
-            )}
-            {messaging.map((item) => renderLink(item))}
-          </>
-        )}
+        {sections.map((section, si) => (
+          <Fragment key={section.title ?? `s${si}`}>
+            {collapsed
+              ? si > 0 && <Separator className="my-2 bg-sidebar-border" />
+              : section.title && (
+                  <div
+                    className={cn(
+                      "px-3 text-[10px] font-semibold tracking-wider text-sidebar-muted uppercase",
+                      si === 0 ? "mb-1" : "mt-5 mb-1",
+                    )}
+                  >
+                    {section.title}
+                  </div>
+                )}
+            {section.items.map((item) => renderLink(item))}
+          </Fragment>
+        ))}
       </nav>
 
       <div
