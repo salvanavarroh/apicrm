@@ -1,10 +1,13 @@
 import {
   Briefcase,
+  CalendarCheck,
   ChevronRight,
   Inbox,
   Megaphone,
+  Settings2,
   ShoppingBag,
   Store,
+  TrendingUp,
   UserCog,
   Users,
 } from "lucide-react";
@@ -221,17 +224,26 @@ export default async function AdminHomePage() {
             Monitoreá leads, ventas y la configuración de tu concesionaria.
           </p>
         </div>
-        {pendingSales.length > 0 && (
-          <Button asChild>
-            <Link href="/admin/sales">
-              {pendingSales.length} venta{pendingSales.length === 1 ? "" : "s"} por validar
-              <ChevronRight className="ml-1 size-4" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin/reports">
+              <TrendingUp className="mr-2 size-4" /> Informe ejecutivo
             </Link>
           </Button>
-        )}
+          {pendingSales.length > 0 && (
+            <Button asChild>
+              <Link href="/admin/sales">
+                {pendingSales.length} venta{pendingSales.length === 1 ? "" : "s"}{" "}
+                por validar
+                <ChevronRight className="ml-1 size-4" />
+              </Link>
+            </Button>
+          )}
+        </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      {/* 1. Datos generales ------------------------------------------------ */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={Inbox}
           label="Leads activos"
@@ -245,7 +257,7 @@ export default async function AdminHomePage() {
           caption={formatARS(ventasMonto)}
         />
         <KpiCard
-          icon={ShoppingBag}
+          icon={TrendingUp}
           label="Conversión del mes"
           value={conversionLabel}
           caption={`${acceptedMonth.length} de ${leadsMonth} leads`}
@@ -258,99 +270,74 @@ export default async function AdminHomePage() {
         />
       </div>
 
-      <AgendaCalendar items={agendaItems} todayKey={today} />
+      {/* 2. Actividad ------------------------------------------------------ */}
+      <Section icon={CalendarCheck} title="Actividad de hoy">
+        <AgendaCalendar items={agendaItems} todayKey={today} />
+      </Section>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <Card className="p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Estado de leads activos</h2>
-            <Link
-              href="/admin/leads"
-              className="text-xs font-medium text-accent hover:underline"
-            >
-              Ver todos →
-            </Link>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SemaphoreCard tone="green" label="Al día" value={semaforo.green} hint="< 3 días" />
-            <SemaphoreCard
-              tone="yellow"
-              label="Atención"
-              value={semaforo.yellow}
-              hint="3-7 días sin gestión"
-            />
-            <SemaphoreCard
-              tone="red"
-              label="Crítico"
-              value={semaforo.red}
-              hint="+7 días sin gestión"
-            />
-          </div>
-        </Card>
-
-        <Card className="p-5">
-          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Users className="size-4 text-accent" /> Usuarios
-          </div>
-          <div className="flex items-end justify-between gap-4">
-            <div className="flex flex-col">
-              <p className="text-3xl font-bold leading-none tracking-tight">
-                {totalUsers}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">Total</p>
+      {/* 3. Estado del pipeline ------------------------------------------- */}
+      <Section icon={Inbox} title="Estado del pipeline">
+        <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+          <Card className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Semáforo de gestión</h3>
+              <Link
+                href="/admin/leads"
+                className="text-xs font-medium text-accent hover:underline"
+              >
+                Ver todos →
+              </Link>
             </div>
-            <DonutStat
-              total={totalUsers}
-              completed={activeUsers}
-              pending={pendingUsers}
-              labelCompleted="Activos"
-              labelPending="Pendientes"
-            />
-          </div>
-        </Card>
-      </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <SemaphoreCard
+                tone="green"
+                label="Al día"
+                value={semaforo.green}
+                hint="< 3 días"
+              />
+              <SemaphoreCard
+                tone="yellow"
+                label="Atención"
+                value={semaforo.yellow}
+                hint="3-7 días sin gestión"
+              />
+              <SemaphoreCard
+                tone="red"
+                label="Crítico"
+                value={semaforo.red}
+                hint="+7 días sin gestión"
+              />
+            </div>
+          </Card>
 
-      <ForecastCard forecast={forecast} />
+          <Card className="p-5">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Users className="size-4 text-accent" /> Usuarios
+            </div>
+            <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col">
+                <p className="text-3xl font-bold leading-none tracking-tight">
+                  {totalUsers}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Total</p>
+              </div>
+              <DonutStat
+                total={totalUsers}
+                completed={activeUsers}
+                pending={pendingUsers}
+                labelCompleted="Activos"
+                labelPending="Pendientes"
+              />
+            </div>
+          </Card>
+        </div>
+      </Section>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <KpiCard
-          icon={Store}
-          label="Sucursales"
-          value={branchesActive}
-          caption={`${branches.length} totales`}
-        />
-        <KpiCard
-          icon={Briefcase}
-          label="Tipos de producto"
-          value={ptsActive}
-          caption={`${productTypes.length} totales`}
-        />
-        <KpiCard
-          icon={Megaphone}
-          label="Campañas"
-          value={campaignsActive}
-          caption={`${campaigns.length} totales`}
-        />
-        <KpiCard
-          icon={UserCog}
-          label="Gerentes"
-          value={managers}
-          caption="Cantidad de gerentes"
-        />
-        <KpiCard
-          icon={Users}
-          label="Vendedores"
-          value={sellers}
-          caption={`${providers} proveedores de datos`}
-        />
-      </div>
-
+      {/* 4. Ventas por validar: accionable, va antes que la proyección ---- */}
       {pendingSales.length > 0 && (
-        <Card className="overflow-hidden p-0">
-          <div className="border-b bg-muted px-5 py-3">
-            <h2 className="text-sm font-semibold">Ventas pendientes de aprobar</h2>
-          </div>
-          <table className="w-full text-sm">
+        <Section icon={ShoppingBag} title="Ventas por validar">
+          <Card className="overflow-hidden p-0">
+            <table className="w-full text-sm">
             <thead className="border-b bg-muted text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-5 py-2">Lead</th>
@@ -394,9 +381,10 @@ export default async function AdminHomePage() {
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </Card>
+              </tbody>
+            </table>
+          </Card>
+        </Section>
       )}
 
       {activeLeadsCount === 0 && (
@@ -405,7 +393,68 @@ export default async function AdminHomePage() {
           que empiecen a gestionar.
         </Card>
       )}
+
+      {/* 5. Proyección ---------------------------------------------------- */}
+      <Section icon={TrendingUp} title="Proyección">
+        <ForecastCard forecast={forecast} />
+      </Section>
+
+      {/* 6. Configuración: informativo, va al final ----------------------- */}
+      <Section icon={Settings2} title="Configuración de la cuenta">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard
+            icon={Store}
+            label="Sucursales"
+            value={branchesActive}
+            caption={`${branches.length} totales`}
+          />
+          <KpiCard
+            icon={Briefcase}
+            label="Tipos de producto"
+            value={ptsActive}
+            caption={`${productTypes.length} totales`}
+          />
+          <KpiCard
+            icon={Megaphone}
+            label="Campañas"
+            value={campaignsActive}
+            caption={`${campaigns.length} totales`}
+          />
+          <KpiCard
+            icon={UserCog}
+            label="Gerentes"
+            value={managers}
+            caption="Cantidad de gerentes"
+          />
+          <KpiCard
+            icon={Users}
+            label="Vendedores"
+            value={sellers}
+            caption={`${providers} proveedores de datos`}
+          />
+        </div>
+      </Section>
     </div>
+  );
+}
+
+function Section({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="flex items-center gap-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+        <Icon className="size-3.5 text-accent" />
+        {title}
+      </h2>
+      {children}
+    </section>
   );
 }
 

@@ -16,6 +16,8 @@ import { requireRole } from "@/lib/auth";
 import { CreateCompanyDialog } from "./create-company-dialog";
 import { CompaniesTable, type CompanyRow } from "./companies-table";
 
+import type { CompanyPlan } from "@/lib/plans";
+
 type CompanyData = {
   id: string;
   name: string;
@@ -25,6 +27,7 @@ type CompanyData = {
   phone: string | null;
   address: string | null;
   logo_url: string | null;
+  plan: CompanyPlan | null;
   monthly_price: number | null;
   subscription_starts_at: string | null;
   subscription_ends_at: string | null;
@@ -40,7 +43,7 @@ export default async function CompaniesPage() {
     supabase
       .from("companies")
       .select(
-        "id, name, status, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_starts_at, subscription_ends_at, created_at",
+        "id, name, status, legal_name, cuit, phone, address, logo_url, plan, monthly_price, subscription_starts_at, subscription_ends_at, created_at",
       )
       .order("created_at", { ascending: false }),
     supabase
@@ -120,6 +123,7 @@ export default async function CompaniesPage() {
       phone: c.phone,
       address: c.address,
       logo_url: c.logo_url,
+      plan: c.plan,
       monthly_price: c.monthly_price,
       subscription_starts_at: c.subscription_starts_at,
       subscription_ends_at: c.subscription_ends_at,

@@ -1,12 +1,13 @@
-import { Archive, Plus, Upload } from "lucide-react";
+import { Archive, Inbox, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 
+import { LeadsPageHeader } from "@/components/leads/leads-page-header";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { LeadsTabs } from "@/components/leads/leads-tabs";
 import { Button } from "@/components/ui/button";
 import { requireRole } from "@/lib/auth";
 import { loadLeadFilterOptions } from "@/lib/lead-filter-options";
-import { fetchLeadsTable } from "@/lib/leads-table-actions";
+import { fetchLeadsSummary, fetchLeadsTable } from "@/lib/leads-table-actions";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
 
@@ -37,7 +38,7 @@ export default async function AdminLeadsPage({
     ? { id: formId, label: formRow?.form_name ?? formId }
     : undefined;
 
-  const [assignableUsers, poolRes, initial] = await Promise.all([
+  const [assignableUsers, poolRes, initial, summary] = await Promise.all([
     getAssignableSalesUsers({ companyId: profile.company_id! }),
     // Conteo exacto del pool (sin sucursal o sin tipo).
     supabase
@@ -47,6 +48,8 @@ export default async function AdminLeadsPage({
       .is("archived_at", null)
       .or("branch_id.is.null,product_type_id.is.null"),
     fetchLeadsTable({ archived }, { form_id: formId }, 1),
+    // Los contadores del banner respetan el filtro por formulario, si vino.
+    fetchLeadsSummary({ archived }, { form_id: formId }),
   ]);
 
   const filterOptions = await loadLeadFilterOptions(
@@ -58,57 +61,70 @@ export default async function AdminLeadsPage({
   return (
     <div className="flex flex-col gap-6">
       <LeadsTabs />
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {archived ? "Leads archivados" : "Leads"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {archived ? (
-              "Leads dados de baja. Podés desarchivarlos desde la selección."
-            ) : (
+      <LeadsPageHeader
+        icon={archived ? Archive : Inbox}
+        title={archived ? "Leads archivados" : "Leads"}
+        description={
+          archived
+            ? "Leads dados de baja. Podés desarchivarlos desde la selección."
+            : "Todos los leads de tu empresa: quién los tiene, en qué estado están y cuáles necesitan atención hoy."
+        }
+        stats={
+          archived
+            ? [{ label: "Archivados", value: summary.total }]
+            : [
+                {
+                  label: "Activos",
+                  value: summary.active,
+                  hint: `${summary.total.toLocaleString("es-AR")} en total`,
+                },
+                {
+                  label: "Sin asignar",
+                  value: summary.unassigned,
+                  tone: summary.unassigned > 0 ? "warning" : "default",
+                  hint: "Esperando vendedor",
+                },
+                {
+                  label: "Sin gestión +7d",
+                  value: summary.stale,
+                  tone: summary.stale > 0 ? "danger" : "success",
+                  hint: summary.stale > 0 ? "Requieren contacto" : "Todo al día",
+                },
+                {
+                  label: "Sin clasificar",
+                  value: poolCount,
+                  tone: poolCount > 0 ? "accent" : "default",
+                  href: poolCount > 0 ? "/admin/leads/pool" : undefined,
+                  hint: "Sin sucursal o tipo",
+                },
+              ]
+        }
+        actions={
+          <>
+            <Button variant="outline" asChild>
+              <Link href={archived ? "/admin/leads" : "/admin/leads?archived=1"}>
+                <Archive className="mr-2 size-4" />{" "}
+                {archived ? "Ver activos" : "Archivados"}
+              </Link>
+            </Button>
+            {!archived && (
               <>
-                Todos los leads de tu empresa.
-                {poolCount > 0 && (
-                  <>
-                    {" "}
-                    Hay{" "}
-                    <Link
-                      href="/admin/leads/pool"
-                      className="font-medium text-accent underline-offset-4 hover:underline"
-                    >
-                      {poolCount} sin clasificar
-                    </Link>
-                    .
-                  </>
-                )}
+                <Button variant="outline" asChild>
+                  <Link href="/admin/leads/import">
+                    <Upload className="mr-2 size-4" /> Importar CSV
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/admin/leads/new">
+                    <Plus className="mr-2 size-4" /> Nuevo lead
+                  </Link>
+                </Button>
               </>
             )}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href={archived ? "/admin/leads" : "/admin/leads?archived=1"}>
-              <Archive className="mr-2 size-4" />{" "}
-              {archived ? "Ver activos" : "Archivados"}
-            </Link>
-          </Button>
-          {!archived && (
-            <>
-              <Button variant="outline" asChild>
-                <Link href="/admin/leads/import">
-                  <Upload className="mr-2 size-4" /> Importar CSV
-                </Link>
-              </Button>
-              <Button asChild>
-                <Link href="/admin/leads/new">
-                  <Plus className="mr-2 size-4" /> Nuevo lead
-                </Link>
-              </Button>
-            </>
-          )}
-        </div>
-      </header>
+          </>
+        }
+      />
+
 
       <LeadsTable
         scope={{ archived }}

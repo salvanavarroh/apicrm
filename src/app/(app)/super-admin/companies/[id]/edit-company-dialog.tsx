@@ -24,6 +24,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import { PlanSelect } from "@/components/companies/plan-select";
+import type { CompanyPlan } from "@/lib/plans";
+
 import { updateCompanyAsSuperAdmin } from "./actions";
 
 type Initial = {
@@ -34,6 +37,7 @@ type Initial = {
   phone: string | null;
   address: string | null;
   logo_url: string | null;
+  plan: CompanyPlan | null;
   monthly_price: number | null;
   subscription_starts_at: string | null;
   subscription_ends_at: string | null;
@@ -60,6 +64,7 @@ export function EditCompanyAsSuperAdminDialog({
   const [cuit, setCuit] = useState(initial.cuit ?? "");
   const [phone, setPhone] = useState(initial.phone ?? "");
   const [address, setAddress] = useState(initial.address ?? "");
+  const [plan, setPlan] = useState<CompanyPlan | null>(initial.plan);
   const [monthlyPrice, setMonthlyPrice] = useState(
     initial.monthly_price !== null ? String(initial.monthly_price) : "",
   );
@@ -78,6 +83,7 @@ export function EditCompanyAsSuperAdminDialog({
       setCuit(initial.cuit ?? "");
       setPhone(initial.phone ?? "");
       setAddress(initial.address ?? "");
+      setPlan(initial.plan);
       setMonthlyPrice(
         initial.monthly_price !== null ? String(initial.monthly_price) : "",
       );
@@ -98,6 +104,7 @@ export function EditCompanyAsSuperAdminDialog({
         cuit,
         phone,
         address,
+        plan,
         monthly_price: monthlyPrice,
         subscription_starts_at: startsAt,
         subscription_ends_at: endsAt,
@@ -173,6 +180,11 @@ export function EditCompanyAsSuperAdminDialog({
                 onChange={(e) => setAddress(e.target.value)}
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>Plan</Label>
+            <PlanSelect value={plan} onChange={setPlan} />
           </div>
 
           <div className="flex flex-col gap-1.5">

@@ -6,6 +6,7 @@ import { WhatsappIcon } from "@/components/icons/whatsapp";
 import { ActivitySection } from "@/components/leads/activity-section";
 import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import type { LeadNote } from "@/components/leads/notes-section";
 import { ArchiveLeadButton } from "@/components/leads/archive-lead-button";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
@@ -27,6 +28,7 @@ import {
   type LeadPaymentMethod,
 } from "@/lib/leads";
 import { formatARS } from "@/lib/format";
+import { nextBestAction } from "@/lib/next-best-action";
 import { createClient } from "@/lib/supabase/server";
 import { loadLeadConversations } from "@/lib/lead-conversations";
 import { getAssignableSalesUsers } from "@/lib/team";
@@ -48,6 +50,8 @@ export default async function ManagerLeadDetailPage({
     team,
     { data: company },
     { data: templates },
+    { data: quotes },
+    { data: leadSales },
   ] = await Promise.all([
       supabase
         .from("leads")
@@ -110,6 +114,12 @@ export default async function ManagerLeadDetailPage({
         .order("scope", { ascending: true })
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true }),
+      // Presupuestos y venta abierta: sólo para calcular la próxima acción.
+      supabase
+        .from("quotes")
+        .select("created_at, sent_at")
+        .eq("lead_id", id),
+      supabase.from("sales").select("status").eq("lead_id", id),
     ]);
 
   if (!lead) notFound();
@@ -162,6 +172,22 @@ export default async function ManagerLeadDetailPage({
   const leadAssigneeName = lead.assignee
     ? fullName(lead.assignee.first_name, lead.assignee.last_name)
     : null;
+
+  const nba = nextBestAction({
+    lead: {
+      status: lead.status,
+      temperature: lead.temperature,
+      created_at: lead.created_at,
+      status_changed_at: lead.status_changed_at,
+      last_contacted_at: lead.last_contacted_at,
+      assigned_user_id: lead.assigned_user_id,
+    },
+    tasks: taskRows,
+    visits: visitRows,
+    quotes: quotes ?? [],
+    activeSaleStatus:
+      (leadSales ?? []).find((s) => s.status === "evaluating")?.status ?? null,
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -224,6 +250,8 @@ export default async function ManagerLeadDetailPage({
           />
         </div>
       </header>
+
+      <NextBestActionCard action={nba} />
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4">

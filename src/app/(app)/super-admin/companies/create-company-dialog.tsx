@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { Stepper } from "@/components/stepper";
 
+import { PlanSelect } from "@/components/companies/plan-select";
+
 import { createCompanyWithAdmin } from "./actions";
 
 const companySchema = z.object({
@@ -30,6 +32,7 @@ const companySchema = z.object({
 const billingSchema = z.object({
   cuit: z.string().optional(),
   legal_name: z.string().optional(),
+  plan: z.enum(["inicial", "estandar", "personalizado"]).nullable().optional(),
   monthly_price: z.string().optional(),
   subscription_starts_at: z.string().optional(),
   subscription_ends_at: z.string().optional(),
@@ -66,6 +69,8 @@ const initialStart = todayIso();
 const emptyBilling: BillingData = {
   cuit: "",
   legal_name: "",
+  // El plan de lista es el default de un alta nueva.
+  plan: "estandar",
   monthly_price: "",
   subscription_starts_at: initialStart,
   subscription_ends_at: plusDaysIso(initialStart, 30),
@@ -317,6 +322,12 @@ function BillingStep({
           placeholder="Razón social"
           value={data.legal_name ?? ""}
           onChange={(e) => setData({ ...data, legal_name: e.target.value })}
+        />
+      </Field>
+      <Field label="Plan" error={errors.plan}>
+        <PlanSelect
+          value={data.plan ?? null}
+          onChange={(plan) => setData({ ...data, plan })}
         />
       </Field>
       <Field label="Precio mensual a cobrar" error={errors.monthly_price}>

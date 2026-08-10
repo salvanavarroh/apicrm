@@ -17,6 +17,10 @@ const inputSchema = z.object({
   billing: z.object({
     cuit: z.string().optional().or(z.literal("")),
     legal_name: z.string().optional().or(z.literal("")),
+    plan: z
+      .enum(["inicial", "estandar", "personalizado"])
+      .nullable()
+      .optional(),
     monthly_price: z
       .union([z.coerce.number().nonnegative(), z.literal("")])
       .optional(),
@@ -69,6 +73,7 @@ export async function createCompanyWithAdmin(
       phone: emptyToNull(company.phone) as string | null,
       legal_name: emptyToNull(billing.legal_name) as string | null,
       cuit: emptyToNull(billing.cuit) as string | null,
+      plan: billing.plan ?? null,
       monthly_price: emptyToNull(billing.monthly_price) as number | null,
       subscription_starts_at: emptyToNull(billing.subscription_starts_at) as
         | string

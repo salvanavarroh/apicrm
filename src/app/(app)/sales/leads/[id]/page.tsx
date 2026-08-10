@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { ActivitySection } from "@/components/leads/activity-section";
 import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import type { LeadNote } from "@/components/leads/notes-section";
 import { StatusChanger } from "@/components/leads/status-changer";
 import {
@@ -32,6 +33,7 @@ import {
   type LeadPaymentMethod,
 } from "@/lib/leads";
 import { formatARS } from "@/lib/format";
+import { nextBestAction } from "@/lib/next-best-action";
 import { loadSaleDocs } from "@/lib/sale-docs";
 import { createClient } from "@/lib/supabase/server";
 import { loadLeadConversations } from "@/lib/lead-conversations";
@@ -177,6 +179,21 @@ export default async function SalesLeadDetailPage({
   const activeSale = saleRows.find((s) => s.status === "evaluating") ?? null;
   const hasQuotedAvailable = lead.status === "quoted";
 
+  const nba = nextBestAction({
+    lead: {
+      status: lead.status,
+      temperature: lead.temperature,
+      created_at: lead.created_at,
+      status_changed_at: lead.status_changed_at,
+      last_contacted_at: lead.last_contacted_at,
+      assigned_user_id: lead.assigned_user_id,
+    },
+    tasks: taskRows,
+    visits: visitRows,
+    quotes: quotes ?? [],
+    activeSaleStatus: activeSale?.status ?? null,
+  });
+
   // Documentación por venta (con signed URLs).
   const saleDocs = new Map<string, SaleDoc[]>();
   await Promise.all(
@@ -247,6 +264,8 @@ export default async function SalesLeadDetailPage({
           />
         </div>
       </header>
+
+      <NextBestActionCard action={nba} />
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4">

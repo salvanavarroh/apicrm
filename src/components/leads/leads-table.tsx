@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Loader2, X } from "lucide-react";
+import { Inbox, Loader2, SearchX, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
@@ -12,7 +12,6 @@ import {
   setLeadsArchived,
 } from "@/app/(app)/admin/leads/actions";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -28,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { FilterOption } from "@/lib/lead-filter-options";
 import {
   LEAD_STATUS_LABELS,
   LEAD_TEMPERATURE_LABELS,
@@ -37,12 +37,21 @@ import {
 } from "@/lib/leads";
 import {
   exportLeadsTable,
+  fetchLeadsSummary,
   fetchLeadsTable,
+  type LeadsSummary,
   type LeadsTableFilters,
   type LeadsTableScope,
 } from "@/lib/leads-table-actions";
+import { cn } from "@/lib/utils";
 
 import { LeadStatusBadge } from "./lead-status-badge";
+import {
+  EMPTY_FILTERS,
+  LeadsFilterBar,
+  hasAnyFilter,
+  type LeadsFilterState,
+} from "./leads-filter-bar";
 import type { AssignableUser } from "./reassign-dialog";
 import { TemperatureBadge, TemperatureChanger } from "./temperature-control";
 
@@ -62,6 +71,7 @@ export type LeadsTableRow = {
   campaign_name: string | null;
   assignee_name: string | null;
   created_at: string;
+  status_changed_at?: string | null;
   last_contacted_at?: string | null;
   vehicle_model?: string | null;
   vehicle_version?: string | null;
@@ -91,23 +101,14 @@ type Props = {
   formFilter?: { id: string; label: string };
 };
 
-export type FilterOption = { id: string; label: string };
-
-const STATUS_FILTER: { value: LeadStatus | "all"; label: string }[] = [
-  { value: "all", label: "Todos" },
-  { value: "new", label: LEAD_STATUS_LABELS.new },
-  { value: "contacted", label: LEAD_STATUS_LABELS.contacted },
-  { value: "interested", label: LEAD_STATUS_LABELS.interested },
-  { value: "quoted", label: LEAD_STATUS_LABELS.quoted },
-  { value: "not_interested", label: LEAD_STATUS_LABELS.not_interested },
+const ACTIVE_STATUSES: LeadStatus[] = [
+  "new",
+  "contacted",
+  "interested",
+  "quoted",
 ];
 
-const TEMPERATURE_FILTER: { value: LeadTemperature | "all"; label: string }[] = [
-  { value: "all", label: "Todas" },
-  { value: "hot", label: `🔥 ${LEAD_TEMPERATURE_LABELS.hot}` },
-  { value: "warm", label: `🟡 ${LEAD_TEMPERATURE_LABELS.warm}` },
-  { value: "cold", label: `🔵 ${LEAD_TEMPERATURE_LABELS.cold}` },
-];
+const DAY_MS = 86_400_000;
 
 function exportRows(rows: LeadsTableRow[]) {
   const data = rows.map((r) => ({
@@ -144,18 +145,44 @@ function exportRows(rows: LeadsTableRow[]) {
   URL.revokeObjectURL(url);
 }
 
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-AR");
+function daysSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / DAY_MS);
 }
-// Fecha + hora (dd/mm HH:mm) — para ver a qué hora entró el lead de un vistazo.
-function fmtDateTime(iso: string | null | undefined): { date: string; time: string } {
+
+/** Fecha en lenguaje corto: "hoy", "ayer", "hace 5 d", "hace 3 sem". */
+function fmtRelative(iso: string | null | undefined): string {
+  const d = daysSince(iso);
+  if (d === null) return "—";
+  if (d <= 0) return "hoy";
+  if (d === 1) return "ayer";
+  if (d < 21) return `hace ${d} d`;
+  if (d < 60) return `hace ${Math.round(d / 7)} sem`;
+  return `hace ${Math.round(d / 30)} m`;
+}
+
+/** Fecha + hora (dd/mm/aa HH:mm) — para ver a qué hora entró el lead de un vistazo. */
+function fmtDateTime(iso: string | null | undefined): {
+  date: string;
+  time: string;
+} {
   if (!iso) return { date: "—", time: "" };
   const d = new Date(iso);
   return {
-    date: d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit" }),
+    date: d.toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+    }),
     time: d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
   };
+}
+
+/** Iniciales para el avatar de la fila (evita filas de puro texto plano). */
+function initials(first: string | null, last: string | null): string {
+  const a = (first ?? "").trim()[0] ?? "";
+  const b = (last ?? "").trim()[0] ?? "";
+  return (a + b).toUpperCase() || "?";
 }
 
 export function LeadsTable({
@@ -179,19 +206,12 @@ export function LeadsTable({
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [summary, setSummary] = useState<LeadsSummary | null>(null);
 
-  const [query, setQuery] = useState("");
+  // Un solo objeto de estado para todos los filtros: la barra manda parches y
+  // el efecto de carga observa una única clave serializada.
+  const [f, setF] = useState<LeadsFilterState>(EMPTY_FILTERS);
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [status, setStatus] = useState<LeadStatus | "all">("all");
-  const [temperature, setTemperature] = useState<LeadTemperature | "all">("all");
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo, setCreatedTo] = useState("");
-  const [contactFrom, setContactFrom] = useState("");
-  const [contactTo, setContactTo] = useState("");
-  const [branchId, setBranchId] = useState("all");
-  const [productTypeId, setProductTypeId] = useState("all");
-  const [vendorId, setVendorId] = useState("all");
-  const [campaignId, setCampaignId] = useState("all");
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkAssignee, setBulkAssignee] = useState<string>("");
@@ -202,27 +222,28 @@ export function LeadsTable({
 
   // Debounce del buscador (350ms) para no pegar al server en cada tecla.
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query), 350);
+    const t = setTimeout(() => setDebouncedQuery(f.q), 350);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [f.q]);
 
   const filters: LeadsTableFilters = {
     q: debouncedQuery,
-    status,
-    temperature,
-    createdFrom,
-    createdTo,
-    contactFrom,
-    contactTo,
-    branch_id: branchId === "all" ? undefined : branchId,
-    product_type_id: productTypeId === "all" ? undefined : productTypeId,
-    campaign_id: campaignId === "all" ? undefined : campaignId,
-    assigned_user_id: vendorId === "all" ? undefined : vendorId,
+    status: f.status,
+    temperature: f.temperature,
+    createdFrom: f.createdFrom,
+    createdTo: f.createdTo,
+    contactFrom: f.contactFrom,
+    contactTo: f.contactTo,
+    branch_id: f.branchId === "all" ? undefined : f.branchId,
+    product_type_id: f.productTypeId === "all" ? undefined : f.productTypeId,
+    campaign_id: f.campaignId === "all" ? undefined : f.campaignId,
+    assigned_user_id: f.vendorId === "all" ? undefined : f.vendorId,
+    staleOnly: f.staleOnly || undefined,
     form_id: formFilter?.id,
   };
+  const filterKey = JSON.stringify(filters);
 
   // Reset a la página 1 cuando cambia cualquier filtro (ajuste en render).
-  const filterKey = JSON.stringify(filters);
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -230,10 +251,9 @@ export function LeadsTable({
   }
 
   // En el primer render mostramos los datos que ya vinieron del server (SSR);
-  // recién pedimos al server cuando el usuario interactúa.
+  // recién pedimos filas al server cuando el usuario interactúa.
   const firstRun = useRef(true);
 
-  // Carga server-side de la página actual (sólo tras interacción).
   useEffect(() => {
     if (firstRun.current) {
       firstRun.current = false;
@@ -243,7 +263,7 @@ export function LeadsTable({
     const run = async () => {
       setLoading(true);
       try {
-        const res = await fetchLeadsTable(scope, filters, page);
+        const res = await fetchLeadsTable(scope, JSON.parse(filterKey), page);
         if (!cancelled) {
           setRows(res.rows);
           setTotal(res.total);
@@ -258,27 +278,37 @@ export function LeadsTable({
     return () => {
       cancelled = true;
     };
-    // filters se captura vía sus primitivas; scope vía scope.archived.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    debouncedQuery,
-    status,
-    temperature,
-    createdFrom,
-    createdTo,
-    contactFrom,
-    contactTo,
-    branchId,
-    productTypeId,
-    vendorId,
-    campaignId,
-    page,
-    archived,
-  ]);
+  }, [filterKey, page, archived]);
+
+  // Los contadores de los chips sí se piden en el montaje: son la parte del
+  // encabezado que le da contexto al listado ("de 1.240, 87 sin gestión").
+  useEffect(() => {
+    let cancelled = false;
+    fetchLeadsSummary(scope, JSON.parse(filterKey))
+      .then((s) => {
+        if (!cancelled) setSummary(s);
+      })
+      .catch(() => {
+        // Los contadores son informativos: si fallan, la tabla sigue andando.
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey, archived]);
 
   const pageCount = Math.max(1, Math.ceil(total / LEADS_TABLE_PAGE));
-  const allSelected =
-    rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+
+  function patch(p: Partial<LeadsFilterState>) {
+    setF((prev) => ({ ...prev, ...p }));
+  }
+
+  function clearAll() {
+    setF(EMPTY_FILTERS);
+    setDebouncedQuery("");
+  }
 
   function openDetail(rowId: string, e: React.MouseEvent) {
     if (e.metaKey || e.ctrlKey || e.button === 1) return;
@@ -312,6 +342,7 @@ export function LeadsTable({
       const res = await fetchLeadsTable(scope, filters, page);
       setRows(res.rows);
       setTotal(res.total);
+      setSummary(await fetchLeadsSummary(scope, filters));
     });
     router.refresh();
   }
@@ -369,8 +400,10 @@ export function LeadsTable({
       .finally(() => setExporting(false));
   }
 
-  const baseCols = showAssignee ? 10 : 9;
-  const colSpan = baseCols + (selectable ? 1 : 0);
+  // Cliente · Contacto · Vehículo · Sucursal/Tipo · Campaña · [Vendedor] ·
+  // Estado · Ingresó · Últ. contacto · Temperatura
+  const colSpan = 9 + (showAssignee ? 1 : 0) + (selectable ? 1 : 0);
+  const filtered = hasAnyFilter(f);
 
   return (
     <div className="flex flex-col gap-3">
@@ -386,154 +419,27 @@ export function LeadsTable({
           </Link>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          placeholder="Buscar por nombre, tel, email…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="max-w-sm"
-        />
-        <Select
-          value={status}
-          onValueChange={(v) => setStatus(v as LeadStatus | "all")}
-        >
-          <SelectTrigger className="w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STATUS_FILTER.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={temperature}
-          onValueChange={(v) => setTemperature(v as LeadTemperature | "all")}
-        >
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {TEMPERATURE_FILTER.map((t) => (
-              <SelectItem key={t.value} value={t.value}>
-                {t.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {branchOptions && branchOptions.length > 0 && (
-          <ColumnFilter
-            value={branchId}
-            onChange={setBranchId}
-            allLabel="Toda sucursal"
-            options={branchOptions}
-          />
-        )}
-        {productTypeOptions && productTypeOptions.length > 0 && (
-          <ColumnFilter
-            value={productTypeId}
-            onChange={setProductTypeId}
-            allLabel="Todo tipo"
-            options={productTypeOptions}
-          />
-        )}
-        {vendorOptions && vendorOptions.length > 0 && (
-          <ColumnFilter
-            value={vendorId}
-            onChange={setVendorId}
-            allLabel="Todo vendedor"
-            options={[{ id: "unassigned", label: "Sin asignar" }, ...vendorOptions]}
-          />
-        )}
-        {campaignOptions && campaignOptions.length > 0 && (
-          <ColumnFilter
-            value={campaignId}
-            onChange={setCampaignId}
-            allLabel="Toda campaña"
-            options={campaignOptions}
-          />
-        )}
-        {canExport && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={runExport}
-            disabled={exporting || total === 0}
-          >
-            {exporting ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 size-4" />
-            )}
-            Exportar
-          </Button>
-        )}
-        <span className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-          {loading && <Loader2 className="size-4 animate-spin" />}
-          {total.toLocaleString("es-AR")} resultado(s)
-        </span>
-      </div>
 
-      {/* Filtros de fecha */}
-      <div className="flex flex-wrap items-end gap-3 text-xs text-muted-foreground">
-        <label className="flex flex-col gap-1">
-          Creado desde
-          <Input
-            type="date"
-            value={createdFrom}
-            onChange={(e) => setCreatedFrom(e.target.value)}
-            className="h-8 w-40"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Creado hasta
-          <Input
-            type="date"
-            value={createdTo}
-            onChange={(e) => setCreatedTo(e.target.value)}
-            className="h-8 w-40"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Últ. contacto desde
-          <Input
-            type="date"
-            value={contactFrom}
-            onChange={(e) => setContactFrom(e.target.value)}
-            className="h-8 w-40"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          Últ. contacto hasta
-          <Input
-            type="date"
-            value={contactTo}
-            onChange={(e) => setContactTo(e.target.value)}
-            className="h-8 w-40"
-          />
-        </label>
-        {(createdFrom || createdTo || contactFrom || contactTo) && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setCreatedFrom("");
-              setCreatedTo("");
-              setContactFrom("");
-              setContactTo("");
-            }}
-          >
-            Limpiar fechas
-          </Button>
-        )}
-      </div>
+      <LeadsFilterBar
+        value={f}
+        onChange={patch}
+        onClear={clearAll}
+        summary={summary}
+        total={total}
+        loading={loading}
+        showAlerts={!archived}
+        branchOptions={branchOptions}
+        productTypeOptions={productTypeOptions}
+        vendorOptions={vendorOptions}
+        campaignOptions={campaignOptions}
+        onExport={canExport ? runExport : undefined}
+        exporting={exporting}
+      />
 
       {/* Barra de acciones masivas */}
       {selectable && selected.size > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
-          <span className="text-sm font-medium">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2">
+          <span className="text-sm font-semibold">
             {selected.size} seleccionado(s)
           </span>
           <Select value={bulkAssignee} onValueChange={setBulkAssignee}>
@@ -582,10 +488,14 @@ export function LeadsTable({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-md border">
+      <div className="relative overflow-hidden rounded-xl border">
+        {/* Velo de carga: la tabla no "salta" al refiltrar. */}
+        {loading && rows.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 z-10 bg-background/50" />
+        )}
         <Table>
-          <TableHeader>
-            <TableRow>
+          <TableHeader className="bg-muted/60">
+            <TableRow className="hover:bg-transparent">
               {selectable && (
                 <TableHead className="w-10">
                   <input
@@ -597,26 +507,50 @@ export function LeadsTable({
                   />
                 </TableHead>
               )}
-              <TableHead>Cliente</TableHead>
-              <TableHead>Contacto</TableHead>
-              <TableHead>Sucursal</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Campaña</TableHead>
-              {showAssignee && <TableHead>Vendedor</TableHead>}
-              <TableHead>Estado</TableHead>
-              <TableHead>Ingresó</TableHead>
-              <TableHead>Últ. contacto</TableHead>
-              <TableHead>Temperatura</TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Cliente
+              </TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Contacto
+              </TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Vehículo
+              </TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Sucursal / Tipo
+              </TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Campaña
+              </TableHead>
+              {showAssignee && (
+                <TableHead className="text-[11px] tracking-wide uppercase">
+                  Vendedor
+                </TableHead>
+              )}
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Estado
+              </TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Ingresó
+              </TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Últ. contacto
+              </TableHead>
+              <TableHead className="text-[11px] tracking-wide uppercase">
+                Temperatura
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={colSpan}
-                  className="py-10 text-center text-muted-foreground"
-                >
-                  {loading ? "Cargando…" : "Sin resultados"}
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={colSpan} className="p-0">
+                  <EmptyState
+                    loading={loading}
+                    filtered={filtered}
+                    archived={archived}
+                    onClear={clearAll}
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -636,7 +570,7 @@ export function LeadsTable({
                   }
                 }}
                 data-selected={selected.has(row.id) ? "" : undefined}
-                className="cursor-pointer hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:outline-none data-[selected]:bg-accent/10"
+                className="cursor-pointer hover:bg-accent/5 focus-visible:bg-accent/5 focus-visible:outline-none data-[selected]:bg-accent/10"
               >
                 {selectable && (
                   <TableCell
@@ -652,50 +586,101 @@ export function LeadsTable({
                     />
                   </TableCell>
                 )}
-                <TableCell className="font-medium">
-                  {fullName(row.first_name, row.last_name)}
-                </TableCell>
-                <TableCell className="text-sm">
-                  <div className="text-foreground">{row.phone ?? "—"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {row.email ?? "—"}
+
+                {/* Cliente: semáforo de gestión + avatar + nombre + ciudad */}
+                <TableCell>
+                  <div className="flex items-center gap-2.5">
+                    <UrgencyDot
+                      status={row.status}
+                      statusChangedAt={row.status_changed_at}
+                    />
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold text-accent">
+                      {initials(row.first_name, row.last_name)}
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-medium">
+                        {fullName(row.first_name, row.last_name) || "Sin nombre"}
+                      </span>
+                      {row.city && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {row.city}
+                        </span>
+                      )}
+                    </span>
                   </div>
                 </TableCell>
+
                 <TableCell className="text-sm">
-                  {row.branch_name ?? <PoolBadge />}
+                  <div className="font-mono text-[13px] text-foreground">
+                    {row.phone ?? "—"}
+                  </div>
+                  {row.email && (
+                    <div className="max-w-[180px] truncate text-xs text-muted-foreground">
+                      {row.email}
+                    </div>
+                  )}
                 </TableCell>
+
                 <TableCell className="text-sm">
-                  {row.product_type_name ?? <PoolBadge />}
+                  {row.vehicle_model || row.vehicle_version ? (
+                    <>
+                      <div className="font-medium">
+                        {row.vehicle_model ?? "—"}
+                      </div>
+                      {row.vehicle_version && (
+                        <div className="text-xs text-muted-foreground">
+                          {row.vehicle_version}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground/60">—</span>
+                  )}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+
+                <TableCell className="text-sm">
+                  <div>{row.branch_name ?? <PoolBadge />}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {row.product_type_name ?? "sin tipo"}
+                  </div>
+                </TableCell>
+
+                <TableCell className="max-w-[150px] truncate text-sm text-muted-foreground">
                   {row.campaign_name ?? "—"}
                 </TableCell>
+
                 {showAssignee && (
                   <TableCell className="text-sm">
                     {row.assignee_name ?? (
-                      <span className="text-muted-foreground">
+                      <span className="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">
                         Sin asignar
                       </span>
                     )}
                   </TableCell>
                 )}
+
                 <TableCell>
                   <LeadStatusBadge status={row.status} />
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+
+                <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
                   {(() => {
                     const { date, time } = fmtDateTime(row.created_at);
                     return (
-                      <div className="whitespace-nowrap">
+                      <>
                         <span className="text-foreground">{date}</span>
-                        {time && <span className="ml-1.5 tabular-nums">{time}</span>}
-                      </div>
+                        {time && (
+                          <span className="ml-1.5 tabular-nums">{time}</span>
+                        )}
+                      </>
                     );
                   })()}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {fmtDate(row.last_contacted_at)}
+
+                <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                  {fmtRelative(row.last_contacted_at)}
                 </TableCell>
+
                 <TableCell
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
@@ -750,38 +735,100 @@ export function LeadsTable({
   );
 }
 
+/**
+ * Semáforo de gestión: verde <3 días, ámbar 3-7, rojo +7 desde el último cambio
+ * de estado. Sólo para leads activos (un "no interesado" no está atrasado).
+ * Misma regla que el semáforo del dashboard de Admin.
+ */
+function UrgencyDot({
+  status,
+  statusChangedAt,
+}: {
+  status: LeadStatus;
+  statusChangedAt?: string | null;
+}) {
+  if (!ACTIVE_STATUSES.includes(status) || !statusChangedAt) {
+    return <span aria-hidden className="size-1.5 shrink-0" />;
+  }
+  const d = daysSince(statusChangedAt) ?? 0;
+  const tone = d >= 7 ? "danger" : d >= 3 ? "warning" : "ok";
+  const label =
+    tone === "danger"
+      ? `Sin gestión hace ${d} días`
+      : tone === "warning"
+        ? `${d} días sin gestión`
+        : "Al día";
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      className={cn(
+        "size-1.5 shrink-0 rounded-full",
+        tone === "danger"
+          ? "bg-destructive"
+          : tone === "warning"
+            ? "bg-warning"
+            : "bg-success",
+      )}
+    />
+  );
+}
+
+function EmptyState({
+  loading,
+  filtered,
+  archived,
+  onClear,
+}: {
+  loading: boolean;
+  filtered: boolean;
+  archived: boolean;
+  onClear: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center gap-3 px-6 py-14 text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" />
+        <p className="text-sm">Buscando leads…</p>
+      </div>
+    );
+  }
+
+  const Icon = filtered ? SearchX : Inbox;
+  return (
+    <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+      <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <Icon className="size-6" />
+      </span>
+      <div className="flex flex-col gap-1">
+        <p className="text-sm font-semibold">
+          {filtered
+            ? "Ningún lead coincide con estos filtros"
+            : archived
+              ? "No hay leads archivados"
+              : "Todavía no hay leads"}
+        </p>
+        <p className="max-w-sm text-xs text-muted-foreground">
+          {filtered
+            ? "Probá con menos filtros o un rango de fechas más amplio."
+            : archived
+              ? "Los leads que archives desde el listado aparecen acá."
+              : "Cargá el primero a mano, importá un CSV o conectá un formulario para que entren solos."}
+        </p>
+      </div>
+      {filtered && (
+        <Button variant="outline" size="sm" onClick={onClear}>
+          Limpiar filtros
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function PoolBadge() {
   return (
     <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
       Sin clasificar
     </span>
-  );
-}
-
-function ColumnFilter({
-  value,
-  onChange,
-  allLabel,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  allLabel: string;
-  options: FilterOption[];
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-9 w-40">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">{allLabel}</SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.id} value={o.id}>
-            {o.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }

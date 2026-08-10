@@ -11,6 +11,9 @@ import {
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { PlanBadge } from "@/components/companies/plan-select";
+import { planPriceLabel } from "@/lib/plans";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { KpiCard } from "@/components/kpi-card";
@@ -42,7 +45,7 @@ export default async function CompanyDetailPage({
       supabase
         .from("companies")
         .select(
-          "id, name, legal_name, cuit, phone, address, logo_url, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
+          "id, name, legal_name, cuit, phone, address, logo_url, plan, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at",
         )
         .eq("id", id)
         .maybeSingle(),
@@ -125,7 +128,15 @@ export default async function CompanyDetailPage({
 
       <header className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">{company.name}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">
+              {company.name}
+            </h1>
+            <PlanBadge plan={company.plan} />
+            <span className="text-xs text-muted-foreground">
+              {planPriceLabel(company.plan)} de lista
+            </span>
+          </div>
           <div className="flex flex-col gap-1 border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
             <p>
               <strong className="text-foreground">Admin:</strong>{" "}
@@ -157,6 +168,7 @@ export default async function CompanyDetailPage({
               phone: company.phone,
               address: company.address,
               logo_url: company.logo_url,
+              plan: company.plan,
               monthly_price: company.monthly_price
                 ? Number(company.monthly_price)
                 : null,

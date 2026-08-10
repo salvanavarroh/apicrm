@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Fragment, useState } from "react";
 import {
   BarChart3,
+  TrendingUp,
   Blocks,
   Briefcase,
   Building2,
@@ -80,6 +81,7 @@ const ADMIN_NAV: Section[] = [
     title: "Operación",
     items: [
       { href: "/admin", label: "Inicio", icon: Home, match: "exact" },
+      { href: "/admin/reports", label: "Informe ejecutivo", icon: TrendingUp },
       INBOX_ITEM,
       { href: "/admin/leads", label: "Leads", icon: Inbox },
       { href: "/admin/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
@@ -116,6 +118,7 @@ const MANAGER_NAV: Section[] = [
     title: "Operación",
     items: [
       { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
+      { href: "/manager/reports", label: "Informe ejecutivo", icon: TrendingUp },
       INBOX_ITEM,
       { href: "/manager/leads", label: "Leads", icon: Inbox },
       { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },
@@ -145,6 +148,7 @@ const SUPERVISOR_NAV: Section[] = [
     title: "Operación",
     items: [
       { href: "/manager", label: "Inicio", icon: Home, match: "exact" },
+      { href: "/manager/reports", label: "Informe ejecutivo", icon: TrendingUp },
       INBOX_ITEM,
       { href: "/manager/leads", label: "Leads", icon: Inbox },
       { href: "/manager/tasks-visits", label: "Tareas y Visitas", icon: CalendarCheck },

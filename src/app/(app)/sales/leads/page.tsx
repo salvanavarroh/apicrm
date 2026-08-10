@@ -1,4 +1,4 @@
-import { LayoutGrid, List } from "lucide-react";
+import { Inbox, LayoutGrid, List } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -6,13 +6,17 @@ import {
   KanbanBoard,
   type KanbanLead,
 } from "@/components/leads/kanban-board";
+import {
+  LeadsPageHeader,
+  LeadsPageHeaderSkeleton,
+} from "@/components/leads/leads-page-header";
 import { LeadsSectionSkeleton } from "@/components/leads/leads-skeletons";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
 import { loadLeadFilterOptions } from "@/lib/lead-filter-options";
-import { fetchLeadsTable } from "@/lib/leads-table-actions";
+import { fetchLeadsSummary, fetchLeadsTable } from "@/lib/leads-table-actions";
 import { LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,13 +36,9 @@ export default async function SalesLeadsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Mis leads</h1>
-        <p className="text-sm text-muted-foreground">
-          Movelos entre columnas arrastrando, o abrí el detalle para gestionar
-          la conversación.
-        </p>
-      </header>
+      <Suspense fallback={<LeadsPageHeaderSkeleton stats={3} />}>
+        <SalesLeadsHeader firstName={profile.first_name} />
+      </Suspense>
 
       <Tabs value={activeTab}>
         <TabsList>
@@ -66,6 +66,40 @@ export default async function SalesLeadsPage({
         )}
       </Suspense>
     </div>
+  );
+}
+
+// El vendedor no necesita "sin asignar" (todo lo suyo está asignado): lo que le
+// mueve la aguja es qué tiene atrasado y qué no calificó todavía.
+async function SalesLeadsHeader({ firstName }: { firstName: string | null }) {
+  const summary = await fetchLeadsSummary({}, {});
+  return (
+    <LeadsPageHeader
+      icon={Inbox}
+      title="Mis leads"
+      description={`${
+        firstName ? `${firstName}, ` : ""
+      }movelos entre columnas arrastrando o abrí el detalle para gestionar la conversación.`}
+      stats={[
+        {
+          label: "Activos",
+          value: summary.active,
+          hint: `${summary.total.toLocaleString("es-AR")} asignados en total`,
+        },
+        {
+          label: "Sin gestión +7d",
+          value: summary.stale,
+          tone: summary.stale > 0 ? "danger" : "success",
+          hint: summary.stale > 0 ? "Contactalos hoy" : "Todo al día",
+        },
+        {
+          label: "Sin temperatura",
+          value: summary.noTemperature,
+          tone: summary.noTemperature > 0 ? "warning" : "default",
+          hint: "Calificalos para priorizar",
+        },
+      ]}
+    />
   );
 }
 

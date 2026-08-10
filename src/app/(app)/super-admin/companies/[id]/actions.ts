@@ -75,6 +75,7 @@ const updateCompanySchema = z.object({
   phone: z.string().optional().or(z.literal("")),
   address: z.string().optional().or(z.literal("")),
   logo_url: z.string().url().optional().or(z.literal("")),
+  plan: z.enum(["inicial", "estandar", "personalizado"]).nullable().optional(),
   monthly_price: z
     .union([z.coerce.number().nonnegative(), z.literal("")])
     .optional(),
@@ -104,6 +105,7 @@ export async function updateCompanyAsSuperAdmin(
     phone: parsed.data.phone || null,
     address: parsed.data.address || null,
     logo_url: parsed.data.logo_url || null,
+    plan: parsed.data.plan ?? null,
     monthly_price:
       parsed.data.monthly_price === "" || parsed.data.monthly_price === undefined
         ? null

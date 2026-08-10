@@ -1,4 +1,12 @@
-import { Archive, LayoutGrid, List, Plus, Upload, UserPlus } from "lucide-react";
+import {
+  Archive,
+  Inbox,
+  LayoutGrid,
+  List,
+  Plus,
+  Upload,
+  UserPlus,
+} from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -7,6 +15,10 @@ import {
   type KanbanLead,
 } from "@/components/leads/kanban-board";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import {
+  LeadsPageHeader,
+  LeadsPageHeaderSkeleton,
+} from "@/components/leads/leads-page-header";
 import { LeadsSectionSkeleton } from "@/components/leads/leads-skeletons";
 import { LeadsTable } from "@/components/leads/leads-table";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
@@ -15,7 +27,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { actingManagerId, requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
 import { loadLeadFilterOptions } from "@/lib/lead-filter-options";
-import { fetchLeadsTable } from "@/lib/leads-table-actions";
+import { fetchLeadsSummary, fetchLeadsTable } from "@/lib/leads-table-actions";
 import { LEAD_STATUS_LABELS, fullName, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 import { getAssignableSalesUsers } from "@/lib/team";
@@ -40,27 +52,9 @@ export default async function ManagerLeadsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground">
-            Pipeline completo de tus gerencias (sucursal + tipo de producto que
-            manejás).
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/manager/leads/import">
-              <Upload className="mr-2 size-4" /> Importar CSV
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/manager/leads/new">
-              <Plus className="mr-2 size-4" /> Nuevo lead
-            </Link>
-          </Button>
-        </div>
-      </header>
+      <Suspense fallback={<LeadsHeaderFallback />}>
+        <ManagerLeadsHeader />
+      </Suspense>
 
       <Tabs value={activeTab}>
         <TabsList>
@@ -122,6 +116,62 @@ export default async function ManagerLeadsPage({
       </Suspense>
     </div>
   );
+}
+
+// Header con banner + contadores. Va en su propio Suspense: los conteos son
+// exactos (count en la DB) y no tienen por qué frenar el resto de la pantalla.
+async function ManagerLeadsHeader() {
+  const summary = await fetchLeadsSummary({ archived: false }, {});
+  return (
+    <LeadsPageHeader
+      icon={Inbox}
+      title="Leads"
+      description="Pipeline completo de tus gerencias (sucursal + tipo de producto que manejás)."
+      stats={[
+        {
+          label: "Activos",
+          value: summary.active,
+          hint: `${summary.total.toLocaleString("es-AR")} en total`,
+        },
+        {
+          label: "Sin asignar",
+          value: summary.unassigned,
+          tone: summary.unassigned > 0 ? "warning" : "default",
+          href: "/manager/leads?tab=unassigned",
+          hint: "Asignar ahora",
+        },
+        {
+          label: "Sin gestión +7d",
+          value: summary.stale,
+          tone: summary.stale > 0 ? "danger" : "success",
+          hint: summary.stale > 0 ? "Requieren contacto" : "Todo al día",
+        },
+        {
+          label: "Sin temperatura",
+          value: summary.noTemperature,
+          hint: "Activos sin calificar",
+        },
+      ]}
+      actions={
+        <>
+          <Button variant="outline" asChild>
+            <Link href="/manager/leads/import">
+              <Upload className="mr-2 size-4" /> Importar CSV
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/manager/leads/new">
+              <Plus className="mr-2 size-4" /> Nuevo lead
+            </Link>
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
+function LeadsHeaderFallback() {
+  return <LeadsPageHeaderSkeleton />;
 }
 
 // Badge de "No asignados" — cuenta exacta, en su propio Suspense para no frenar

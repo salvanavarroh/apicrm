@@ -1,28 +1,14 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireProfile } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
+import { homePathForRole, requireProfile } from "@/lib/auth";
+
+/**
+ * `/dashboard` es una URL histórica: cada rol tiene su propio inicio
+ * (`/admin`, `/manager`, `/sales`, …). Antes mostraba una tarjeta "En
+ * construcción", que es lo peor que puede ver alguien que llega acá desde un
+ * link viejo o un bookmark. Redirige al inicio que le corresponde.
+ */
 export default async function DashboardPage() {
   const profile = await requireProfile();
-
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Bienvenido. Tu rol: <strong>{profile.role.replace("_", " ")}</strong>.
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>En construcción</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            El dashboard de tu rol se arma en sprints posteriores.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+  redirect(homePathForRole(profile.role));
 }

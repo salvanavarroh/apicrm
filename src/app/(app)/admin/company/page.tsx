@@ -24,6 +24,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 import { formatARS } from "@/lib/format";
+import { planLabel } from "@/lib/plans";
 
 import { CallCenterSettingsCard } from "@/components/inbox/call-center-settings";
 
@@ -61,7 +62,7 @@ export default async function AdminCompanyPage() {
     supabase
       .from("companies")
       .select(
-        "id, name, legal_name, cuit, phone, address, logo_url, quote_legal_text, quote_hide_name, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at, inbox_max_open_per_vendor, inbox_hours_enabled, inbox_hours_start, inbox_hours_end, inbox_hours_days",
+        "id, name, legal_name, cuit, phone, address, logo_url, quote_legal_text, quote_hide_name, plan, monthly_price, subscription_starts_at, subscription_ends_at, status, created_at, inbox_max_open_per_vendor, inbox_hours_enabled, inbox_hours_start, inbox_hours_end, inbox_hours_days",
       )
       .eq("id", profile.company_id)
       .maybeSingle(),
@@ -397,6 +398,7 @@ export default async function AdminCompanyPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Razón social" value={company.legal_name} />
           <Field label="CUIT" value={company.cuit} />
+          <Field label="Plan" value={planLabel(company.plan)} />
           <Field
             label="Precio mensual"
             value={

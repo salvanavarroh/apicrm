@@ -439,6 +439,7 @@ export type Database = {
           monthly_price: number | null
           name: string
           phone: string | null
+          plan: Database["public"]["Enums"]["company_plan"] | null
           quote_hide_name: boolean
           quote_legal_text: string | null
           status: Database["public"]["Enums"]["company_status"]
@@ -464,6 +465,7 @@ export type Database = {
           monthly_price?: number | null
           name: string
           phone?: string | null
+          plan?: Database["public"]["Enums"]["company_plan"] | null
           quote_hide_name?: boolean
           quote_legal_text?: string | null
           status?: Database["public"]["Enums"]["company_status"]
@@ -489,6 +491,7 @@ export type Database = {
           monthly_price?: number | null
           name?: string
           phone?: string | null
+          plan?: Database["public"]["Enums"]["company_plan"] | null
           quote_hide_name?: boolean
           quote_legal_text?: string | null
           status?: Database["public"]["Enums"]["company_status"]
@@ -584,6 +587,13 @@ export type Database = {
             columns: ["assigned_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
           {
@@ -725,6 +735,53 @@ export type Database = {
             columns: ["product_type_id"]
             isOneToOne: false
             referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_ad_imports: {
+        Row: {
+          company_id: string
+          created_at: string
+          cursor: string | null
+          duplicates: number
+          error: string | null
+          id: string
+          imported: number
+          meta_form_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          cursor?: string | null
+          duplicates?: number
+          error?: string | null
+          id?: string
+          imported?: number
+          meta_form_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          cursor?: string | null
+          duplicates?: number
+          error?: string | null
+          id?: string
+          imported?: number
+          meta_form_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ad_imports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -960,45 +1017,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      lead_ad_imports: {
-        Row: {
-          company_id: string
-          created_at: string
-          cursor: string | null
-          duplicates: number
-          error: string | null
-          id: string
-          imported: number
-          meta_form_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          company_id: string
-          created_at?: string
-          cursor?: string | null
-          duplicates?: number
-          error?: string | null
-          id?: string
-          imported?: number
-          meta_form_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          company_id?: string
-          created_at?: string
-          cursor?: string | null
-          duplicates?: number
-          error?: string | null
-          id?: string
-          imported?: number
-          meta_form_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       lead_notes: {
         Row: {
@@ -2710,7 +2728,13 @@ export type Database = {
         | "inbound_call"
         | "other"
       campaign_status: "active" | "inactive"
-      channel_platform: "whatsapp" | "instagram" | "facebook" | "metaads" | "tiktok" | "google"
+      channel_platform:
+        | "whatsapp"
+        | "instagram"
+        | "facebook"
+        | "metaads"
+        | "tiktok"
+        | "google"
       channel_status: "connecting" | "active" | "disconnected" | "error"
       commercial_lead_status:
         | "new"
@@ -2719,6 +2743,7 @@ export type Database = {
         | "demo_done"
         | "won"
         | "lost"
+      company_plan: "inicial" | "estandar" | "personalizado"
       company_status: "pending" | "active" | "suspended"
       conversation_status: "open" | "snoozed" | "closed"
       lead_payment_method:
@@ -2913,7 +2938,14 @@ export const Constants = {
         "other",
       ],
       campaign_status: ["active", "inactive"],
-      channel_platform: ["whatsapp", "instagram", "facebook", "metaads", "tiktok", "google"],
+      channel_platform: [
+        "whatsapp",
+        "instagram",
+        "facebook",
+        "metaads",
+        "tiktok",
+        "google",
+      ],
       channel_status: ["connecting", "active", "disconnected", "error"],
       commercial_lead_status: [
         "new",
@@ -2923,6 +2955,7 @@ export const Constants = {
         "won",
         "lost",
       ],
+      company_plan: ["inicial", "estandar", "personalizado"],
       company_status: ["pending", "active", "suspended"],
       conversation_status: ["open", "snoozed", "closed"],
       lead_payment_method: [

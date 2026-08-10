@@ -11,6 +11,7 @@ import {
   type LeadVehicleItem,
 } from "@/components/leads/lead-vehicles-section";
 import { ArchiveLeadButton } from "@/components/leads/archive-lead-button";
+import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import { ReassignDialog } from "@/components/leads/reassign-dialog";
 import type { LeadTask } from "@/components/leads/tasks-section";
 import { TrackingCard } from "@/components/leads/tracking-card";
@@ -24,6 +25,7 @@ import {
   type LeadPaymentMethod,
 } from "@/lib/leads";
 import { formatARS } from "@/lib/format";
+import { nextBestAction } from "@/lib/next-best-action";
 import { createClient } from "@/lib/supabase/server";
 import { loadLeadConversations } from "@/lib/lead-conversations";
 import { getAssignableSalesUsers } from "@/lib/team";
@@ -44,6 +46,8 @@ export default async function AdminLeadDetailPage({
     { data: visits },
     { data: leadVehicles },
     team,
+    { data: quotes },
+    { data: leadSales },
   ] = await Promise.all([
       supabase
         .from("leads")
@@ -98,6 +102,9 @@ export default async function AdminLeadDetailPage({
         .eq("lead_id", id)
         .order("created_at", { ascending: true }),
       getAssignableSalesUsers({ companyId: profile.company_id! }),
+      // Presupuestos y venta abierta: sólo para calcular la próxima acción.
+      supabase.from("quotes").select("created_at, sent_at").eq("lead_id", id),
+      supabase.from("sales").select("status").eq("lead_id", id),
     ]);
 
   if (!lead) notFound();
@@ -142,6 +149,22 @@ export default async function AdminLeadDetailPage({
     id: u.id,
     name: fullName(u.first_name, u.last_name),
   }));
+
+  const nba = nextBestAction({
+    lead: {
+      status: lead.status,
+      temperature: lead.temperature,
+      created_at: lead.created_at,
+      status_changed_at: lead.status_changed_at,
+      last_contacted_at: lead.last_contacted_at,
+      assigned_user_id: lead.assigned_user_id,
+    },
+    tasks: taskRows,
+    visits: visitRows,
+    quotes: quotes ?? [],
+    activeSaleStatus:
+      (leadSales ?? []).find((s) => s.status === "evaluating")?.status ?? null,
+  });
   const leadAssigneeName = lead.assignee
     ? fullName(lead.assignee.first_name, lead.assignee.last_name)
     : null;
@@ -204,6 +227,8 @@ export default async function AdminLeadDetailPage({
           />
         </div>
       </header>
+
+      <NextBestActionCard action={nba} />
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4">

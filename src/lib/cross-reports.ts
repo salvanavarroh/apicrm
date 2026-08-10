@@ -1,7 +1,10 @@
+import { NO_CAMPAIGN_KEY, channelLabel } from "@/lib/campaign-origins";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchPaged } from "@/lib/leads-fetch";
 import { fullName } from "@/lib/leads";
 import type { Database } from "@/types/database";
+
+export { CAMPAIGN_ORIGIN_LABELS } from "@/lib/campaign-origins";
 
 export type ReportRange = { from?: string | null; to?: string | null };
 
@@ -13,26 +16,6 @@ type LeadReportRow = {
   campaign_id: string | null;
 };
 
-// Etiquetas de canal (mismo set que el diálogo de campañas, replicado acá para
-// no importar un componente client en código server).
-type CampaignOrigin = Database["public"]["Enums"]["campaign_origin"];
-export const CAMPAIGN_ORIGIN_LABELS: Record<CampaignOrigin, string> = {
-  meta_ads: "Meta Ads",
-  google_ads: "Google Ads",
-  whatsapp: "WhatsApp",
-  showroom: "Mostrador",
-  referral: "Referido",
-  web: "Web",
-  email: "Email",
-  instagram: "Instagram",
-  tiktok_ads: "TikTok Ads",
-  marketplace: "Marketplace",
-  portal_usados: "Portal de usados",
-  inbound_call: "Llamada entrante",
-  other: "Otros",
-};
-
-const NO_CAMPAIGN_KEY = "none";
 const RISK_INACTIVE_DAYS = 14;
 
 export type CompanyRankRow = {
@@ -247,10 +230,7 @@ export async function loadCrossReports(
   const channels: ChannelRow[] = [...channelAgg.entries()]
     .map(([key, count]) => ({
       key,
-      label:
-        key === NO_CAMPAIGN_KEY
-          ? "Sin campaña / Directo"
-          : CAMPAIGN_ORIGIN_LABELS[key as CampaignOrigin],
+      label: channelLabel(key),
       leads: count,
       share: totalLeads > 0 ? count / totalLeads : 0,
     }))

@@ -60,17 +60,44 @@ const COLUMN_ORDER: LeadStatus[] = [
 ];
 
 // Fondo suave de columna por estado (header tinted + body con misma tinta).
+// Los `dark:` son necesarios: sin ellos las columnas quedan blancas sobre fondo
+// oscuro y el tablero pierde toda la lectura por color.
 const COLUMN_TINT: Record<LeadStatus, string> = {
-  new: "bg-blue-50/80",
-  contacted: "bg-amber-50/80",
-  interested: "bg-emerald-50/80",
-  quoted: "bg-green-50/80",
-  evaluating: "bg-orange-50/80",
-  accepted: "bg-emerald-50",
-  rejected: "bg-red-50/80",
-  closed: "bg-zinc-100/80",
-  not_interested: "bg-zinc-100/60",
+  new: "bg-blue-50/80 dark:bg-blue-950/30",
+  contacted: "bg-amber-50/80 dark:bg-amber-950/30",
+  interested: "bg-emerald-50/80 dark:bg-emerald-950/30",
+  quoted: "bg-green-50/80 dark:bg-green-950/30",
+  evaluating: "bg-orange-50/80 dark:bg-orange-950/30",
+  accepted: "bg-emerald-50 dark:bg-emerald-950/40",
+  rejected: "bg-red-50/80 dark:bg-red-950/30",
+  closed: "bg-zinc-100/80 dark:bg-zinc-900/50",
+  not_interested: "bg-zinc-100/60 dark:bg-zinc-900/40",
 };
+
+// Filete superior de la columna: hace que el tablero se lea como un pipeline
+// (frío → cálido → cerrado) y no como nueve cajas iguales.
+const COLUMN_ACCENT: Record<LeadStatus, string> = {
+  new: "bg-blue-400",
+  contacted: "bg-amber-400",
+  interested: "bg-emerald-400",
+  quoted: "bg-green-500",
+  evaluating: "bg-orange-400",
+  accepted: "bg-emerald-600",
+  rejected: "bg-red-400",
+  closed: "bg-zinc-400",
+  not_interested: "bg-zinc-300 dark:bg-zinc-600",
+};
+
+const KANBAN_ACTIVE: LeadStatus[] = [
+  "new",
+  "contacted",
+  "interested",
+  "quoted",
+];
+
+function daysSince(iso: string) {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
 
 function timeAgo(iso: string | null) {
   if (!iso) return "—";
@@ -230,10 +257,14 @@ function Column({
   return (
     <div
       ref={setNodeRef}
-      className={`flex flex-col gap-2 rounded-lg border border-border p-3 transition-colors ${tint} ${
+      className={`relative flex flex-col gap-2 overflow-hidden rounded-lg border border-border p-3 pt-3.5 transition-colors ${tint} ${
         isOver ? "ring-2 ring-accent" : ""
       }`}
     >
+      <span
+        aria-hidden
+        className={`absolute inset-x-0 top-0 h-1 ${COLUMN_ACCENT[status]}`}
+      />
       <div className="flex items-center justify-between px-1 py-1">
         <span className="text-sm font-semibold text-foreground">
           {LEAD_STATUS_LABELS[status]}
@@ -245,8 +276,8 @@ function Column({
 
       <div className="flex flex-col gap-2">
         {items.length === 0 && (
-          <p className="py-6 text-center text-xs text-muted-foreground">
-            Sin leads
+          <p className="rounded-md border border-dashed border-border/70 py-6 text-center text-xs text-muted-foreground">
+            {isOver ? "Soltá acá" : "Sin leads"}
           </p>
         )}
         {items.map((lead) => (
@@ -309,6 +340,7 @@ function Card({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
+          <StaleDot lead={lead} />
           <p className="truncate text-sm font-semibold text-foreground">
             {fullName(lead.first_name, lead.last_name)}
           </p>
@@ -372,6 +404,28 @@ function Card({
         </Link>
       )}
     </div>
+  );
+}
+
+/**
+ * Punto de gestión en la tarjeta: mismo criterio que la tabla y que el semáforo
+ * del dashboard (verde <3 días, ámbar 3-7, rojo +7 desde el último cambio de
+ * estado). Sólo en estados activos.
+ */
+function StaleDot({ lead }: { lead: KanbanLead }) {
+  if (!KANBAN_ACTIVE.includes(lead.status) || !lead.status_changed_at) {
+    return null;
+  }
+  const days = daysSince(lead.status_changed_at);
+  if (days < 3) return null; // Al día: no agregamos ruido visual.
+  return (
+    <span
+      title={`${days} días sin gestión`}
+      aria-label={`${days} días sin gestión`}
+      className={`size-1.5 shrink-0 rounded-full ${
+        days >= 7 ? "bg-destructive" : "bg-warning"
+      }`}
+    />
   );
 }
 

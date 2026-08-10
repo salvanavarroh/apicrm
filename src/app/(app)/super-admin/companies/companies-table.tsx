@@ -17,6 +17,9 @@ import {
 
 import { EditCompanyAsSuperAdminDialog } from "./[id]/edit-company-dialog";
 
+import { PlanBadge } from "@/components/companies/plan-select";
+import type { CompanyPlan } from "@/lib/plans";
+
 export type CompanyRow = {
   id: string;
   name: string;
@@ -26,6 +29,7 @@ export type CompanyRow = {
   phone: string | null;
   address: string | null;
   logo_url: string | null;
+  plan: CompanyPlan | null;
   monthly_price: number | null;
   subscription_starts_at: string | null;
   subscription_ends_at: string | null;
@@ -106,6 +110,7 @@ export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
               <th className="px-4 py-3 text-center font-medium">Admins</th>
               <th className="px-4 py-3 text-center font-medium">Gerentes</th>
               <th className="px-4 py-3 text-center font-medium">Vendedores</th>
+              <th className="px-4 py-3 font-medium">Plan</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 text-right font-medium">Acciones</th>
             </tr>
@@ -141,6 +146,9 @@ export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
                   {c.sales}
                 </td>
                 <td className="px-4 py-3">
+                  <PlanBadge plan={c.plan} />
+                </td>
+                <td className="px-4 py-3">
                   <StatusBadge status={c.status} />
                 </td>
                 <td className="px-4 py-3">
@@ -154,6 +162,7 @@ export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
                         phone: c.phone,
                         address: c.address,
                         logo_url: c.logo_url,
+                        plan: c.plan,
                         monthly_price: c.monthly_price
                           ? Number(c.monthly_price)
                           : null,
