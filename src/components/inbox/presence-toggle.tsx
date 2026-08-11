@@ -37,6 +37,36 @@ export function PresenceToggle({
     return () => clearInterval(id);
   }, [available]);
 
+  // Cerrar el browser / la pestaña apaga la presencia al instante.
+  //
+  // El heartbeat solo no alcanza: deja de latir, pero el round-robin sigue
+  // repartiéndole conversaciones hasta que expira la ventana de frescura de
+  // 15 min. Un beacon en `pagehide` sí llega aunque el documento se esté
+  // destruyendo (un `fetch` normal se cancela).
+  //
+  // `e.persisted` distingue "cierro" de "paso a background": en mobile, cambiar
+  // de app manda la página al bfcache y volver la reactiva. Apagar ahí sería un
+  // falso negativo, así que sólo se apaga cuando la página se destruye de
+  // verdad, y al volver a ser visible se late enseguida para refrescar.
+  useEffect(() => {
+    if (!available) return;
+
+    const onPageHide = (e: PageTransitionEvent) => {
+      if (e.persisted) return;
+      navigator.sendBeacon?.("/api/inbox/presence");
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void inboxHeartbeat();
+    };
+
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [available]);
+
   function toggle() {
     const next = !available;
     setAvailable(next);
@@ -67,8 +97,10 @@ export function PresenceToggle({
       }
       className={cn(
         "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60",
+        // Tokens, no `emerald-*`: los washes hardcodeados no tienen variante
+        // dark y el chip quedaba ilegible en tema oscuro.
         available
-          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+          ? "border-success/40 bg-success/10 text-success"
           : "bg-muted text-muted-foreground hover:bg-muted/70",
         className,
       )}
@@ -76,7 +108,7 @@ export function PresenceToggle({
       <span
         className={cn(
           "size-2 rounded-full",
-          available ? "bg-emerald-500" : "bg-muted-foreground/40",
+          available ? "bg-success" : "bg-muted-foreground/40",
         )}
       />
       {available ? "Activo — recibiendo" : "Inactivo"}
@@ -84,7 +116,7 @@ export function PresenceToggle({
         <span
           className={cn(
             "text-xs font-normal",
-            available ? "text-emerald-600/80" : "text-muted-foreground",
+            available ? "text-success/80" : "text-muted-foreground",
           )}
         >
           · {activeCount} activo{activeCount === 1 ? "" : "s"}

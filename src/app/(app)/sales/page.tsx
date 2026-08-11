@@ -3,11 +3,11 @@ import Link from "next/link";
 
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { AgendaCalendar } from "@/components/dashboard/agenda-calendar";
-import { PresenceToggle } from "@/components/inbox/presence-toggle";
+import { ReceptionCard } from "@/components/inbox/reception-card";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
-import { loadInboxPresence } from "@/lib/messaging/presence";
+import { loadInboxPresenceStats } from "@/lib/messaging/presence";
 import { formatARS } from "@/lib/format";
 import { fullName } from "@/lib/leads";
 import { cn } from "@/lib/utils";
@@ -35,8 +35,15 @@ export default async function SalesHomePage() {
   const today = todayDateKey();
 
   const presence = profile.company_id
-    ? await loadInboxPresence(profile.id, profile.company_id)
-    : { available: false, activeCount: 0 };
+    ? await loadInboxPresenceStats(profile.id, profile.company_id)
+    : {
+        available: false,
+        activeCount: 0,
+        open: 0,
+        unanswered: 0,
+        pool: 0,
+        closingWindow: 0,
+      };
 
   const [
     { count: total },
@@ -149,35 +156,7 @@ export default async function SalesHomePage() {
         </p>
       </header>
 
-      {/* Control de disponibilidad, no un anuncio: va angosto y alineado a la
-          izquierda. `Card` es `flex flex-col`, así que sin `flex-row` explícito
-          el `items-center` centraba todo en el eje horizontal (era lo que se
-          veía: título, texto y toggle centrados en una caja full-width). */}
-      <Card className="flex w-full flex-row flex-wrap items-center justify-between gap-x-4 gap-y-2 p-4 lg:max-w-2xl">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span
-            aria-hidden
-            className={cn(
-              "size-2 shrink-0 rounded-full",
-              presence.available ? "bg-success" : "bg-muted-foreground/40",
-            )}
-          />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">Recepción de conversaciones</p>
-            <p className="text-xs text-muted-foreground">
-              {presence.available
-                ? "Estás recibiendo conversaciones nuevas del inbox."
-                : "Activate para entrar en el reparto automático del inbox."}
-              {presence.activeCount > 0 &&
-                ` ${presence.activeCount} vendedor(es) activo(s).`}
-            </p>
-          </div>
-        </div>
-        <PresenceToggle
-          initialAvailable={presence.available}
-          activeCount={presence.activeCount}
-        />
-      </Card>
+      <ReceptionCard stats={presence} inboxHref="/admin/inbox" />
 
       <AgendaCalendar items={agendaItems} todayKey={today} />
 

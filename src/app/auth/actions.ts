@@ -39,6 +39,21 @@ export async function signIn(
 
 export async function signOut() {
   const supabase = await createClient();
+
+  // Antes de cerrar sesión hay que salir del reparto del inbox. Si no, el
+  // vendedor queda `inbox_available = true` y el round-robin le sigue asignando
+  // conversaciones hasta que expira la ventana de frescura (15 min), o sea que
+  // le entran mensajes que nadie va a leer.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    await supabase
+      .from("profiles")
+      .update({ inbox_available: false, inbox_available_at: null })
+      .eq("id", user.id);
+  }
+
   await supabase.auth.signOut();
   redirect("/login");
 }
