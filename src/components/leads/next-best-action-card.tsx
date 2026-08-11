@@ -53,7 +53,7 @@ const URGENCY_STYLE: Record<
     box: "border-warning/40 bg-warning/5",
     chip: "bg-warning text-warning-foreground",
     label: "Hoy",
-    icon: "bg-warning/15 text-warning-foreground",
+    icon: "bg-warning/15 text-warning-text",
   },
   soon: {
     box: "border-accent/30 bg-accent/5",

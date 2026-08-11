@@ -77,9 +77,9 @@ const TARGET_OPTIONS = [
 ];
 
 const STATUS_CLASSES: Record<MappedRowStatus, string> = {
-  ok: "bg-green-100 text-green-700",
-  warning: "bg-amber-100 text-amber-700",
-  error: "bg-red-100 text-red-700",
+  ok: "bg-success/10 text-success",
+  warning: "bg-warning/15 text-warning-text",
+  error: "bg-destructive/10 text-destructive",
   duplicate: "bg-muted text-muted-foreground",
 };
 
@@ -330,7 +330,7 @@ export function AiLeadImporter({
 
           {stuck && (
             <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-              <p className="font-medium text-warning-foreground">
+              <p className="font-medium text-warning-text">
                 Parece que la importación se pausó.
               </p>
               <p className="text-xs text-muted-foreground">
@@ -687,7 +687,7 @@ export function AiLeadImporter({
                     <TableCell className="max-w-[220px] truncate text-xs text-muted-foreground">
                       {row.data.initial_notes ?? "—"}
                     </TableCell>
-                    <TableCell className="max-w-[220px] text-[11px] text-amber-700">
+                    <TableCell className="max-w-[220px] text-[11px] text-warning-text">
                       {detail || "—"}
                     </TableCell>
                   </TableRow>

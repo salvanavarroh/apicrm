@@ -52,7 +52,7 @@ export function LeadConversationCard({
                   <BrandIcon platform={c.platform} className="size-4 shrink-0" />
                   <span className="truncate text-sm font-medium">{convTitle(c)}</span>
                   {c.unread_count > 0 && (
-                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                    <span className="shrink-0 rounded-full bg-whatsapp/15 px-2 py-0.5 text-[10px] font-semibold text-whatsapp">
                       {c.unread_count} sin responder
                     </span>
                   )}

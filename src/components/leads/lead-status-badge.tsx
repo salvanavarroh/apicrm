@@ -9,8 +9,10 @@ const TONE_CLS: Record<
   ReturnType<typeof getTone>,
   string
 > = {
-  info: "bg-blue-100 text-blue-700",
-  warning: "bg-warning/10 text-warning-foreground",
+  // Todos los tonos son pares de token: los `bg-*-100 text-*-700` que había acá
+  // no tenían variante dark y el badge quedaba ilegible en tema oscuro.
+  info: "bg-info/10 text-info",
+  warning: "bg-warning/15 text-warning-text",
   success: "bg-success/10 text-success",
   danger: "bg-destructive/10 text-destructive",
   muted: "bg-muted text-muted-foreground",

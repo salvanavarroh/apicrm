@@ -142,7 +142,7 @@ export function CsvImporter({
           Headers esperados (lowercase, snake_case): {CSV_HEADERS.join(", ")}
         </p>
         {parseErrors.length > 0 && (
-          <div className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+          <div className="rounded-md bg-warning/15 px-3 py-2 text-xs text-warning-text">
             <p className="font-medium">Avisos del parser:</p>
             <ul className="ml-4 list-disc">
               {parseErrors.slice(0, 3).map((e, i) => (

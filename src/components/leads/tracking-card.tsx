@@ -1,4 +1,5 @@
 import {
+  ChevronDown,
   Compass,
   ExternalLink,
   Globe2,
@@ -25,7 +26,18 @@ export type TrackingData = {
  * Card de "Datos de Tracking" para el lead detail. Si no hay nada capturado
  * (por ejemplo: lead cargado a mano por el proveedor de datos), no se rendea.
  */
-export function TrackingCard({ data }: { data: TrackingData }) {
+export function TrackingCard({
+  data,
+  collapsible = false,
+}: {
+  data: TrackingData;
+  /**
+   * Renderiza la card como un `<details>` cerrado. La atribución es plomería de
+   * marketing: en la ficha del vendedor no compite con la gestión del lead,
+   * pero sigue estando a un clic.
+   */
+  collapsible?: boolean;
+}) {
   const hasUtm =
     data.utm_source ||
     data.utm_medium ||
@@ -36,15 +48,8 @@ export function TrackingCard({ data }: { data: TrackingData }) {
   const hasChannel = !!data.source || !!data.campaign;
   if (!hasChannel && !hasUtm && !hasOrigin) return null;
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Compass className="size-4 text-accent" />
-          Datos de Tracking
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 text-sm">
+  const body = (
+    <>
         {hasChannel && (
           <div className="flex flex-col gap-2">
             <SectionLabel
@@ -73,7 +78,7 @@ export function TrackingCard({ data }: { data: TrackingData }) {
               icon={<Megaphone className="size-3.5" />}
               text="Campaña"
             />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <TrackField label="Source" value={data.utm_source} />
               <TrackField label="Medium" value={data.utm_medium} />
               <TrackField
@@ -103,7 +108,36 @@ export function TrackingCard({ data }: { data: TrackingData }) {
             </div>
           </div>
         )}
-      </CardContent>
+    </>
+  );
+
+  if (collapsible) {
+    return (
+      <details className="group rounded-xl border bg-card text-card-foreground shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-sm font-semibold [&::-webkit-details-marker]:hidden">
+          <Compass className="size-4 text-accent" />
+          Origen y atribución
+          {data.source && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {data.source}
+            </span>
+          )}
+          <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="flex flex-col gap-4 px-5 pb-5 text-sm">{body}</div>
+      </details>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Compass className="size-4 text-accent" />
+          Datos de Tracking
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4 text-sm">{body}</CardContent>
     </Card>
   );
 }

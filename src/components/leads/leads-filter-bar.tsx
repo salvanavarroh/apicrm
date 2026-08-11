@@ -462,7 +462,7 @@ function StatusChip({
           : tone === "danger" && !muted
             ? "border-destructive/30 bg-destructive/5 text-destructive hover:border-destructive/60"
             : tone === "warning" && !muted
-              ? "border-warning/40 bg-warning/5 text-warning-foreground hover:border-warning"
+              ? "border-warning/40 bg-warning/10 text-warning-text hover:border-warning"
               : "border-border bg-background text-muted-foreground hover:border-accent/50 hover:text-foreground",
       )}
     >

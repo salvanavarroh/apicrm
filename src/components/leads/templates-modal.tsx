@@ -264,7 +264,7 @@ export function TemplatesModal({
                   onClick={openWhatsApp}
                   disabled={!leadPhone || !selected || pending}
                   size="sm"
-                  className="bg-[#25D366] text-white hover:bg-[#1ebe5d]"
+                  className="bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90"
                 >
                   <WhatsappIcon className="mr-2 size-4" /> Enviar por WhatsApp
                 </Button>

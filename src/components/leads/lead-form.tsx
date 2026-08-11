@@ -1,11 +1,21 @@
 "use client";
 
+import {
+  AlertTriangle,
+  Car,
+  Check,
+  FileText,
+  Target,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { CatalogCombobox } from "@/components/leads/catalog-combobox";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -27,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { LEAD_PAYMENT_OPTIONS, fullName, type LeadInput } from "@/lib/leads";
+import { cn } from "@/lib/utils";
 
 import {
   createLead,
@@ -70,6 +81,52 @@ const EMPTY: LeadInput = {
   initial_notes: "",
 };
 
+// ---------------------------------------------------------------------------
+// Validación en el cliente.
+//
+// Antes la primera validación que veía el usuario era el round-trip al server,
+// y el mensaje llegaba como un banner suelto sin decir qué campo estaba mal.
+// Las reglas de acá son las mismas que ya aplica `leadInputSchema`; esto no
+// reemplaza la validación del server, la anticipa.
+// ---------------------------------------------------------------------------
+
+type FieldKey = "phone" | "email" | "budget_max";
+type FieldErrors = Partial<Record<FieldKey, string>>;
+
+const FIELD_LABELS: Record<FieldKey, string> = {
+  phone: "Teléfono",
+  email: "Email",
+  budget_max: "Presupuesto hasta",
+};
+
+/** Orden en el que se recorren los errores para enfocar el primero. */
+const FIELD_ORDER: FieldKey[] = ["phone", "email", "budget_max"];
+
+const fieldId = (key: FieldKey | string) => `lf-${key}`;
+
+const CONTACT_RULE = "Necesitás teléfono o email para poder contactarlo.";
+
+function validate(d: LeadInput): FieldErrors {
+  const errors: FieldErrors = {};
+
+  const phone = String(d.phone ?? "").trim();
+  const email = String(d.email ?? "").trim();
+  if (!phone && !email) {
+    errors.phone = CONTACT_RULE;
+    errors.email = CONTACT_RULE;
+  } else if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = "Revisá el formato del email.";
+  }
+
+  const min = Number(d.budget_min || 0);
+  const max = Number(d.budget_max || 0);
+  if (min > 0 && max > 0 && min > max) {
+    errors.budget_max = 'No puede ser menor que "desde".';
+  }
+
+  return errors;
+}
+
 export function LeadForm({
   mode,
   initial,
@@ -84,9 +141,35 @@ export function LeadForm({
   const [data, setData] = useState<LeadInput>({ ...EMPTY, ...initial });
   const [duplicate, setDuplicate] = useState<DuplicateInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  // Sólo se muestran los errores después del primer intento de guardar: no
+  // tiene sentido gritarle "falta el teléfono" a un formulario recién abierto.
+  const [submitted, setSubmitted] = useState(false);
 
   function update<K extends keyof LeadInput>(key: K, value: LeadInput[K]) {
-    setData((d) => ({ ...d, [key]: value }));
+    setData((d) => {
+      const next = { ...d, [key]: value };
+      // Si ya se intentó guardar, revalidamos en vivo para que los errores
+      // desaparezcan a medida que se corrigen.
+      if (submitted) setErrors(validate(next));
+      return next;
+    });
+  }
+
+  const shownErrors = submitted ? errors : {};
+  const errorKeys = FIELD_ORDER.filter((k) => shownErrors[k]);
+  // phone y email comparten el mismo mensaje (la regla "uno de los dos"), así
+  // que se cuentan como un solo problema a resolver.
+  const problemCount =
+    errorKeys.filter((k) => k !== "email" || shownErrors.phone === undefined)
+      .length;
+
+  function focusFirstError(errs: FieldErrors) {
+    const first = FIELD_ORDER.find((k) => errs[k]);
+    if (!first) return;
+    const el = document.getElementById(fieldId(first));
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.focus({ preventScroll: true });
   }
 
   function submit(modeArg: "auto" | "skip_check" | "register_submission") {
@@ -112,51 +195,96 @@ export function LeadForm({
     });
   }
 
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setSubmitted(true);
+    const found = validate(data);
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      focusFirstError(found);
+      return;
+    }
+    submit("auto");
+  }
+
+  // Numeración de los bloques: el de asignación comercial no siempre se muestra.
+  const n = lockClassification
+    ? { cliente: 1, vehiculo: 2, comercial: 0, notas: 3 }
+    : { cliente: 1, vehiculo: 2, comercial: 3, notas: 4 };
+
+  const branchLabel = branches.find((b) => b.id === data.branch_id)?.label;
+  const typeLabel = productTypes.find((p) => p.id === data.product_type_id)
+    ?.label;
+  const destination = [branchLabel, typeLabel].filter(Boolean).join(" · ");
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* Cliente */}
-      <Section title="Datos del cliente">
+    <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
+      {/* ---------------- 1. Cliente ---------------- */}
+      <FormBlock n={n.cliente} icon={User} title="Datos del cliente">
+        <p className="flex items-start gap-2 rounded-md bg-info/10 px-3 py-2 text-xs">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-info" />
+          <span>
+            Necesitás <strong className="font-semibold">al menos uno</strong> de
+            los dos: teléfono o email. Sin eso no hay forma de contactarlo.
+          </span>
+        </p>
         <Grid2>
-          <Field label="Nombre">
+          <Field id="first_name" label="Nombre">
             <Input
+              id={fieldId("first_name")}
               value={data.first_name ?? ""}
               onChange={(e) => update("first_name", e.target.value)}
+              placeholder="Sandro"
             />
           </Field>
-          <Field label="Apellido">
+          <Field id="last_name" label="Apellido">
             <Input
+              id={fieldId("last_name")}
               value={data.last_name ?? ""}
               onChange={(e) => update("last_name", e.target.value)}
+              placeholder="Pérez"
             />
           </Field>
-          <Field label="Teléfono" hint="Obligatorio (o email)">
+          <Field id="phone" label="Teléfono" required error={shownErrors.phone}>
             <Input
+              id={fieldId("phone")}
               value={data.phone ?? ""}
               onChange={(e) => update("phone", e.target.value)}
               placeholder="+54 11 1234 5678"
+              aria-invalid={Boolean(shownErrors.phone)}
+              aria-describedby={
+                shownErrors.phone ? `${fieldId("phone")}-err` : undefined
+              }
             />
           </Field>
-          <Field label="Email" hint="Obligatorio (o teléfono)">
+          <Field id="email" label="Email" required error={shownErrors.email}>
             <Input
+              id={fieldId("email")}
               type="email"
               value={data.email ?? ""}
               onChange={(e) => update("email", e.target.value)}
               placeholder="cliente@dominio.com"
+              aria-invalid={Boolean(shownErrors.email)}
+              aria-describedby={
+                shownErrors.email ? `${fieldId("email")}-err` : undefined
+              }
             />
           </Field>
-          <Field label="Ciudad">
+          <Field id="city" label="Ciudad">
             <Input
+              id={fieldId("city")}
               value={data.city ?? ""}
               onChange={(e) => update("city", e.target.value)}
+              placeholder="Ramos Mejía"
             />
           </Field>
         </Grid2>
-      </Section>
+      </FormBlock>
 
-      {/* Vehículo */}
-      <Section title="Vehículo de interés">
+      {/* ---------------- 2. Vehículo ---------------- */}
+      <FormBlock n={n.vehiculo} icon={Car} title="Vehículo de interés">
         <Grid2>
-          <Field label="Marca">
+          <Field id="vehicle_brand" label="Marca">
             <CatalogCombobox
               kind="brands"
               value={data.vehicle_brand ?? ""}
@@ -168,8 +296,13 @@ export function LeadForm({
             />
           </Field>
           <Field
+            id="vehicle_model"
             label="Modelo"
-            hint={!data.vehicle_brand ? "Elegí primero la marca" : undefined}
+            hint={
+              !data.vehicle_brand
+                ? "Se filtra por la marca elegida"
+                : undefined
+            }
           >
             <CatalogCombobox
               kind="models"
@@ -179,27 +312,38 @@ export function LeadForm({
               placeholder="Ej: Amarok"
             />
           </Field>
-          <Field label="Versión">
+          <Field id="vehicle_version" label="Versión">
             <Input
+              id={fieldId("vehicle_version")}
               value={data.vehicle_version ?? ""}
               onChange={(e) => update("vehicle_version", e.target.value)}
               placeholder="Ej: Comfortline TDI"
             />
           </Field>
-          <Field label="Color preferido">
+          <Field id="preferred_color" label="Color preferido">
             <Input
+              id={fieldId("preferred_color")}
               value={data.preferred_color ?? ""}
               onChange={(e) => update("preferred_color", e.target.value)}
+              placeholder="Blanco perlado"
             />
           </Field>
-          <Field label="Forma de pago declarada">
+        </Grid2>
+
+        <Separator />
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field id="declared_payment_method" label="Forma de pago">
             <Select
               value={(data.declared_payment_method as string) || ""}
               onValueChange={(v) =>
-                update("declared_payment_method", (v || "") as LeadInput["declared_payment_method"])
+                update(
+                  "declared_payment_method",
+                  (v || "") as LeadInput["declared_payment_method"],
+                )
               }
             >
-              <SelectTrigger>
+              <SelectTrigger id={fieldId("declared_payment_method")}>
                 <SelectValue placeholder="—" />
               </SelectTrigger>
               <SelectContent>
@@ -211,56 +355,78 @@ export function LeadForm({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Presupuesto mínimo">
+          <Field id="budget_min" label="Presupuesto desde">
             <MoneyInput
+              id={fieldId("budget_min")}
               value={data.budget_min as string | number}
               onValueChange={(v) =>
                 update("budget_min", v as LeadInput["budget_min"])
               }
             />
           </Field>
-          <Field label="Presupuesto máximo">
+          <Field
+            id="budget_max"
+            label="Presupuesto hasta"
+            error={shownErrors.budget_max}
+          >
             <MoneyInput
+              id={fieldId("budget_max")}
               value={data.budget_max as string | number}
               onValueChange={(v) =>
                 update("budget_max", v as LeadInput["budget_max"])
               }
-            />
-          </Field>
-        </Grid2>
-
-        <label className="flex items-center gap-2 pt-2">
-          <Checkbox
-            checked={data.has_used_car ?? false}
-            onCheckedChange={(v) => update("has_used_car", Boolean(v))}
-          />
-          <span className="text-sm">Tiene auto usado para entregar</span>
-        </label>
-
-        {data.has_used_car && (
-          <Field label="Descripción del usado">
-            <Textarea
-              value={data.used_car_description ?? ""}
-              onChange={(e) =>
-                update("used_car_description", e.target.value)
+              aria-invalid={Boolean(shownErrors.budget_max)}
+              aria-describedby={
+                shownErrors.budget_max
+                  ? `${fieldId("budget_max")}-err`
+                  : undefined
               }
-              rows={2}
-              placeholder="Marca, modelo, año, kilometraje"
+              className={
+                shownErrors.budget_max ? "border-destructive" : undefined
+              }
             />
           </Field>
-        )}
-      </Section>
+        </div>
 
-      {/* Routing */}
+        <Separator />
+
+        <div className="flex flex-col gap-3">
+          <label className="flex w-fit cursor-pointer items-center gap-2.5 text-sm font-medium">
+            <Checkbox
+              checked={data.has_used_car ?? false}
+              onCheckedChange={(v) => update("has_used_car", Boolean(v))}
+            />
+            Entrega un usado en parte de pago
+          </label>
+
+          {data.has_used_car && (
+            <Field
+              id="used_car_description"
+              label="Qué entrega"
+              hint="Con marca, modelo, año y kilometraje alcanza para que el tasador arranque."
+            >
+              <Textarea
+                id={fieldId("used_car_description")}
+                value={data.used_car_description ?? ""}
+                onChange={(e) => update("used_car_description", e.target.value)}
+                rows={2}
+                placeholder="Corolla XEI 2018, 90.000 km, único dueño"
+              />
+            </Field>
+          )}
+        </div>
+      </FormBlock>
+
+      {/* ---------------- 3. Asignación comercial ---------------- */}
       {!lockClassification && (
-        <Section title="Asignación comercial">
-          <Grid2>
-            <Field label="Sucursal">
+        <FormBlock n={n.comercial} icon={Target} title="Asignación comercial">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field id="branch_id" label="Sucursal">
               <Select
                 value={data.branch_id ?? ""}
                 onValueChange={(v) => update("branch_id", v)}
               >
-                <SelectTrigger>
+                <SelectTrigger id={fieldId("branch_id")}>
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
@@ -272,12 +438,12 @@ export function LeadForm({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Tipo de producto">
+            <Field id="product_type_id" label="Tipo de producto">
               <Select
                 value={data.product_type_id ?? ""}
                 onValueChange={(v) => update("product_type_id", v)}
               >
-                <SelectTrigger>
+                <SelectTrigger id={fieldId("product_type_id")}>
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
@@ -289,12 +455,12 @@ export function LeadForm({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="Campaña">
+            <Field id="campaign_id" label="Campaña">
               <Select
                 value={data.campaign_id ?? ""}
                 onValueChange={(v) => update("campaign_id", v)}
               >
-                <SelectTrigger>
+                <SelectTrigger id={fieldId("campaign_id")}>
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
@@ -306,18 +472,26 @@ export function LeadForm({
                 </SelectContent>
               </Select>
             </Field>
-          </Grid2>
-        </Section>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Si dejás sucursal o tipo en blanco, el lead cae en “Sin clasificar” y
+            no se auto-asigna a ningún vendedor.
+          </p>
+        </FormBlock>
       )}
 
-      <Section title="Notas iniciales">
-        <Textarea
-          value={data.initial_notes ?? ""}
-          onChange={(e) => update("initial_notes", e.target.value)}
-          rows={3}
-          placeholder="Información adicional para el vendedor"
-        />
-      </Section>
+      {/* ---------------- 4. Notas ---------------- */}
+      <FormBlock n={n.notas} icon={FileText} title="Notas iniciales">
+        <Field id="initial_notes" label="Qué dijo el cliente">
+          <Textarea
+            id={fieldId("initial_notes")}
+            value={data.initial_notes ?? ""}
+            onChange={(e) => update("initial_notes", e.target.value)}
+            rows={3}
+            placeholder="Pidió precio de la SRV 4x4 y si toman el usado. Vuelve a llamar el lunes."
+          />
+        </Field>
+      </FormBlock>
 
       {error && (
         <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -325,22 +499,78 @@ export function LeadForm({
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push(redirectTo)}
-          disabled={pending}
-        >
-          Cancelar
-        </Button>
-        <Button
-          type="button"
-          onClick={() => submit("auto")}
-          disabled={pending}
-        >
-          {pending ? "Guardando…" : mode === "edit" ? "Guardar cambios" : "Crear lead"}
-        </Button>
+      {/* ---------------- Footer sticky ---------------- */}
+      <div
+        className={cn(
+          "sticky bottom-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3",
+          "rounded-xl border p-3 shadow-lg backdrop-blur-md",
+          problemCount > 0
+            ? "border-destructive/40 bg-destructive/5"
+            : "border-border bg-card/95",
+        )}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          {problemCount > 0 ? (
+            <>
+              <span className="inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full bg-destructive px-2.5 text-xs font-bold text-destructive-foreground">
+                <AlertTriangle className="size-3.5" />
+                {problemCount}
+              </span>
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                Revisá{" "}
+                {errorKeys
+                  .filter(
+                    (k) => k !== "email" || shownErrors.phone === undefined,
+                  )
+                  .map((k) => FIELD_LABELS[k])
+                  .join(" y ")}
+              </span>
+              <button
+                type="button"
+                onClick={() => focusFirstError(errors)}
+                className="shrink-0 text-xs font-bold text-destructive underline underline-offset-2"
+              >
+                Ir al primero
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="inline-flex size-6.5 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
+                <Check className="size-3.5" strokeWidth={3} />
+              </span>
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                {mode === "edit"
+                  ? "Listo para guardar los cambios."
+                  : destination
+                    ? `Listo para guardar · se asigna a ${destination}`
+                    : "Listo para guardar."}
+              </span>
+            </>
+          )}
+        </div>
+
+        <div className="flex shrink-0 gap-2 max-[520px]:w-full">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.push(redirectTo)}
+            disabled={pending}
+            className="max-[520px]:flex-1"
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            disabled={pending}
+            className="max-[520px]:flex-1"
+          >
+            {pending
+              ? "Guardando…"
+              : mode === "edit"
+                ? "Guardar cambios"
+                : "Crear lead"}
+          </Button>
+        </div>
       </div>
 
       <Dialog open={!!duplicate} onOpenChange={(o) => !o && setDuplicate(null)}>
@@ -380,54 +610,92 @@ export function LeadForm({
             >
               Registrar como nueva carga
             </Button>
-            <Button
-              onClick={() => submit("skip_check")}
-              disabled={pending}
-            >
+            <Button onClick={() => submit("skip_check")} disabled={pending}>
               Crear igual (lead nuevo)
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </form>
   );
 }
 
-function Section({
+/**
+ * Bloque del formulario: una Card con número y ícono de acento.
+ *
+ * Antes cada grupo era un `<h3>` suelto seguido de los campos, así que el
+ * formulario se leía como una única corrida gris de 15 inputs.
+ */
+function FormBlock({
+  n,
+  icon: Icon,
   title,
   children,
 }: {
+  n: number;
+  icon: LucideIcon;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+    <Card className="gap-4 p-5">
+      <div className="flex items-center gap-2.5">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent/10 text-xs font-bold text-accent">
+          {n}
+        </span>
+        <Icon className="size-4 text-accent" />
+        <h3 className="text-sm font-bold">{title}</h3>
+      </div>
       {children}
-    </section>
+    </Card>
   );
+}
+
+function Separator() {
+  return <div className="h-px bg-border" aria-hidden />;
 }
 
 function Grid2({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">{children}</div>
-  );
+  return <div className="grid gap-3 sm:grid-cols-2">{children}</div>;
 }
 
 function Field({
+  id,
   label,
   hint,
+  required,
+  error,
   children,
 }: {
+  id: string;
   label: string;
   hint?: string;
+  required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="text-xs font-medium">{label}</Label>
+      <Label htmlFor={fieldId(id)} className="text-xs font-semibold">
+        {label}
+        {required && (
+          <span className="font-bold text-accent" aria-hidden>
+            *
+          </span>
+        )}
+      </Label>
       {children}
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {error ? (
+        <p
+          id={`${fieldId(id)}-err`}
+          className="flex items-center gap-1.5 text-[11px] font-semibold text-destructive"
+        >
+          <AlertTriangle className="size-3 shrink-0" />
+          {error}
+        </p>
+      ) : (
+        hint && <p className="text-[11px] text-muted-foreground">{hint}</p>
+      )}
     </div>
   );
 }

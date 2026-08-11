@@ -223,7 +223,7 @@ export default async function ManagerLeadDetailPage({
             leadId={lead.id}
             templates={templateRows}
             trigger={
-              <Button className="bg-[#25D366] text-white hover:bg-[#1ebe5d]">
+              <Button className="bg-whatsapp text-whatsapp-foreground hover:bg-whatsapp/90">
                 <WhatsappIcon className="mr-2 size-4" /> Enviar mensaje
               </Button>
             }

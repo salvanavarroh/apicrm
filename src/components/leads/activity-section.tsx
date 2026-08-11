@@ -83,7 +83,7 @@ const INHERIT = "__inherit__";
 
 const PRIORITY_CLS: Record<TaskPriority, string> = {
   low: "bg-muted text-muted-foreground",
-  medium: "bg-blue-100 text-blue-700",
+  medium: "bg-info/10 text-info",
   high: "bg-destructive/10 text-destructive",
 };
 const VISIT_STATUS_OPTIONS: VisitStatus[] = [
@@ -405,7 +405,7 @@ export function ActivitySection({
                       </SelectContent>
                     </Select>
                   </Field>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <Field label="Vencimiento">
                       <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
                     </Field>
@@ -748,9 +748,9 @@ function DueBadge({
   if (bucket.kind === "overdue")
     return <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive">Vencida ({bucket.days}d)</span>;
   if (bucket.kind === "today")
-    return <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium text-warning-foreground">Hoy{at}</span>;
+    return <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium text-warning-text">Hoy{at}</span>;
   if (bucket.kind === "tomorrow")
-    return <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">Mañana{at}</span>;
+    return <span className="rounded-full bg-info/10 px-2 py-0.5 font-medium text-info">Mañana{at}</span>;
   return <span>Vence el {formatDateAR(date)}{at}</span>;
 }
 

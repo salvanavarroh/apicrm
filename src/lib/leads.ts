@@ -50,18 +50,18 @@ export const LEAD_TEMPERATURE_META: Record<
 > = {
   hot: {
     emoji: "🔥",
-    badge: "bg-red-100 text-red-700",
-    dot: "bg-red-500",
+    badge: "bg-destructive/10 text-destructive",
+    dot: "bg-destructive",
   },
   warm: {
     emoji: "🟡",
-    badge: "bg-amber-100 text-amber-700",
-    dot: "bg-amber-500",
+    badge: "bg-warning/15 text-warning-text",
+    dot: "bg-warning",
   },
   cold: {
     emoji: "🔵",
-    badge: "bg-blue-100 text-blue-700",
-    dot: "bg-blue-500",
+    badge: "bg-info/10 text-info",
+    dot: "bg-info",
   },
 };
 

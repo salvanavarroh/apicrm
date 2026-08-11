@@ -70,7 +70,7 @@ type Props = {
 const SELF_SENTINEL = "__self__";
 const PRIORITY_CLS: Record<TaskPriority, string> = {
   low: "bg-muted text-muted-foreground",
-  medium: "bg-blue-100 text-blue-700",
+  medium: "bg-info/10 text-info",
   high: "bg-destructive/10 text-destructive",
 };
 
@@ -227,7 +227,7 @@ export function TasksSection({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-[11px]">Vencimiento</Label>
                   <Input
@@ -436,14 +436,14 @@ function DueBadge({
   }
   if (bucket.kind === "today") {
     return (
-      <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium text-warning-foreground">
+      <span className="rounded-full bg-warning/15 px-2 py-0.5 font-medium text-warning-text">
         Hoy{at}
       </span>
     );
   }
   if (bucket.kind === "tomorrow") {
     return (
-      <span className="rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
+      <span className="rounded-full bg-info/10 px-2 py-0.5 font-medium text-info">
         Mañana{at}
       </span>
     );

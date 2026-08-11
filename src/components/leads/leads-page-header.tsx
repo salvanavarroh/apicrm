@@ -35,7 +35,7 @@ const TONE_CLS: Record<NonNullable<HeaderStat["tone"]>, string> = {
 const VALUE_CLS: Record<NonNullable<HeaderStat["tone"]>, string> = {
   default: "text-foreground",
   accent: "text-accent",
-  warning: "text-warning-foreground",
+  warning: "text-warning-text",
   danger: "text-destructive",
   success: "text-success",
 };

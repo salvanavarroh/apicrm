@@ -37,6 +37,18 @@
   --success-foreground: oklch(1 0 0);
   --warning: oklch(0.78 0.18 75);
   --warning-foreground: oklch(0.145 0 0);
+  /* Texto ámbar legible SOBRE un wash (bg-warning/10). `--warning-foreground`
+     es casi negro porque está pensado para ir sobre `--warning` sólido; usado
+     sobre un wash da negro sobre negro en dark. */
+  --warning-text: oklch(0.48 0.13 75);
+  /* Azul informativo: estado "Nuevo", temperatura "Frío", tareas agendadas.
+     Antes estaba hardcodeado como bg-blue-100/text-blue-700 en 5 archivos, sin
+     variante dark. */
+  --info: oklch(0.55 0.16 250);
+  --info-foreground: oklch(1 0 0);
+  /* Verde de marca de WhatsApp (#25D366). Antes era un hex literal repetido. */
+  --whatsapp: oklch(0.72 0.19 152);
+  --whatsapp-foreground: oklch(1 0 0);
 
   /* Borders / inputs */
   --border: oklch(0.92 0 0);
@@ -73,6 +85,12 @@
   --success-foreground: oklch(0.145 0 0);
   --warning: oklch(0.82 0.18 75);
   --warning-foreground: oklch(0.145 0 0);
+  --warning-text: oklch(0.86 0.14 80);
+  --info: oklch(0.72 0.15 250);
+  --info-foreground: oklch(0.145 0 0);
+  --whatsapp: oklch(0.7 0.185 152);
+  /* Blanco en ambos temas: es el color de marca y lo que la app ya usaba. */
+  --whatsapp-foreground: oklch(1 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.68 0.22 35);
@@ -104,6 +122,11 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-text: var(--warning-text);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-whatsapp: var(--whatsapp);
+  --color-whatsapp-foreground: var(--whatsapp-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

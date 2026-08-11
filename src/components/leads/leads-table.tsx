@@ -652,7 +652,7 @@ export function LeadsTable({
                 {showAssignee && (
                   <TableCell className="text-sm">
                     {row.assignee_name ?? (
-                      <span className="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">
+                      <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-warning-text">
                         Sin asignar
                       </span>
                     )}
@@ -827,7 +827,7 @@ function EmptyState({
 
 function PoolBadge() {
   return (
-    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+    <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-medium text-warning-text">
       Sin clasificar
     </span>
   );

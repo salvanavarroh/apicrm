@@ -25,11 +25,13 @@ export const NOTE_ACTIVITY_LABEL: Record<NoteActivity, string> = {
   other: "Otra actividad",
 };
 
+// Pares de token (no `bg-*-100`): los washes hardcodeados no tenían variante
+// dark y estos badges quedaban ilegibles en tema oscuro.
 export const NOTE_ACTIVITY_CLS: Record<NoteActivity, string> = {
-  phone_call: "bg-blue-100 text-blue-700",
-  whatsapp: "bg-emerald-100 text-emerald-700",
-  email_sent: "bg-purple-100 text-purple-700",
-  meeting_held: "bg-amber-100 text-amber-800",
+  phone_call: "bg-info/10 text-info",
+  whatsapp: "bg-whatsapp/15 text-whatsapp",
+  email_sent: "bg-primary/10 text-foreground",
+  meeting_held: "bg-warning/15 text-warning-text",
   quote_sent: "bg-accent/15 text-accent",
   other: "bg-muted text-muted-foreground",
 };
@@ -66,9 +68,9 @@ export const VISIT_STATUS_LABEL: Record<VisitStatus, string> = {
 };
 
 export const VISIT_STATUS_CLS: Record<VisitStatus, string> = {
-  scheduled: "bg-blue-100 text-blue-700",
+  scheduled: "bg-info/10 text-info",
   completed: "bg-success/10 text-success",
-  no_show: "bg-warning/10 text-warning-foreground",
+  no_show: "bg-warning/15 text-warning-text",
   canceled: "bg-muted text-muted-foreground",
 };
 
