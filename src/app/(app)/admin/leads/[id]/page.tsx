@@ -1,10 +1,14 @@
-import { ChevronLeft } from "lucide-react";
+import { Car, ChevronLeft, ListChecks } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ActivitySection } from "@/components/leads/activity-section";
+import {
+  FichaSection,
+  LeadBusinessCard,
+} from "@/components/leads/ficha-blocks";
+import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
-import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import type { LeadNote } from "@/components/leads/notes-section";
 import {
   LeadVehiclesSection,
@@ -17,14 +21,8 @@ import type { LeadTask } from "@/components/leads/tasks-section";
 import { TrackingCard } from "@/components/leads/tracking-card";
 import type { LeadVisit } from "@/components/leads/visits-section";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
-import {
-  LEAD_PAYMENT_LABELS,
-  fullName,
-  type LeadPaymentMethod,
-} from "@/lib/leads";
-import { formatARS } from "@/lib/format";
+import { fullName } from "@/lib/leads";
 import { nextBestAction } from "@/lib/next-best-action";
 import { createClient } from "@/lib/supabase/server";
 import { loadLeadConversations } from "@/lib/lead-conversations";
@@ -165,9 +163,6 @@ export default async function AdminLeadDetailPage({
     activeSaleStatus:
       (leadSales ?? []).find((s) => s.status === "evaluating")?.status ?? null,
   });
-  const leadAssigneeName = lead.assignee
-    ? fullName(lead.assignee.first_name, lead.assignee.last_name)
-    : null;
   const vehicleRows: LeadVehicleItem[] = (leadVehicles ?? []).map((v) => ({
     id: v.id,
     vehicle_brand: v.vehicle_brand,
@@ -187,33 +182,28 @@ export default async function AdminLeadDetailPage({
         <ChevronLeft className="size-4" /> Volver a leads
       </Link>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {fullName(lead.first_name, lead.last_name)}
-          </h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <LeadStatusBadge status={lead.status} />
-            <span>·</span>
-            <span>
-              Cargado el{" "}
-              {new Date(lead.created_at).toLocaleDateString("es-AR")}
-            </span>
-            {lead.created_by_user && (
-              <>
-                <span>·</span>
-                <span>
-                  por{" "}
-                  {fullName(
-                    lead.created_by_user.first_name,
-                    lead.created_by_user.last_name,
-                  )}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+      <LeadIdentityHeader
+        firstName={lead.first_name}
+        lastName={lead.last_name}
+        status={lead.status}
+        temperature={lead.temperature}
+        createdAt={lead.created_at}
+        statusChangedAt={lead.status_changed_at}
+        lastContactedAt={lead.last_contacted_at}
+        phone={lead.phone}
+        email={lead.email}
+        city={lead.city}
+        vehicle={
+          [lead.vehicle_model, lead.vehicle_version].filter(Boolean).join(" ") ||
+          null
+        }
+        assigneeName={
+          lead.assignee
+            ? fullName(lead.assignee.first_name, lead.assignee.last_name)
+            : null
+        }
+        actions={
+          <>
           <ReassignDialog
             leadId={lead.id}
             leadProductTypeId={lead.product_type_id}
@@ -225,103 +215,16 @@ export default async function AdminLeadDetailPage({
             leadId={lead.id}
             archived={Boolean(lead.archived_at)}
           />
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <NextBestActionCard action={nba} />
 
-      <div className="flex flex-col gap-4">
+      {/* ---- LA GESTIÓN ---- */}
+      <FichaSection icon={ListChecks} title="La gestión">
         <div className="flex flex-col gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Datos del cliente</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm">
-              <Detail label="Teléfono" value={lead.phone} />
-              <Detail label="Email" value={lead.email} />
-              <Detail label="Ciudad" value={lead.city} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Vehículo de interés</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm">
-              <Detail label="Marca" value={lead.vehicle_brand} />
-              <Detail label="Modelo" value={lead.vehicle_model} />
-              <Detail label="Versión" value={lead.vehicle_version} />
-              <Detail label="Color" value={lead.preferred_color} />
-              <Detail
-                label="Presupuesto"
-                value={
-                  lead.budget_min || lead.budget_max
-                    ? formatARS(lead.budget_min) + " - " + formatARS(lead.budget_max)
-                    : "—"
-                }
-              />
-              <Detail
-                label="Forma de pago"
-                value={
-                  lead.declared_payment_method
-                    ? LEAD_PAYMENT_LABELS[
-                        lead.declared_payment_method as LeadPaymentMethod
-                      ]
-                    : "—"
-                }
-              />
-              <Detail
-                label="Tiene usado"
-                value={lead.has_used_car ? "Sí" : "No"}
-              />
-              {lead.initial_notes && (
-                <div className="col-span-2">
-                  <Detail label="Notas iniciales" value={lead.initial_notes} />
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <LeadVehiclesSection leadId={lead.id} vehicles={vehicleRows} />
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Routing comercial</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm">
-              <Detail label="Sucursal" value={lead.branches?.name} />
-              <Detail label="Tipo producto" value={lead.product_types?.name} />
-              <Detail label="Campaña" value={lead.campaigns?.name} />
-              <Detail
-                label="Vendedor asignado"
-                value={
-                  lead.assignee
-                    ? fullName(
-                        lead.assignee.first_name,
-                        lead.assignee.last_name,
-                      )
-                    : "Sin asignar"
-                }
-              />
-            </CardContent>
-          </Card>
-
-          <TrackingCard
-            data={{
-              source: lead.source,
-              campaign: lead.campaigns?.name ?? null,
-              utm_source: lead.utm_source,
-              utm_medium: lead.utm_medium,
-              utm_campaign: lead.utm_campaign,
-              utm_term: lead.utm_term,
-              utm_content: lead.utm_content,
-              landing_url: lead.landing_url,
-              referrer: lead.referrer,
-            }}
-          />
-
           <LeadConversationCard conversations={conversations} />
-
           <ActivitySection
             leadId={lead.id}
             notes={noteRows}
@@ -331,27 +234,52 @@ export default async function AdminLeadDetailPage({
             currentRole="admin"
             assigneeOptions={assigneeOptions}
             defaultAssigneeId={lead.assigned_user_id}
-            defaultAssigneeName={leadAssigneeName}
+            defaultAssigneeName={
+              lead.assignee
+                ? fullName(lead.assignee.first_name, lead.assignee.last_name)
+                : null
+            }
           />
         </div>
-      </div>
-    </div>
-  );
-}
+      </FichaSection>
 
-function Detail({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-}) {
-  return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="font-medium text-foreground">{value || "—"}</div>
+      {/* ---- EL NEGOCIO ---- */}
+      <FichaSection icon={Car} title="El negocio">
+        <div className="flex flex-col gap-4">
+          <LeadBusinessCard
+            lead={{
+              vehicle_model: lead.vehicle_model,
+              vehicle_version: lead.vehicle_version,
+              preferred_color: lead.preferred_color,
+              budget_min: lead.budget_min,
+              budget_max: lead.budget_max,
+              declared_payment_method: lead.declared_payment_method,
+              has_used_car: lead.has_used_car,
+              used_car_description: lead.used_car_description,
+              initial_notes: lead.initial_notes,
+              branch_name: lead.branches?.name ?? null,
+              product_type_name: lead.product_types?.name ?? null,
+            }}
+          />
+          <LeadVehiclesSection leadId={lead.id} vehicles={vehicleRows} />
+        </div>
+      </FichaSection>
+
+      {/* ---- Atribución colapsada ---- */}
+      <TrackingCard
+        collapsible
+        data={{
+          source: lead.source,
+          campaign: lead.campaigns?.name ?? null,
+          utm_source: lead.utm_source,
+          utm_medium: lead.utm_medium,
+          utm_campaign: lead.utm_campaign,
+          utm_term: lead.utm_term,
+          utm_content: lead.utm_content,
+          landing_url: lead.landing_url,
+          referrer: lead.referrer,
+        }}
+      />
     </div>
   );
 }

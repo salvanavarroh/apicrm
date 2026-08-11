@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LeadForm } from "@/components/leads/lead-form";
-import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { LeadBusinessCard } from "@/components/leads/ficha-blocks";
+import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { requireRole } from "@/lib/auth";
-import { fullName } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProviderLeadDetailPage({
@@ -58,20 +58,22 @@ export default async function ProviderLeadDetailPage({
         <ChevronLeft className="size-4" /> Volver
       </Link>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {fullName(lead.first_name, lead.last_name)}
-          </h1>
-          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <LeadStatusBadge status={lead.status} />
-            <span>·</span>
-            <span>
-              {new Date(lead.created_at).toLocaleDateString("es-AR")}
-            </span>
-          </div>
-        </div>
-      </header>
+      <LeadIdentityHeader
+        firstName={lead.first_name}
+        lastName={lead.last_name}
+        status={lead.status}
+        temperature={lead.temperature}
+        createdAt={lead.created_at}
+        statusChangedAt={lead.status_changed_at}
+        lastContactedAt={lead.last_contacted_at}
+        phone={lead.phone}
+        email={lead.email}
+        city={lead.city}
+        vehicle={
+          [lead.vehicle_model, lead.vehicle_version].filter(Boolean).join(" ") ||
+          null
+        }
+      />
 
       {!editable && (
         <div className="rounded-md bg-muted px-3 py-2 text-sm">
@@ -117,30 +119,20 @@ export default async function ProviderLeadDetailPage({
           }))}
         />
       ) : (
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <Detail label="Teléfono" value={lead.phone} />
-          <Detail label="Email" value={lead.email} />
-          <Detail label="Modelo" value={lead.vehicle_model} />
-          <Detail label="Versión" value={lead.vehicle_version} />
-        </div>
+        <LeadBusinessCard
+          lead={{
+            vehicle_model: lead.vehicle_model,
+            vehicle_version: lead.vehicle_version,
+            preferred_color: lead.preferred_color,
+            budget_min: lead.budget_min,
+            budget_max: lead.budget_max,
+            declared_payment_method: lead.declared_payment_method,
+            has_used_car: lead.has_used_car,
+            used_car_description: lead.used_car_description,
+            initial_notes: lead.initial_notes,
+          }}
+        />
       )}
-    </div>
-  );
-}
-
-function Detail({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-}) {
-  return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="font-medium text-foreground">{value || "—"}</div>
     </div>
   );
 }

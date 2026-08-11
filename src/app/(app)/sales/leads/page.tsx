@@ -1,4 +1,4 @@
-import { Inbox, LayoutGrid, List } from "lucide-react";
+import { Inbox, LayoutGrid, List, Plus } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -12,6 +12,7 @@ import {
 } from "@/components/leads/leads-page-header";
 import { LeadsSectionSkeleton } from "@/components/leads/leads-skeletons";
 import { LeadsTable } from "@/components/leads/leads-table";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { requireRole } from "@/lib/auth";
 import { fetchKanbanColumn } from "@/lib/kanban-actions";
@@ -99,6 +100,13 @@ async function SalesLeadsHeader({ firstName }: { firstName: string | null }) {
           hint: "Calificalos para priorizar",
         },
       ]}
+      actions={
+        <Button asChild>
+          <Link href="/sales/leads/new">
+            <Plus className="mr-2 size-4" /> Nuevo lead
+          </Link>
+        </Button>
+      }
     />
   );
 }

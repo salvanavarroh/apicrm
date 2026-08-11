@@ -1,4 +1,4 @@
-import { Clock, Mail, MapPin, Phone } from "lucide-react";
+import { Clock, Mail, MapPin, Phone, UserRound } from "lucide-react";
 
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { TemperatureBadge } from "@/components/leads/temperature-control";
@@ -60,6 +60,7 @@ export function LeadIdentityHeader({
   email,
   city,
   vehicle,
+  assigneeName,
   actions,
   className,
 }: {
@@ -75,6 +76,11 @@ export function LeadIdentityHeader({
   city: string | null;
   /** Vehículo de interés en una línea, para el subtítulo. */
   vehicle?: string | null;
+  /**
+   * Vendedor a cargo. Sólo tiene sentido en las fichas de gerente/admin/
+   * superadmin: en la del vendedor el lead siempre es suyo.
+   */
+  assigneeName?: string | null;
   /** Controles de la ficha: WhatsApp, estado, temperatura, iniciar venta. */
   actions?: React.ReactNode;
   className?: string;
@@ -176,6 +182,14 @@ export function LeadIdentityHeader({
           )}
 
           {city && <ContactPlaceholder icon={MapPin} text={city} />}
+
+          {assigneeName !== undefined && (
+            <ContactPlaceholder
+              icon={UserRound}
+              text={assigneeName ?? "Sin asignar"}
+              emphasis={!assigneeName}
+            />
+          )}
 
           <ContactPlaceholder
             icon={Clock}

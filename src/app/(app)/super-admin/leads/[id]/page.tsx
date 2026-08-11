@@ -89,7 +89,7 @@ export default async function SuperAdminLeadDetailPage({
             <CardHeader>
               <CardTitle>Datos del contacto</CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-3 text-sm">
+            <CardContent className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <Detail
                 icon={<Mail className="size-3.5" />}
                 label="Email"
@@ -133,6 +133,7 @@ export default async function SuperAdminLeadDetailPage({
           </Card>
 
           <TrackingCard
+            collapsible
             data={{
               utm_source: lead.utm_source,
               utm_medium: lead.utm_medium,

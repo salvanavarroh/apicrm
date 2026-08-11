@@ -6,6 +6,12 @@ import { notFound } from "next/navigation";
 
 import { ActivitySection } from "@/components/leads/activity-section";
 import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
+import {
+  FichaSection,
+  LeadBusinessCard,
+  QUOTE_MODALITY_LABELS,
+  QuoteExpiryChip,
+} from "@/components/leads/ficha-blocks";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import type { LeadNote } from "@/components/leads/notes-section";
@@ -24,11 +30,7 @@ import { TemplatesModal } from "@/components/leads/templates-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
-import {
-  LEAD_PAYMENT_LABELS,
-  fullName,
-  type LeadPaymentMethod,
-} from "@/lib/leads";
+import { fullName } from "@/lib/leads";
 import { formatARS } from "@/lib/format";
 import { nextBestAction } from "@/lib/next-best-action";
 import { loadSaleDocs } from "@/lib/sale-docs";
@@ -288,87 +290,21 @@ export default async function SalesLeadDetailPage({
       {/* ---- EL NEGOCIO ---- */}
       <FichaSection icon={Car} title="El negocio">
         <div className="flex flex-col gap-4">
-          {/* Un solo bloque: vehículo + plata, con el monto como segundo
-              elemento más grande de la pantalla después del nombre. */}
-          <Card className="relative gap-4 overflow-hidden p-5">
-            <span
-              aria-hidden
-              className="absolute inset-y-0 left-0 w-[3px] bg-accent"
-            />
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                  Vehículo de interés
-                </span>
-                <p className="text-lg font-bold">
-                  {lead.vehicle_model || "Sin definir"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {[lead.vehicle_version, lead.preferred_color]
-                    .filter(Boolean)
-                    .join(" · ") || "—"}
-                </p>
-              </div>
-              <div className="flex flex-col gap-1 sm:text-right">
-                <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                  Presupuesto declarado
-                </span>
-                <p className="font-mono text-3xl leading-none font-bold tracking-tight tabular-nums">
-                  {lead.budget_max
-                    ? formatARS(lead.budget_max)
-                    : lead.budget_min
-                      ? formatARS(lead.budget_min)
-                      : "—"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {lead.budget_min && lead.budget_max
-                    ? `desde ${formatARS(lead.budget_min)}`
-                    : ""}
-                  {lead.declared_payment_method
-                    ? `${lead.budget_min && lead.budget_max ? " · " : ""}${
-                        LEAD_PAYMENT_LABELS[
-                          lead.declared_payment_method as LeadPaymentMethod
-                        ]
-                      }`
-                    : ""}
-                </p>
-              </div>
-            </div>
-
-            <div className="h-px bg-border" aria-hidden />
-
-            <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-              <div className="flex flex-col gap-1">
-                <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                  Entrega usado
-                </span>
-                {lead.has_used_car ? (
-                  <span className="flex flex-wrap items-center gap-2 font-medium">
-                    Sí
-                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                      {lead.used_car_description || "a tasar"}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="font-medium">No</span>
-                )}
-              </div>
-              <Detail label="Sucursal" value={lead.branches?.name} />
-              <Detail label="Tipo" value={lead.product_types?.name} />
-            </div>
-
-            {lead.initial_notes && (
-              <>
-                <div className="h-px bg-border" aria-hidden />
-                <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
-                    Notas iniciales
-                  </span>
-                  <p className="text-sm">{lead.initial_notes}</p>
-                </div>
-              </>
-            )}
-          </Card>
+          <LeadBusinessCard
+            lead={{
+              vehicle_model: lead.vehicle_model,
+              vehicle_version: lead.vehicle_version,
+              preferred_color: lead.preferred_color,
+              budget_min: lead.budget_min,
+              budget_max: lead.budget_max,
+              declared_payment_method: lead.declared_payment_method,
+              has_used_car: lead.has_used_car,
+              used_car_description: lead.used_car_description,
+              initial_notes: lead.initial_notes,
+              branch_name: lead.branches?.name ?? null,
+              product_type_name: lead.product_types?.name ?? null,
+            }}
+          />
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -390,7 +326,6 @@ export default async function SalesLeadDetailPage({
                       vendedor puede decir "el presupuesto 2" por teléfono, no
                       "#a3f4b1c9". */}
                   {quotes.map((q, i) => {
-                    const expiry = quoteExpiry(q.valid_until);
                     return (
                       <li
                         key={q.id}
@@ -412,19 +347,7 @@ export default async function SalesLeadDetailPage({
                           </span>
                         </Link>
                         <div className="flex items-center gap-2 text-xs">
-                          {expiry && (
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                expiry.expired
-                                  ? "bg-destructive/10 text-destructive"
-                                  : expiry.days <= 7
-                                    ? "bg-warning/15 text-warning-text"
-                                    : "bg-muted text-muted-foreground"
-                              }`}
-                            >
-                              {expiry.label}
-                            </span>
-                          )}
+                          <QuoteExpiryChip validUntil={q.valid_until} />
                           <span className="font-mono font-semibold tabular-nums">
                             {formatARS(q.total_to_pay ?? q.total)}
                           </span>
@@ -474,7 +397,7 @@ export default async function SalesLeadDetailPage({
                       )}
                     </p>
                     {s.status === "evaluating" && (
-                      <p className="mt-2 rounded bg-warning/10 px-2 py-1 text-xs text-warning-foreground">
+                      <p className="mt-2 rounded bg-warning/15 px-2 py-1 text-xs text-warning-text">
                         Esperando aprobación del gerente. No podés iniciar otra
                         venta hasta que esta se resuelva.
                       </p>
@@ -564,54 +487,6 @@ export default async function SalesLeadDetailPage({
     </div>
   );
 }
-
-/** Título de sección: agrupa los bloques en vez de dejarlos como pares planos. */
-function FichaSection({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Icon className="size-3.5 shrink-0 text-accent" />
-        <h2 className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
-          {title}
-        </h2>
-        <span className="h-px flex-1 bg-border" aria-hidden />
-      </div>
-      {children}
-    </section>
-  );
-}
-
-const QUOTE_MODALITY_LABELS: Record<string, string> = {
-  cash: "Contado",
-  financed: "Financiado",
-  savings_plan: "Plan de ahorro",
-};
-
-/**
- * Estado de vencimiento del presupuesto. `valid_until` se consultaba y no se
- * mostraba, y en un mercado con listas de precios mensuales el vencimiento es
- * justamente el dato que decide si hay que recotizar.
- */
-function quoteExpiry(
-  validUntil: string | null | undefined,
-): { label: string; days: number; expired: boolean } | null {
-  if (!validUntil) return null;
-  const days = Math.ceil(
-    (new Date(validUntil).getTime() - Date.now()) / 86_400_000,
-  );
-  if (days < 0) return { label: "Vencido", days, expired: true };
-  if (days === 0) return { label: "Vence hoy", days, expired: false };
-  return { label: `Vence en ${days} días`, days, expired: false };
-}
-
 function SaleStateBadge({
   status,
 }: {
@@ -620,7 +495,7 @@ function SaleStateBadge({
   const map = {
     evaluating: {
       label: "En evaluación",
-      cls: "bg-warning/10 text-warning-foreground",
+      cls: "bg-warning/15 text-warning-text",
     },
     accepted: { label: "Aprobada", cls: "bg-success/10 text-success" },
     rejected: { label: "Rechazada", cls: "bg-destructive/10 text-destructive" },
@@ -632,22 +507,5 @@ function SaleStateBadge({
     >
       {m.label}
     </span>
-  );
-}
-
-function Detail({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number | null | undefined;
-}) {
-  return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="font-medium text-foreground">{value || "—"}</div>
-    </div>
   );
 }

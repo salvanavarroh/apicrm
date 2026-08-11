@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Car,
   Check,
+  CircleDashed,
   FileText,
   Target,
   User,
@@ -156,13 +157,25 @@ export function LeadForm({
     });
   }
 
+  // Dos cosas distintas, y confundirlas era el bug: los MENSAJES por campo sólo
+  // se muestran después del primer intento (no hay que gritarle a un formulario
+  // recién abierto), pero el ESTADO del footer se calcula siempre. Antes el
+  // footer decía "Listo para guardar" con los obligatorios vacíos.
+  const liveErrors = validate(data);
   const shownErrors = submitted ? errors : {};
-  const errorKeys = FIELD_ORDER.filter((k) => shownErrors[k]);
-  // phone y email comparten el mismo mensaje (la regla "uno de los dos"), así
-  // que se cuentan como un solo problema a resolver.
-  const problemCount =
-    errorKeys.filter((k) => k !== "email" || shownErrors.phone === undefined)
-      .length;
+
+  /** Nombres de campo a listar, contando phone+email como un solo problema. */
+  function problemFields(errs: FieldErrors): string[] {
+    return FIELD_ORDER.filter(
+      (k) => errs[k] && (k !== "email" || errs.phone === undefined),
+    ).map((k) => FIELD_LABELS[k]);
+  }
+
+  const liveProblems = problemFields(liveErrors);
+  const blocking = liveProblems.length > 0;
+  // "error" grita (ya intentó guardar), "pending" informa (todavía no).
+  const footerState: "error" | "pending" | "ok" =
+    blocking && submitted ? "error" : blocking ? "pending" : "ok";
 
   function focusFirstError(errs: FieldErrors) {
     const first = FIELD_ORDER.find((k) => errs[k]);
@@ -504,36 +517,43 @@ export function LeadForm({
         className={cn(
           "sticky bottom-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3",
           "rounded-xl border p-3 shadow-lg backdrop-blur-md",
-          problemCount > 0
+          footerState === "error"
             ? "border-destructive/40 bg-destructive/5"
             : "border-border bg-card/95",
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          {problemCount > 0 ? (
+          {footerState === "error" && (
             <>
               <span className="inline-flex h-6.5 shrink-0 items-center gap-1.5 rounded-full bg-destructive px-2.5 text-xs font-bold text-destructive-foreground">
                 <AlertTriangle className="size-3.5" />
-                {problemCount}
+                {liveProblems.length}
               </span>
               <span className="min-w-0 truncate text-xs text-muted-foreground">
-                Revisá{" "}
-                {errorKeys
-                  .filter(
-                    (k) => k !== "email" || shownErrors.phone === undefined,
-                  )
-                  .map((k) => FIELD_LABELS[k])
-                  .join(" y ")}
+                Revisá {liveProblems.join(" y ")}
               </span>
               <button
                 type="button"
-                onClick={() => focusFirstError(errors)}
+                onClick={() => focusFirstError(liveErrors)}
                 className="shrink-0 text-xs font-bold text-destructive underline underline-offset-2"
               >
                 Ir al primero
               </button>
             </>
-          ) : (
+          )}
+
+          {footerState === "pending" && (
+            <>
+              <span className="inline-flex size-6.5 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <CircleDashed className="size-3.5" />
+              </span>
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                Falta {liveProblems.join(" y ")} para poder guardar
+              </span>
+            </>
+          )}
+
+          {footerState === "ok" && (
             <>
               <span className="inline-flex size-6.5 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
                 <Check className="size-3.5" strokeWidth={3} />
