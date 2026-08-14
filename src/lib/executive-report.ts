@@ -87,6 +87,16 @@ export type ChannelPerformance = {
   share: number;
   won: number;
   conversion: number;
+  /** Ventas aprobadas cuyo lead entró por este canal. */
+  sales: number;
+  /** Facturación de esas ventas. */
+  revenue: number;
+  /** Inversión publicitaria del canal en el período (null si no es pago). */
+  spend: number | null;
+  /** spend / leads. null cuando no hay inversión conocida. */
+  costPerLead: number | null;
+  /** spend / ventas. null cuando no hay inversión o no hubo ventas. */
+  costPerSale: number | null;
 };
 
 export type ReportAlert = {
@@ -170,6 +180,46 @@ const TEMPERATURE_LABELS: Record<LeadTemperature | "none", string> = {
   none: "Sin calificar",
 };
 
+
+/**
+ * Inversión publicitaria por canal, para poder calcular costo por lead.
+ *
+ * El gasto no está en el CRM: vive en las plataformas y lo trae el módulo de
+ * Rendimiento de Ads. Se consulta de forma TOLERANTE A FALLOS: si la cuenta no
+ * está conectada, la API de la plataforma falla o tarda, el informe se muestra
+ * igual con `spend: null` y las columnas de costo en "—". Un informe sin costo
+ * por lead sigue sirviendo; un informe que no carga, no.
+ */
+async function loadSpendByChannel(
+  range: ReportRange,
+): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  try {
+    const { getAdsPerformance } = await import(
+      "@/app/(app)/admin/ads/actions"
+    );
+    const ads = await getAdsPerformance({
+      from: range.from ?? undefined,
+      to: range.to ?? undefined,
+    });
+    if (!ads.connected) return out;
+    // El informe agrupa por origen de campaña; ads agrupa por plataforma.
+    const PLATFORM_TO_ORIGIN: Record<string, string> = {
+      Meta: "meta_ads",
+      Google: "google_ads",
+      TikTok: "tiktok_ads",
+    };
+    for (const row of ads.byPlatform) {
+      const origin = PLATFORM_TO_ORIGIN[row.key];
+      if (!origin) continue;
+      out.set(origin, (out.get(origin) ?? 0) + row.spend);
+    }
+  } catch {
+    // Silencioso a propósito: es un enriquecimiento, no un requisito.
+  }
+  return out;
+}
+
 export async function loadExecutiveReport(
   opts: { companyId: string; managerId?: string | null },
   range: ReportRange = {},
@@ -197,8 +247,12 @@ export async function loadExecutiveReport(
     .neq("status", "deleted");
   if (managerId) vendorQuery = vendorQuery.eq("manager_id", managerId);
 
-  const [{ data: vendorRows }, { data: campaignRows }, { data: salesRows }] =
-    await Promise.all([
+  const [
+    { data: vendorRows },
+    { data: campaignRows },
+    { data: salesRows },
+    spendByChannel,
+  ] = await Promise.all([
       vendorQuery,
       supabase
         .from("campaigns")
@@ -207,12 +261,13 @@ export async function loadExecutiveReport(
       (() => {
         let q = supabase
           .from("sales")
-          .select("id, status, final_price, vendor_id, started_at")
+          .select("id, status, final_price, vendor_id, started_at, lead_id")
           .eq("company_id", companyId);
         if (fromIso) q = q.gte("started_at", fromIso);
         if (toIso) q = q.lte("started_at", toIso);
         return q;
       })(),
+      loadSpendByChannel(range),
     ]);
 
   // Leads del período, en tandas (PostgREST corta en 1000).
@@ -383,15 +438,50 @@ export async function loadExecutiveReport(
     if (WON_STATUSES.includes(l.status)) cur.won += 1;
     channelAgg.set(key, cur);
   }
+  // Ventas por canal: se atribuye la venta al canal por el que entró SU lead.
+  // Antes el informe decía cuántos leads traía cada canal pero no cuántas
+  // ventas, que es la única pregunta que decide dónde poner el presupuesto.
+  const leadChannel = new Map<string, string>();
+  for (const l of leads) {
+    leadChannel.set(
+      l.id,
+      l.campaign_id
+        ? (campaignOrigin.get(l.campaign_id) ?? NO_CAMPAIGN_KEY)
+        : NO_CAMPAIGN_KEY,
+    );
+  }
+  const salesByChannel = new Map<string, { sales: number; revenue: number }>();
+  for (const s of acceptedSales) {
+    if (!s.lead_id) continue;
+    const key = leadChannel.get(s.lead_id);
+    // Venta de un lead fuera del rango del informe: no se le imputa a ningún
+    // canal en vez de inventarle uno.
+    if (!key) continue;
+    const cur = salesByChannel.get(key) ?? { sales: 0, revenue: 0 };
+    cur.sales += 1;
+    cur.revenue += Number(s.final_price);
+    salesByChannel.set(key, cur);
+  }
+
   const channels: ChannelPerformance[] = [...channelAgg.entries()]
-    .map(([key, agg]) => ({
-      key,
-      label: channelLabel(key),
-      leads: agg.leads,
-      share: totalLeads > 0 ? agg.leads / totalLeads : 0,
-      won: agg.won,
-      conversion: agg.leads > 0 ? agg.won / agg.leads : 0,
-    }))
+    .map(([key, agg]) => {
+      const sold = salesByChannel.get(key) ?? { sales: 0, revenue: 0 };
+      const spend = spendByChannel.get(key) ?? null;
+      return {
+        key,
+        label: channelLabel(key),
+        leads: agg.leads,
+        share: totalLeads > 0 ? agg.leads / totalLeads : 0,
+        won: agg.won,
+        conversion: agg.leads > 0 ? agg.won / agg.leads : 0,
+        sales: sold.sales,
+        revenue: sold.revenue,
+        spend,
+        costPerLead: spend !== null && agg.leads > 0 ? spend / agg.leads : null,
+        costPerSale:
+          spend !== null && sold.sales > 0 ? spend / sold.sales : null,
+      };
+    })
     .sort((a, b) => b.leads - a.leads);
 
   // --- Temperatura ---------------------------------------------------------

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  RefreshCw,
   BarChart3,
   Download,
   Flame,
@@ -67,6 +68,15 @@ const PLATFORM_LABEL: Record<string, string> = {
   tiktok: "TikTok",
   google: "Google",
 };
+/**
+ * Compara la plataforma de una fila con la pestaña elegida. "Meta" agrupa
+ * facebook, instagram, meta y metaads, que es como vienen de Zernio.
+ */
+function samePlatform(rowPlatform: string, tab: string): boolean {
+  if (!tab) return true;
+  return platformLabel(rowPlatform) === platformLabel(tab);
+}
+
 function platformLabel(p: string): string {
   return PLATFORM_LABEL[p.toLowerCase()] ?? p;
 }
@@ -144,23 +154,45 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
   const [preset, setPreset] = useState<number | null>(30);
   const [platform, setPlatform] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
-  const [groupMode, setGroupMode] = useState<GroupMode>("ad");
+  // Por default se agrupa por campaña: es la unidad con la que se decide dónde
+  // poner la plata. El detalle por anuncio queda a un clic.
+  const [groupMode, setGroupMode] = useState<GroupMode>("campaign");
   const [detail, setDetail] = useState<AdRow | null>(null);
   const [pending, start] = useTransition();
   const today = todayYmd();
 
-  // Filtro por estado (activas / pausadas / todas) sobre los anuncios crudos,
-  // antes de agrupar por anuncio / adset / campaña.
+  // ---------------------------------------------------------------------
+  // Filtrado EN CLIENTE.
+  //
+  // El server trae SIEMPRE todas las plataformas del rango. Antes, tocar la
+  // pestaña de plataforma disparaba un refetch completo contra Meta/Google/
+  // TikTok: varios segundos de espera para mostrar un subconjunto de datos que
+  // ya estaban en memoria. Ahora el único motivo para volver a pedir al server
+  // es cambiar el rango de fechas (o el botón de actualizar).
+  // ---------------------------------------------------------------------
   const filteredRows = useMemo(() => {
-    if (statusFilter === "all") return data.rows;
     return data.rows.filter((r) => {
+      // 1) plataforma
+      if (platform && !samePlatform(r.platform, platform)) return false;
+      // 2) estado del anuncio/campaña
       const s = (r.status ?? "").toUpperCase();
-      return statusFilter === "active" ? s === "ACTIVE" : s.includes("PAUSED");
+      if (statusFilter === "active" && s !== "ACTIVE") return false;
+      if (statusFilter === "paused" && !s.includes("PAUSED")) return false;
+      return true;
     });
-  }, [data.rows, statusFilter]);
-  const displayRows = useMemo(
-    () => aggregateRows(filteredRows, groupMode),
-    [filteredRows, groupMode],
+  }, [data.rows, platform, statusFilter]);
+
+  // Filas sin NADA en el período (ni inversión, ni clics, ni leads) sólo suman
+  // ruido: son campañas que existen en la cuenta pero no corrieron en el rango.
+  const displayRows = useMemo(() => {
+    const grouped = aggregateRows(filteredRows, groupMode);
+    return grouped.filter(
+      (r) => r.spend > 0 || r.clicks > 0 || r.leads > 0 || r.impressions > 0,
+    );
+  }, [filteredRows, groupMode]);
+  const hiddenEmpty = useMemo(
+    () => aggregateRows(filteredRows, groupMode).length - displayRows.length,
+    [filteredRows, groupMode, displayRows.length],
   );
   // Los charts (recharts) se montan solo en el cliente para evitar problemas de
   // hidratación (miden el ancho del contenedor con ResizeObserver).
@@ -170,16 +202,20 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
     return () => cancelAnimationFrame(id);
   }, []);
 
-  function reload(next: { from?: string; to?: string; platform?: string }) {
-    const f = next.from ?? from;
-    const tt = next.to ?? to;
-    const pl = next.platform ?? platform;
+  /**
+   * Vuelve a pedir al server. Sólo se llama al cambiar el rango de fechas o
+   * desde el botón "Actualizar": la plataforma y el estado se filtran sobre lo
+   * que ya está en memoria.
+   */
+  function reload(next?: { from?: string; to?: string }) {
+    const f = next?.from ?? from;
+    const tt = next?.to ?? to;
     setFrom(f);
     setTo(tt);
-    setPlatform(pl);
     start(async () => {
       try {
-        setData(await getAdsPerformance({ from: f, to: tt, platform: pl }));
+        // Sin `platform`: se traen todas y se filtra en el cliente.
+        setData(await getAdsPerformance({ from: f, to: tt }));
       } catch {
         toast.error("No se pudieron cargar las métricas");
       }
@@ -232,8 +268,8 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
           {PLATFORM_TABS.map((x) => (
             <button
               key={x.value}
-              onClick={() => reload({ platform: x.value })}
-              disabled={pending}
+              // Filtro en cliente: no vuelve a pegarle a las plataformas.
+              onClick={() => setPlatform(x.value)}
               className={cn(
                 "rounded-md px-3 py-1 text-sm transition-colors",
                 platform === x.value
@@ -245,14 +281,25 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
             </button>
           ))}
         </div>
-        {mounted && (
-          <span
-            className="text-xs text-muted-foreground"
-            title={new Date(data.generatedAt).toLocaleString("es-AR")}
+        <div className="flex items-center gap-3">
+          {mounted && (
+            <span
+              className="text-xs text-muted-foreground"
+              title={new Date(data.generatedAt).toLocaleString("es-AR")}
+            >
+              Actualizado {relTime(data.generatedAt)}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => reload()}
+            disabled={pending}
           >
-            Actualizado {relTime(data.generatedAt)}
-          </span>
-        )}
+            <RefreshCw className={cn("mr-2 size-3.5", pending && "animate-spin")} />
+            Actualizar
+          </Button>
+        </div>
       </div>
 
       {/* Rango de fechas (presets + manual) + estado */}
@@ -443,6 +490,11 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
                 </button>
               ))}
             </div>
+            {hiddenEmpty > 0 && (
+              <span className="text-xs text-muted-foreground">
+                {hiddenEmpty} sin actividad en el período
+              </span>
+            )}
             <Button
               size="sm"
               variant="outline"

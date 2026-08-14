@@ -298,7 +298,11 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
           </Card>
         </Section>
 
-        <Section icon={BarChart3} title="Canales de origen">
+        <Section
+          icon={BarChart3}
+          title="Canales de origen"
+          subtitle="La inversión sale de Rendimiento de Ads; los canales no pagos van sin costo"
+        >
           <Card className="p-0">
             {data.channels.length === 0 ? (
               <p className="p-6 text-center text-sm text-muted-foreground">
@@ -311,22 +315,35 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
                     <tr>
                       <th className="px-4 py-2.5 text-left">Canal</th>
                       <th className="px-3 py-2.5 text-right">Leads</th>
-                      <th className="px-3 py-2.5 text-right">Part.</th>
-                      <th className="px-4 py-2.5 text-right">Conversión</th>
+                      <th className="px-3 py-2.5 text-right">Ventas</th>
+                      <th className="px-3 py-2.5 text-right">Inversión</th>
+                      <th className="px-3 py-2.5 text-right">Costo/lead</th>
+                      <th className="px-4 py-2.5 text-right">Costo/venta</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.channels.map((c) => (
                       <tr key={c.key} className="border-b last:border-0">
-                        <td className="px-4 py-2.5 font-medium">{c.label}</td>
+                        <td className="px-4 py-2.5 font-medium">
+                          {c.label}
+                          <span className="block text-[11px] font-normal text-muted-foreground">
+                            {pct(c.share)} de los leads
+                          </span>
+                        </td>
                         <td className="px-3 py-2.5 text-right font-mono tabular-nums">
                           {c.leads}
                         </td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold">
+                          {c.sales}
+                        </td>
                         <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">
-                          {pct(c.share)}
+                          {c.spend !== null ? formatARS(c.spend) : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono tabular-nums">
+                          {c.costPerLead !== null ? formatARS(c.costPerLead) : "—"}
                         </td>
                         <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-                          {pct(c.conversion)}
+                          {c.costPerSale !== null ? formatARS(c.costPerSale) : "—"}
                         </td>
                       </tr>
                     ))}

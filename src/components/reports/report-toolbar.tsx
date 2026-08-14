@@ -28,6 +28,24 @@ type Preset = { label: string; compute: () => { from: string; to: string } };
 
 const PRESETS: Preset[] = [
   {
+    label: "Últimas 24 h",
+    compute: () => {
+      // El rango de fechas del informe es por día, así que "últimas 24 h" se
+      // resuelve como ayer→hoy: cubre la guardia nocturna, que es cuando entra
+      // buena parte de los leads.
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 86_400_000);
+      return { from: toKey(yesterday), to: toKey(now) };
+    },
+  },
+  {
+    label: "Hoy",
+    compute: () => {
+      const now = new Date();
+      return { from: toKey(now), to: toKey(now) };
+    },
+  },
+  {
     label: "Este mes",
     compute: () => {
       const now = new Date();
@@ -159,6 +177,11 @@ export function ReportToolbar({
       Participación: pct(c.share),
       Ganados: c.won,
       Conversión: pct(c.conversion),
+      Ventas: c.sales,
+      Facturación: c.revenue,
+      Inversión: c.spend ?? "",
+      "Costo por lead": c.costPerLead !== null ? Math.round(c.costPerLead) : "",
+      "Costo por venta": c.costPerSale !== null ? Math.round(c.costPerSale) : "",
     }));
     XLSX.utils.book_append_sheet(
       wb,

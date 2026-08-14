@@ -1,4 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { useMemo } from "react";
+
+import {
+  SalesDateFilter,
+  useDateRangeFilter,
+} from "@/components/sales/sales-date-filter";
 
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,11 +44,23 @@ export function SalesLists({
   sales: SaleListRow[];
   basePath: string;
 }) {
-  const evaluating = sales.filter((s) => s.status === "evaluating");
-  const resolved = sales.filter((s) => s.status !== "evaluating");
+  const filter = useDateRangeFilter();
+  const filtered = useMemo(
+    () => sales.filter((s) => filter.matches(s.started_at)),
+    [sales, filter],
+  );
+
+  const evaluating = filtered.filter((s) => s.status === "evaluating");
+  const resolved = filtered.filter((s) => s.status !== "evaluating");
 
   return (
     <Tabs defaultValue="queue">
+      <SalesDateFilter
+        filter={filter}
+        shown={filtered.length}
+        total={sales.length}
+        className="mb-4"
+      />
       <TabsList>
         <TabsTrigger value="queue">
           En evaluación{" "}
