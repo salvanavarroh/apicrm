@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
+import { markHumanReplied } from "@/lib/bot/respond";
 import { fullName } from "@/lib/leads";
 import { maybeAdvanceStatus } from "@/lib/lead-status";
 import { markRead, sendInboxMessage, startConversation } from "@/lib/messaging/zernio";
@@ -727,6 +728,10 @@ export async function sendMessage(
       .select("id")
       .single();
 
+    // Entró un humano: el bot se apaga para siempre en esta conversación.
+    // Pisarle la respuesta a un vendedor es peor que no responder.
+    await markHumanReplied(conversationId);
+
     await admin
       .from("conversations")
       .update({
@@ -828,4 +833,68 @@ export async function sendTemplateMessage(
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Error enviando" };
   }
+}
+
+// --- Bot: sugerencia pendiente en modo borrador ------------------------------
+
+export type BotSuggestion = {
+  id: string;
+  reply: string;
+  intentSlug: string | null;
+  matchedBy: string | null;
+  createdAt: string;
+};
+
+/**
+ * Última sugerencia del bot NO enviada para esta conversación (modo borrador).
+ * Se descarta si el asesor ya respondió después: en ese caso la sugerencia
+ * quedó vieja y mostrarla confunde.
+ */
+export async function getBotSuggestion(
+  conversationId: string,
+): Promise<BotSuggestion | null> {
+  const profile = await requireRole([...ROLES]);
+  const admin = createAdminClient();
+
+  const { data } = await admin
+    .from("bot_messages")
+    .select("id, reply_sent, intent_slug, matched_by, created_at")
+    .eq("company_id", profile.company_id!)
+    .eq("conversation_id", conversationId)
+    .eq("was_sent", false)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.reply_sent) return null;
+
+  const { data: lastOut } = await admin
+    .from("messages")
+    .select("created_at")
+    .eq("conversation_id", conversationId)
+    .eq("direction", "outbound")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (lastOut && lastOut.created_at > data.created_at) return null;
+
+  return {
+    id: data.id,
+    reply: data.reply_sent,
+    intentSlug: data.intent_slug,
+    matchedBy: data.matched_by,
+    createdAt: data.created_at,
+  };
+}
+
+/** Descarta una sugerencia sin enviarla. */
+export async function dismissBotSuggestion(id: string): Promise<Result> {
+  const profile = await requireRole([...ROLES]);
+  const admin = createAdminClient();
+  await admin
+    .from("bot_messages")
+    .update({ was_sent: true })
+    .eq("id", id)
+    .eq("company_id", profile.company_id!);
+  return { ok: true };
 }

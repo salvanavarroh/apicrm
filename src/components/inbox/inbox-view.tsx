@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Sparkles,
   FileText,
   ImageOff,
   Info,
@@ -46,6 +47,8 @@ import {
   getMessages,
   reassignConversation,
   sendAttachment,
+  dismissBotSuggestion,
+  getBotSuggestion,
   sendMessage,
   type Attachment,
   type InboxMessage,
@@ -861,6 +864,13 @@ function Thread({
   const router = useRouter();
   const [messages, setMessages] = useState<InboxMessage[] | null>(null);
   const [text, setText] = useState("");
+  // Sugerencia del bot en modo borrador: el bot no la mandó, la propone para que
+  // el asesor la revise y la envíe con un clic (o la edite antes).
+  const [suggestion, setSuggestion] = useState<{
+    id: string;
+    reply: string;
+    matchedBy: string | null;
+  } | null>(null);
   const [pending, start] = useTransition();
   const [staged, setStaged] = useState<{ file: File; url: string } | null>(null);
   const [recording, setRecording] = useState(false);
@@ -874,6 +884,9 @@ function Thread({
 
   useEffect(() => {
     getMessages(conversation.id).then(setMessages);
+    // La sugerencia del bot se pide junto con los mensajes: si el asesor ya
+    // respondió después, la action devuelve null y no se muestra nada.
+    getBotSuggestion(conversation.id).then(setSuggestion);
   }, [conversation.id]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
@@ -947,6 +960,7 @@ function Thread({
       const res = await sendMessage(conversation.id, body);
       if (res.ok) {
         refreshMessages();
+        setSuggestion(null);
       } else {
         setMessages((prev) => (prev ?? []).filter((m) => m.id !== optimistic.id));
         setText(body);
@@ -1238,6 +1252,70 @@ function Thread({
                 </button>
               </div>
             )}
+
+      {/* Sugerencia del bot (modo borrador). No se mandó nada: el asesor la
+          revisa, la edita si quiere y la envía. Es la fase donde se descubre
+          qué preguntas frecuentes faltan cargar. */}
+      {suggestion && canSend && (
+        <div className="mx-3 mb-2 flex flex-col gap-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-accent uppercase">
+              <Sparkles className="size-3" /> Respuesta sugerida
+              {suggestion.matchedBy === "blacklist" && (
+                <span className="font-normal text-muted-foreground normal-case">
+                  · preguntó por precio, se deriva
+                </span>
+              )}
+              {suggestion.matchedBy === "none" && (
+                <span className="font-normal text-warning-text normal-case">
+                  · no reconoció la pregunta
+                </span>
+              )}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const id = suggestion.id;
+                setSuggestion(null);
+                void dismissBotSuggestion(id);
+              }}
+              className="text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              Descartar
+            </button>
+          </div>
+          <p className="text-sm whitespace-pre-wrap">{suggestion.reply}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                setText(suggestion.reply);
+                setSuggestion(null);
+                void dismissBotSuggestion(suggestion.id);
+              }}
+            >
+              Usar y editar
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => {
+                const body = suggestion.reply;
+                const id = suggestion.id;
+                setSuggestion(null);
+                void dismissBotSuggestion(id);
+                setText(body);
+                // Se envía en el próximo tick, cuando el composer ya tiene el texto.
+                setTimeout(() => send(), 0);
+              }}
+            >
+              Enviar tal cual
+            </Button>
+          </div>
+        </div>
+      )}
 
             <div className="flex w-full items-center gap-2">
               {!recording && (

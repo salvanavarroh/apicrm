@@ -215,13 +215,35 @@ turnos. Conviene mostrar esa métrica en la pantalla de configuración —
 
 ## 7. Plan por fases
 
-| Fase | Qué entra | Por qué en este orden |
+| Fase | Qué entra | Estado |
 |---|---|---|
-| **0** | Schema + pantalla de configuración por sucursal + 8 FAQ base cargadas | Sin config no hay nada que probar. Las 8 FAQ base cubren el 80% de los mensajes. |
-| **1** | **Modo borrador**: sugiere, el humano manda | Se prueba la calidad sin exponer a un cliente. Sale la lista de FAQ faltantes. |
-| **2** | Automático fuera de horario, con guardrails y tope de turnos | Es el caso de uso que pidieron: la guardia nocturna. |
-| **3** | Calificación conversacional + resumen en el handoff | Acá el bot pasa de ahorrar tiempo a generar valor. |
-| **4** | Agenda de test drive + métricas | Transaccional, con la confianza ya construida. |
+| **0** | Schema + pantalla de configuración por sucursal + 8 FAQ base | **Hecho** |
+| **1** | Modo borrador: sugiere, el humano manda | **Hecho** |
+| **2** | Automático con guardrails y tope de turnos | **Hecho** (se activa por sucursal cambiando el modo a `auto`) |
+| **3** | Calificación conversacional + resumen en el handoff | Pendiente. El campo `qualify` ya existe en la config pero todavía no cambia el comportamiento. |
+| **4** | Agenda de test drive + métricas del bot | Pendiente |
+
+### Qué quedó implementado (archivos)
+
+```
+src/lib/bot/base-intents.ts   8 FAQ base + HARD_BLOCKLIST
+src/lib/bot/guardrails.ts     handoff y bloqueo por tema de plata
+src/lib/bot/classify.ts       keywords → LLM con lista cerrada
+src/lib/bot/decide.ts         máquina de decisión (PURA, testeada)
+src/lib/bot/respond.ts        orquestador: junta todo y actúa
+scripts/test-bot.ts           23 casos: guardrails + clasificador + decisión
+
+Engancha en:
+  src/lib/messaging/handlers.ts        al recibir un mensaje (try/catch)
+  src/app/(app)/admin/inbox/actions.ts markHumanReplied al enviar el asesor
+  src/components/inbox/inbox-view.tsx  tarjeta de respuesta sugerida
+  src/app/(app)/admin/bot/             config + "no supo contestar"
+```
+
+Detalle de implementación que importa: el bot corre **al final** del handler del
+webhook, después de guardar el mensaje y actualizar la conversación, y envuelto
+en `try/catch`. Una excepción del bot nunca puede hacer que se pierda un mensaje
+del cliente.
 
 ---
 

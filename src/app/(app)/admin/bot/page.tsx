@@ -2,14 +2,19 @@ import { Bot } from "lucide-react";
 
 import { requireRole } from "@/lib/auth";
 
-import { listBotConfigs, listBotIntents } from "./actions";
+import {
+  listBotConfigs,
+  listBotIntents,
+  listUnknownQuestions,
+} from "./actions";
 import { BotConfigView } from "./bot-config-view";
 
 export default async function BotPage() {
   await requireRole(["admin"]);
-  const [configs, intents] = await Promise.all([
+  const [configs, intents, unknown] = await Promise.all([
     listBotConfigs(),
     listBotIntents(),
+    listUnknownQuestions(),
   ]);
 
   return (
@@ -25,7 +30,7 @@ export default async function BotPage() {
         </p>
       </header>
 
-      <BotConfigView configs={configs} intents={intents} />
+      <BotConfigView configs={configs} intents={intents} unknown={unknown} />
     </div>
   );
 }

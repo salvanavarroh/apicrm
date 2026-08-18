@@ -21,11 +21,13 @@ import { HARD_BLOCKLIST } from "@/lib/bot/base-intents";
 import { cn } from "@/lib/utils";
 
 import {
+  createIntentFromQuestion,
   saveBotConfig,
   saveBotIntent,
   seedBaseIntents,
   type BotBranchConfig,
   type BotIntentRow,
+  type UnknownQuestion,
 } from "./actions";
 
 // ============================================================================
@@ -55,9 +57,11 @@ function summarize(c: BotBranchConfig): string {
 export function BotConfigView({
   configs,
   intents,
+  unknown,
 }: {
   configs: BotBranchConfig[];
   intents: BotIntentRow[];
+  unknown: UnknownQuestion[];
 }) {
   const [pending, start] = useTransition();
 
@@ -135,7 +139,117 @@ export function BotConfigView({
           ))
         )}
       </section>
+
+      {/* Bucle de mejora: lo que el bot no supo contestar se convierte en una
+          pregunta frecuente con un clic. Sin IA generativa. */}
+      {unknown.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+              No supo contestar ({unknown.length})
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Lo que le preguntaron y no matcheó con ninguna respuesta. Convertilas
+              en preguntas frecuentes y el bot mejora solo.
+            </p>
+          </div>
+          {unknown.map((q) => (
+            <UnknownCard key={q.text} q={q} pending={pending} start={start} />
+          ))}
+        </section>
+      )}
     </div>
+  );
+}
+
+function UnknownCard({
+  q,
+  pending,
+  start,
+}: {
+  q: UnknownQuestion;
+  pending: boolean;
+  start: (fn: () => Promise<void>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [reply, setReply] = useState("");
+  // Se proponen las palabras del mensaje como punto de partida: es lo que el
+  // cliente escribió de verdad, mejor que adivinar sinónimos.
+  const [keywords, setKeywords] = useState(
+    q.text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 3)
+      .slice(0, 4)
+      .join(", "),
+  );
+
+  return (
+    <Card className="gap-2 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm">“{q.text}”</p>
+          <p className="text-[11px] text-muted-foreground">
+            {q.count} {q.count === 1 ? "vez" : "veces"} · última{" "}
+            {new Date(q.lastAt).toLocaleDateString("es-AR")}
+          </p>
+        </div>
+        {!open && (
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            Crear respuesta
+          </Button>
+        )}
+      </div>
+
+      {open && (
+        <div className="flex flex-col gap-2 border-t pt-2">
+          <Input
+            className="h-8"
+            placeholder="Nombre de la pregunta (ej: Aceptan tarjeta)"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+          <Input
+            className="h-8"
+            placeholder="palabras clave, separadas por coma"
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+          />
+          <Textarea
+            rows={3}
+            placeholder="Qué querés que responda. Sin precios."
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              disabled={pending || !label.trim() || !reply.trim()}
+              onClick={() =>
+                start(async () => {
+                  const res = await createIntentFromQuestion({
+                    label,
+                    keywords,
+                    reply,
+                  });
+                  if (!res.ok) toast.error(res.message);
+                  else {
+                    toast.success("Pregunta agregada");
+                    setOpen(false);
+                  }
+                })
+              }
+            >
+              Guardar
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

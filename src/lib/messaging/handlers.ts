@@ -422,6 +422,20 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
   // los conversation.started repetidos que manda Zernio).
   if (!isRealMessage && existingConv) return;
 
+  // ---- Bot de respuesta automática -------------------------------------
+  // Va al final, después de haber guardado el mensaje y actualizado la
+  // conversación: si el bot falla, el mensaje del cliente ya está a salvo.
+  // El try/catch es deliberado — una excepción del bot NUNCA puede hacer que
+  // perdamos un mensaje entrante.
+  if (isRealMessage && body) {
+    try {
+      const { runBotForConversation } = await import("@/lib/bot/respond");
+      await runBotForConversation(conversationId, body);
+    } catch (e) {
+      console.error("[bot] falló, se ignora:", (e as Error).message);
+    }
+  }
+
   const link = leadId ? `/admin/leads/${leadId}` : `/admin/inbox`;
   if (assignedUserId) {
     await notify(

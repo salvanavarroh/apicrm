@@ -14,6 +14,7 @@
     "seed:super-admin": "tsx scripts/seed-super-admin.ts",
     "test:phone": "tsx scripts/test-phone.ts",
     "test:nba": "tsx scripts/test-next-best-action.ts",
+    "test:bot": "tsx scripts/test-bot.ts",
     "backfill:phone-e164": "tsx scripts/backfill-phone-e164.ts",
     "seed:mock-inbox": "tsx scripts/seed-mock-inbox.ts",
     "seed:company": "tsx scripts/seed-company-setup.ts",

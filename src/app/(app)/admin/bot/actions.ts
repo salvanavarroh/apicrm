@@ -179,3 +179,92 @@ export async function saveBotIntent(input: {
   revalidatePath("/admin/bot");
   return { ok: true };
 }
+
+// --- Aprendizaje: qué preguntas no supo contestar ---------------------------
+
+export type UnknownQuestion = {
+  text: string;
+  count: number;
+  lastAt: string;
+};
+
+/**
+ * Mensajes que cayeron en "desconocida", agrupados por texto normalizado.
+ *
+ * Es el bucle de mejora del bot y no usa IA generativa: el admin ve qué le
+ * preguntan y no sabe responder, y lo convierte en una pregunta frecuente.
+ */
+export async function listUnknownQuestions(): Promise<UnknownQuestion[]> {
+  const profile = await requireRole(["admin"]);
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("bot_messages")
+    .select("inbound_text, created_at")
+    .eq("company_id", profile.company_id!)
+    .is("intent_slug", null)
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  // Se agrupa por texto normalizado: "atienden hoy?" y "Atienden hoy" son la
+  // misma pregunta y no queremos verla dos veces.
+  const agg = new Map<string, { text: string; count: number; lastAt: string }>();
+  for (const row of data ?? []) {
+    const raw = (row.inbound_text ?? "").trim();
+    if (!raw) continue;
+    const key = raw.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ");
+    const cur = agg.get(key);
+    if (cur) cur.count += 1;
+    else agg.set(key, { text: raw, count: 1, lastAt: row.created_at });
+  }
+
+  return [...agg.values()].sort((a, b) => b.count - a.count).slice(0, 40);
+}
+
+/** Crea una pregunta frecuente nueva a partir de algo que el bot no supo. */
+export async function createIntentFromQuestion(input: {
+  label: string;
+  keywords: string;
+  reply: string;
+}): Promise<Result> {
+  const profile = await requireRole(["admin"]);
+  const reply = input.reply.trim();
+  const label = input.label.trim();
+  if (!reply || !label) {
+    return { ok: false, message: "Falta el nombre o la respuesta" };
+  }
+
+  // Slug a partir del nombre, con sufijo si ya existe.
+  const base = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 40) || "intencion";
+
+  const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("bot_intents")
+    .select("slug")
+    .eq("company_id", profile.company_id!);
+  const taken = new Set((existing ?? []).map((r) => r.slug));
+  let slug = base;
+  let n = 2;
+  while (taken.has(slug)) slug = `${base}_${n++}`;
+
+  const { error } = await supabase.from("bot_intents").insert({
+    company_id: profile.company_id!,
+    branch_id: null,
+    slug,
+    label,
+    keywords: input.keywords
+      .split(",")
+      .map((k) => k.trim().toLowerCase())
+      .filter(Boolean),
+    reply,
+  });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/admin/bot");
+  return { ok: true };
+}
