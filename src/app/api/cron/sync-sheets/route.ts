@@ -16,6 +16,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Autenticación: `Authorization: Bearer <CRON_SECRET>` (Vercel Cron lo agrega
  * solo cuando la ruta está declarada en vercel.json).
  *
+ * OJO con la frecuencia: en `vercel.json` el cron quedó DIARIO porque el plan
+ * Hobby sólo admite crons de frecuencia diaria — un `*/15 * * * *` hace fallar
+ * el deploy entero, no sólo el cron. Con plan Pro se puede volver a poner cada
+ * 15 minutos y `poll_minutes` de cada fuente vuelve a mandar. Mientras tanto,
+ * cualquier scheduler externo puede pegarle a esta ruta con el CRON_SECRET.
+ *
  * Se puede llamar a mano con `?force=1` para ignorar el intervalo, útil al
  * configurar una fuente nueva.
  */
