@@ -400,7 +400,7 @@ export default async function AdminCompanyPage() {
           <Field label="CUIT" value={company.cuit} />
           <Field label="Plan" value={planLabel(company.plan)} />
           <Field
-            label="Precio mensual"
+            label="Precio mensual (ARS)"
             value={
               company.monthly_price !== null ? formatARS(company.monthly_price) : null
             }

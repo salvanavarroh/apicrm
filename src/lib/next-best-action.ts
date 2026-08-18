@@ -24,6 +24,8 @@ const FOLLOW_UP_DAYS = 3;
 const QUOTE_FOLLOW_UP_DAYS = 2;
 /** Días tras los que un "no interesado" se puede reactivar. */
 const REACTIVATION_DAYS = 60;
+/** Ventana para avisar del cumpleaños. */
+const BIRTHDAY_WINDOW_DAYS = 7;
 
 export type NbaUrgency = "now" | "today" | "soon" | "none";
 
@@ -36,6 +38,7 @@ export type NbaKind =
   | "task"
   | "sale"
   | "qualify"
+  | "greet"
   | "close"
   | "wait";
 
@@ -73,8 +76,13 @@ export type NbaQuote = {
   sent_at: string | null;
 };
 
+/** Sólo lo que la regla de cumpleaños necesita. */
+export type NbaBirthday = { day: number | null; month: number | null };
+
 export type NbaInput = {
   lead: NbaLead;
+  /** Cumpleaños cargados como interés del lead. */
+  birthdays?: NbaBirthday[];
   tasks?: NbaTask[];
   visits?: NbaVisit[];
   quotes?: NbaQuote[];
@@ -88,6 +96,22 @@ function hoursSince(iso: string, now: number): number {
 
 function daysSince(iso: string, now: number): number {
   return Math.floor((now - new Date(iso).getTime()) / DAY_MS);
+}
+
+/**
+ * Días hasta el próximo cumpleaños (0 = hoy). Copia local para que este módulo
+ * siga siendo una función pura sin importar nada de UI.
+ */
+function daysUntilBirthday(
+  b: NbaBirthday,
+  nowMs: number,
+): number | null {
+  if (!b.day || !b.month) return null;
+  const today = new Date(nowMs);
+  const ref = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let next = new Date(today.getFullYear(), b.month - 1, b.day);
+  if (next < ref) next = new Date(today.getFullYear() + 1, b.month - 1, b.day);
+  return Math.round((next.getTime() - ref.getTime()) / DAY_MS);
 }
 
 function plural(n: number, one: string, many: string): string {
@@ -104,7 +128,14 @@ export function nextBestAction(
   input: NbaInput,
   now: number = Date.now(),
 ): NextBestAction | null {
-  const { lead, tasks = [], visits = [], quotes = [], activeSaleStatus } = input;
+  const {
+    lead,
+    tasks = [],
+    visits = [],
+    quotes = [],
+    birthdays = [],
+    activeSaleStatus,
+  } = input;
 
   // --- Estados terminales -------------------------------------------------
   if (lead.status === "accepted" || lead.status === "closed") {
@@ -147,6 +178,26 @@ export function nextBestAction(
       title: "Seguí la aprobación de la venta",
       reason:
         "Hay una venta en evaluación. Chequeá que la documentación esté completa para que no se frene del lado administrativo.",
+    };
+  }
+
+  // --- 1.b Cumpleaños ----------------------------------------------------
+  // Va antes de las tareas porque caduca: un saludo tarde no sirve. Y es la
+  // excusa más barata que existe para reactivar un lead frío.
+  const nextBirthday = birthdays
+    .map((b) => daysUntilBirthday(b, now))
+    .filter((d): d is number => d !== null && d <= BIRTHDAY_WINDOW_DAYS)
+    .sort((a, b) => a - b)[0];
+  if (nextBirthday !== undefined) {
+    return {
+      kind: "greet",
+      urgency: nextBirthday === 0 ? "now" : "today",
+      title:
+        nextBirthday === 0
+          ? "Saludalo: hoy es su cumpleaños"
+          : `Preparale el saludo: cumple en ${nextBirthday} ${plural(nextBirthday, "día", "días")}`,
+      reason:
+        "Es el contacto más fácil de justificar y el que mejor reactiva un lead frío. No hables de plata: sólo saludá.",
     };
   }
 

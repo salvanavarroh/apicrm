@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { ContactAvatar } from "@/components/inbox/contact-avatar";
@@ -30,6 +30,9 @@ import {
   TASK_TYPE_LABEL,
 } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
+import { InterestsSection } from "@/components/leads/interests-section";
+import type { LeadInterest } from "@/lib/lead-interests";
+import { listLeadInterests } from "@/lib/lead-interests-actions";
 import {
   getLeadInfo,
   quickUpdateLead,
@@ -48,6 +51,10 @@ export function LeadInfoPanel({
   onClose: () => void;
 }) {
   const [info, setInfo] = useState<LeadInfo | null>(null);
+  const [interests, setInterests] = useState<LeadInterest[]>([]);
+  const loadInterests = useCallback(() => {
+    void listLeadInterests(leadId).then(setInterests);
+  }, [leadId]);
   const [pending, start] = useTransition();
   const [tab, setTab] = useState<null | "activity" | "task" | "visit">(null);
 
@@ -67,7 +74,8 @@ export function LeadInfoPanel({
 
   useEffect(() => {
     getLeadInfo(leadId).then(setInfo);
-  }, [leadId]);
+    loadInterests();
+  }, [leadId, loadInterests]);
 
   function setStatus(status: string) {
     start(async () => {
@@ -358,6 +366,18 @@ export function LeadInfoPanel({
                 );
               })}
             </div>
+          </div>
+
+          {/* Intereses: lo que sirve para romper el hielo, arriba de los datos
+              duros. En el inbox es donde más se usa: el vendedor está a punto
+              de escribirle. */}
+          <div className="border-t pt-3">
+            <InterestsSection
+              leadId={leadId}
+              interests={interests}
+              compact
+              onChanged={loadInterests}
+            />
           </div>
 
           {/* Datos */}

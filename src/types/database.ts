@@ -966,6 +966,67 @@ export type Database = {
           },
         ]
       }
+      lead_interests: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          day: number | null
+          detail: string | null
+          id: string
+          kind: Database["public"]["Enums"]["interest_kind"]
+          lead_id: string
+          month: number | null
+          value: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          day?: number | null
+          detail?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["interest_kind"]
+          lead_id: string
+          month?: number | null
+          value: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          day?: number | null
+          detail?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["interest_kind"]
+          lead_id?: string
+          month?: number | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_interests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_interests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_interests_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_merges: {
         Row: {
           absorbed_ids: string[]
@@ -2746,6 +2807,16 @@ export type Database = {
       company_plan: "inicial" | "estandar" | "personalizado"
       company_status: "pending" | "active" | "suspended"
       conversation_status: "open" | "snoozed" | "closed"
+      interest_kind:
+        | "cuadro"
+        | "cumpleanos"
+        | "familia"
+        | "hobby"
+        | "mascota"
+        | "profesion"
+        | "vehiculo_actual"
+        | "no_molestar"
+        | "otro"
       lead_payment_method:
         | "cash"
         | "financed"
@@ -2958,6 +3029,17 @@ export const Constants = {
       company_plan: ["inicial", "estandar", "personalizado"],
       company_status: ["pending", "active", "suspended"],
       conversation_status: ["open", "snoozed", "closed"],
+      interest_kind: [
+        "cuadro",
+        "cumpleanos",
+        "familia",
+        "hobby",
+        "mascota",
+        "profesion",
+        "vehiculo_actual",
+        "no_molestar",
+        "otro",
+      ],
       lead_payment_method: [
         "cash",
         "financed",

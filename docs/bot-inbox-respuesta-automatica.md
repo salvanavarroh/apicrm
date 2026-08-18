@@ -7,6 +7,12 @@ que un asesor se conecte. El 50% de los leads entra de noche y fin de semana
 Decisión tomada: **FAQ configurable por sucursal, sin precios.** El bot nunca
 dice un número de plata. Lo justifico y lo desarrollo abajo.
 
+Segunda decisión tomada: **cuándo interviene el bot es CONFIGURABLE, no una
+constante del código.** Ver §4.b — los horarios, el disparador por demora y el
+tope de turnos son campos de `bot_configs` por sucursal, con valores por default
+conservadores. Una concesionaria con guardia nocturna y otra que cierra a las 18
+no necesitan la misma política, y no queremos un deploy para cambiarla.
+
 ---
 
 ## 1. Por qué NO un chatbot con IA libre
@@ -118,13 +124,39 @@ para la importación de leads con IA; conviene reusar ese mismo patrón y clave.
    se calla y espera al humano. Evita el loop de bot conversando solo.
 3. **Se calla si aparece un humano.** Si un asesor manda un mensaje, el bot se
    apaga para esa conversación de forma permanente.
-4. **Sólo fuera de horario o sin asesores activos.** Reusa lo que ya existe:
-   `inbox_hours_*` en `companies` y la presencia (`inbox_available`). Si hay
-   alguien activo, no interviene.
+4. **Cuándo interviene: configurable por sucursal.** Ver §4.b.
 5. **Siempre se identifica.** El primer mensaje dice que es una respuesta
    automática. Es requisito de Meta y además baja la frustración.
 6. **Salida garantizada.** "Escribí *asesor* y te paso con una persona" en todo
    momento; esa palabra fuerza el handoff.
+
+### 4.b Cuándo interviene — todo configurable
+
+Estos son campos de `bot_configs`, uno por sucursal, no constantes:
+
+| Campo | Qué controla | Default propuesto |
+|---|---|---|
+| `enabled` | Prende/apaga el bot en esa sucursal | `false` |
+| `mode` | `draft` (sugiere, el humano manda) / `auto` | `draft` |
+| `outside_hours` | Responder fuera del horario de atención | `true` |
+| `when_nobody_active` | Responder si no hay ningún asesor activo | `true` |
+| `idle_trigger_minutes` | En horario, responder si nadie contestó en N min. `null` = nunca | `null` |
+| `max_turns` | Tope de respuestas automáticas por conversación | `3` |
+| `hours` | Horario propio de la sucursal; si es null hereda `companies.inbox_hours_*` | `null` |
+| `greeting_name` | Cómo se presenta (ver §8.5) | nombre de la concesionaria |
+| `qualify` | Si además de responder, califica (modelo / usado / pago) | `false` |
+
+El default deja el bot **apagado y en modo borrador**: encenderlo es una decisión
+explícita de cada concesionaria, no algo que pase por instalar la versión.
+
+`idle_trigger_minutes` es el que resuelve el caso que quedó abierto: "activo" no
+es lo mismo que "disponible". Un asesor con 15 conversaciones abiertas está
+activo y el cliente espera igual. Con el disparador por demora en 7 minutos, el
+bot manda el acuse y empieza a calificar sin pisar a nadie.
+
+La pantalla de configuración tiene que mostrar el efecto en lenguaje llano
+("Hoy: responde de 20:00 a 9:00 y si nadie contesta en 7 minutos"), porque nueve
+toggles sueltos no se entienden.
 
 ---
 
@@ -200,9 +232,8 @@ turnos. Conviene mostrar esa métrica en la pantalla de configuración —
 2. **¿Una config por sucursal o por sucursal + canal?** El pedido dice por
    sucursal; si un mismo número atiende dos sucursales, hay que resolver a cuál
    corresponde antes de elegir el catálogo de FAQ.
-3. **¿Qué pasa en horario de atención con todos los asesores ocupados?** Hoy
-   "hay asesores activos" apaga el bot, pero activo no es lo mismo que
-   disponible.
+3. ~~¿Qué pasa en horario con todos los asesores ocupados?~~ **Resuelto:** es
+   configurable vía `idle_trigger_minutes` (§4.b).
 4. **Tono.** ¿"vos" siempre? ¿El bot usa el nombre de la concesionaria o el del
    vendedor asignado?
 5. **¿Se le muestra al cliente que es un bot con un nombre propio** (ej. "Sofía,

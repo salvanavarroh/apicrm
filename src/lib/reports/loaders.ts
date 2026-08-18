@@ -589,6 +589,100 @@ export async function loadVendedoresReport(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Cumpleaños del mes
+//
+// No usa el rango de fechas: el cumpleaños no tiene año, así que la pregunta
+// siempre es "quién cumple este mes y el que viene".
+// ---------------------------------------------------------------------------
+export async function loadCumpleanosReport(
+  companyId: string,
+): Promise<ReportData> {
+  const supabase = await createClient();
+  const now = new Date();
+  const thisMonth = now.getMonth() + 1;
+  const nextMonth = (thisMonth % 12) + 1;
+
+  const { data } = await supabase
+    .from("lead_interests")
+    .select(
+      `day, month,
+       lead:leads (id, first_name, last_name, status,
+         assignee:profiles!assigned_user_id (first_name, last_name))`,
+    )
+    .eq("company_id", companyId)
+    .eq("kind", "cumpleanos")
+    .in("month", [thisMonth, nextMonth]);
+
+  type Row = {
+    day: number | null;
+    month: number | null;
+    lead: {
+      id: string;
+      first_name: string | null;
+      last_name: string | null;
+      status: string;
+      assignee: { first_name: string | null; last_name: string | null } | null;
+    } | null;
+  };
+  const rows = ((data ?? []) as unknown as Row[]).filter((r) => r.lead);
+
+  const MONTHS = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+  ];
+
+  const esteMes = rows.filter((r) => r.month === thisMonth);
+  const hoy = esteMes.filter((r) => r.day === now.getDate());
+  const proximos7 = esteMes.filter(
+    (r) => (r.day ?? 0) >= now.getDate() && (r.day ?? 0) <= now.getDate() + 7,
+  );
+
+  const sorted = [...rows].sort(
+    (a, b) =>
+      (a.month ?? 0) - (b.month ?? 0) || (a.day ?? 0) - (b.day ?? 0),
+  );
+
+  return {
+    kpis: [
+      {
+        label: "Cumplen hoy",
+        value: int(hoy.length),
+        tone: hoy.length > 0 ? "success" : "default",
+      },
+      { label: "Próximos 7 días", value: int(proximos7.length) },
+      { label: `En ${MONTHS[thisMonth - 1]}`, value: int(esteMes.length) },
+      {
+        label: "Cargados en total",
+        value: int(rows.length),
+        hint: "Este mes y el que viene",
+      },
+    ],
+    tables: [
+      {
+        title: "Agenda de saludos",
+        columns: [
+          { key: "fecha", label: "Fecha" },
+          { key: "cliente", label: "Cliente" },
+          { key: "vendedor", label: "Vendedor" },
+          { key: "estado", label: "Estado del lead" },
+        ],
+        rows: sorted.map((r) => ({
+          fecha: `${r.day} de ${MONTHS[(r.month ?? 1) - 1]}`,
+          cliente: fullName(r.lead!.first_name, r.lead!.last_name) || "Sin nombre",
+          vendedor: r.lead!.assignee
+            ? fullName(
+                r.lead!.assignee.first_name,
+                r.lead!.assignee.last_name,
+              )
+            : "Sin asignar",
+          estado: r.lead!.status,
+        })),
+      },
+    ],
+  };
+}
+
 export async function loadReport(
   id: string,
   companyId: string,
@@ -603,6 +697,8 @@ export async function loadReport(
       return loadTrimestralReport(companyId, f);
     case "vendedores":
       return loadVendedoresReport(companyId, f);
+    case "cumpleanos":
+      return loadCumpleanosReport(companyId);
     default:
       return null;
   }

@@ -68,7 +68,14 @@ export function planLabel(plan: CompanyPlan | null | undefined): string {
   return planDefinition(plan)?.label ?? "Sin plan";
 }
 
-/** "USD 150/mes" o "A definir" para el plan personalizado. */
+/**
+ * "USD 150/mes" o "A definir".
+ *
+ * MONEDAS: el precio de lista está en USD (así se definió comercialmente) y
+ * `companies.monthly_price` es el importe facturado en PESOS. Son dos números
+ * distintos a propósito. Por eso el selector de plan no autocompleta el importe:
+ * haría falta una política de tipo de cambio que nadie definió todavía.
+ */
 export function planPriceLabel(plan: CompanyPlan | null | undefined): string {
   const def = planDefinition(plan);
   if (!def) return "—";

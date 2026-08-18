@@ -12,6 +12,7 @@ import {
   QUOTE_MODALITY_LABELS,
   QuoteExpiryChip,
 } from "@/components/leads/ficha-blocks";
+import { InterestsSection } from "@/components/leads/interests-section";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import type { LeadNote } from "@/components/leads/notes-section";
@@ -54,6 +55,7 @@ export default async function SalesLeadDetailPage({
     { data: company },
     { data: quotes },
     { data: sales },
+    { data: interests },
     { data: templates },
   ] = await Promise.all([
     supabase
@@ -123,6 +125,10 @@ export default async function SalesLeadDetailPage({
       .eq("vendor_id", profile.id)
       .order("started_at", { ascending: false }),
     supabase
+      .from("lead_interests")
+      .select("*")
+      .eq("lead_id", id),
+    supabase
       .from("message_templates")
       .select("id, label, body, scope")
       .order("scope", { ascending: true })
@@ -190,6 +196,9 @@ export default async function SalesLeadDetailPage({
     tasks: taskRows,
     visits: visitRows,
     quotes: quotes ?? [],
+    birthdays: (interests ?? [])
+      .filter((i) => i.kind === "cumpleanos")
+      .map((i) => ({ day: i.day, month: i.month })),
     activeSaleStatus: activeSale?.status ?? null,
   });
 
@@ -272,6 +281,12 @@ export default async function SalesLeadDetailPage({
       {/* ---- LA GESTIÓN: va primero porque es lo que se viene a buscar ---- */}
       <FichaSection icon={ListChecks} title="La gestión">
         <div className="flex flex-col gap-4">
+          <Card className="p-4">
+            <InterestsSection
+              leadId={lead.id}
+              interests={interests ?? []}
+            />
+          </Card>
           <LeadConversationCard conversations={conversations} />
           <ActivitySection
             leadId={lead.id}

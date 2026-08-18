@@ -330,7 +330,10 @@ function BillingStep({
           onChange={(plan) => setData({ ...data, plan })}
         />
       </Field>
-      <Field label="Precio mensual a cobrar" error={errors.monthly_price}>
+      <Field
+        label="Precio mensual a cobrar (ARS)"
+        error={errors.monthly_price}
+      >
         <MoneyInput
           placeholder="0"
           value={data.monthly_price ?? ""}

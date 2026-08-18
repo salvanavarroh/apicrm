@@ -64,6 +64,16 @@ export const REPORTS: ReportDefinition[] = [
     roles: ["admin", "manager"],
   },
   {
+    id: "cumpleanos",
+    title: "Cumpleaños del mes",
+    description:
+      "Quién cumple años y cuándo, para saludarlo. Es la excusa más barata que hay para reactivar un lead frío.",
+    icon: "Cake",
+    filters: [],
+    defaultRange: 30,
+    roles: ["admin", "manager", "supervisor"],
+  },
+  {
     id: "vendedores",
     title: "Productividad por vendedor",
     description:

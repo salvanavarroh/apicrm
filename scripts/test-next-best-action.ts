@@ -202,6 +202,47 @@ const cases: Case[] = [
     expectUrgency: "soon",
   },
   {
+    name: "cumple hoy → saludar YA, antes que la tarea vencida",
+    input: {
+      lead: lead({ status: "contacted", last_contacted_at: daysAgo(10) }),
+      tasks: [{ title: "Llamar", due_date: daysAgo(3), completed_at: null }],
+      // 10 de agosto = el reloj fijo del test
+      birthdays: [{ day: 10, month: 8 }],
+    },
+    expectKind: "greet",
+    expectUrgency: "now",
+  },
+  {
+    name: "cumple en 4 días → preparar el saludo",
+    input: {
+      lead: lead({ status: "contacted" }),
+      visits: [{ scheduled_at: daysAhead(6), status: "scheduled" }],
+      birthdays: [{ day: 14, month: 8 }],
+    },
+    expectKind: "greet",
+    expectUrgency: "today",
+  },
+  {
+    name: "cumple en 3 meses → no interrumpe el flujo normal",
+    input: {
+      lead: lead({ status: "interested" }),
+      quotes: [],
+      birthdays: [{ day: 10, month: 11 }],
+    },
+    expectKind: "quote",
+    expectUrgency: "today",
+  },
+  {
+    name: "venta en evaluación gana incluso sobre el cumpleaños",
+    input: {
+      lead: lead({ status: "quoted" }),
+      activeSaleStatus: "evaluating",
+      birthdays: [{ day: 10, month: 8 }],
+    },
+    expectKind: "sale",
+    expectUrgency: "today",
+  },
+  {
     name: "venta rechazada → ofrecer alternativa",
     input: { lead: lead({ status: "rejected" }) },
     expectKind: "close",

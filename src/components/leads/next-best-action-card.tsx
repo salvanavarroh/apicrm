@@ -1,4 +1,5 @@
 import {
+  Cake,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
@@ -35,6 +36,7 @@ const KIND_ICON: Record<NbaKind, LucideIcon> = {
   task: ClipboardList,
   sale: ShoppingBag,
   qualify: ThermometerSun,
+  greet: Cake,
   close: XCircle,
   wait: CheckCircle2,
 };

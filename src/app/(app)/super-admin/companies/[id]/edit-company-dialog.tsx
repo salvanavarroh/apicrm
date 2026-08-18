@@ -188,7 +188,7 @@ export function EditCompanyAsSuperAdminDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ec-price">Precio mensual a cobrar</Label>
+            <Label htmlFor="ec-price">Precio mensual a cobrar (ARS)</Label>
             <MoneyInput
               id="ec-price"
               placeholder="0"
