@@ -44,6 +44,9 @@ type Props = {
     vehiculo: string;
     concesionaria: string;
     telefono_concesionaria: string;
+    cuadro?: string;
+    familia?: string;
+    hobby?: string;
   };
   leadPhone: string | null;
   templates: TemplateRow[];
@@ -51,6 +54,9 @@ type Props = {
 
 const VARIABLES =
   "{nombre} · {nombre_completo} · {vendedor} · {vehiculo} · {concesionaria}";
+// Las de interés se resuelven sólo si el dato está cargado en el lead; si falta,
+// la línea entera se descarta al armar el mensaje.
+const VARIABLES_INTERES = "{cuadro} · {familia} · {hobby}";
 
 export function TemplatesModal({
   trigger,
@@ -175,6 +181,9 @@ export function TemplatesModal({
               />
               <p className="text-[11px] text-muted-foreground">
                 Variables disponibles: {VARIABLES}
+                <br />
+                Del cliente (si está cargado): {VARIABLES_INTERES} — si el dato
+                falta, la línea que lo usa no se manda.
               </p>
             </div>
             <div className="flex justify-end gap-2">

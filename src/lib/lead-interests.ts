@@ -124,3 +124,11 @@ export function daysUntilBirthday(
   if (next < ref) next = new Date(y + 1, i.month - 1, i.day);
   return Math.round((next.getTime() - ref.getTime()) / 86_400_000);
 }
+
+/** Primer valor cargado de un tipo, o undefined. Para las variables de plantilla. */
+export function interestValue(
+  interests: { kind: InterestKind; value: string }[] | null | undefined,
+  kind: InterestKind,
+): string | undefined {
+  return interests?.find((i) => i.kind === kind)?.value || undefined;
+}

@@ -14,6 +14,225 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_configs: {
+        Row: {
+          branch_id: string
+          company_id: string
+          created_at: string
+          enabled: boolean
+          greeting_name: string | null
+          id: string
+          idle_trigger_minutes: number | null
+          max_turns: number
+          mode: Database["public"]["Enums"]["bot_mode"]
+          outside_hours: boolean
+          qualify: boolean
+          updated_at: string
+          when_nobody_active: boolean
+        }
+        Insert: {
+          branch_id: string
+          company_id: string
+          created_at?: string
+          enabled?: boolean
+          greeting_name?: string | null
+          id?: string
+          idle_trigger_minutes?: number | null
+          max_turns?: number
+          mode?: Database["public"]["Enums"]["bot_mode"]
+          outside_hours?: boolean
+          qualify?: boolean
+          updated_at?: string
+          when_nobody_active?: boolean
+        }
+        Update: {
+          branch_id?: string
+          company_id?: string
+          created_at?: string
+          enabled?: boolean
+          greeting_name?: string | null
+          id?: string
+          idle_trigger_minutes?: number | null
+          max_turns?: number
+          mode?: Database["public"]["Enums"]["bot_mode"]
+          outside_hours?: boolean
+          qualify?: boolean
+          updated_at?: string
+          when_nobody_active?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_configs_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: true
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_configs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_conversation_state: {
+        Row: {
+          company_id: string
+          conversation_id: string
+          created_at: string
+          handoff_requested: boolean
+          human_replied: boolean
+          last_bot_reply_at: string | null
+          turns_used: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          conversation_id: string
+          created_at?: string
+          handoff_requested?: boolean
+          human_replied?: boolean
+          last_bot_reply_at?: string | null
+          turns_used?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          conversation_id?: string
+          created_at?: string
+          handoff_requested?: boolean
+          human_replied?: boolean
+          last_bot_reply_at?: string | null
+          turns_used?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_conversation_state_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_conversation_state_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: true
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_intents: {
+        Row: {
+          branch_id: string | null
+          company_id: string
+          created_at: string
+          enabled: boolean
+          id: string
+          keywords: string[]
+          label: string
+          reply: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          branch_id?: string | null
+          company_id: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          label: string
+          reply: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string | null
+          company_id?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          label?: string
+          reply?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_intents_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_intents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bot_messages: {
+        Row: {
+          company_id: string
+          conversation_id: string | null
+          created_at: string
+          id: string
+          inbound_text: string | null
+          intent_slug: string | null
+          matched_by: string | null
+          reply_sent: string | null
+          was_sent: boolean
+        }
+        Insert: {
+          company_id: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          inbound_text?: string | null
+          intent_slug?: string | null
+          matched_by?: string | null
+          reply_sent?: string | null
+          was_sent?: boolean
+        }
+        Update: {
+          company_id?: string
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          inbound_text?: string | null
+          intent_slug?: string | null
+          matched_by?: string | null
+          reply_sent?: string | null
+          was_sent?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bot_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branch_product_types: {
         Row: {
           branch_id: string
@@ -2772,6 +2991,7 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
+      bot_mode: "draft" | "auto"
       branch_request_status: "pending" | "approved" | "rejected" | "canceled"
       branch_status: "active" | "inactive"
       campaign_origin:
@@ -2991,6 +3211,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      bot_mode: ["draft", "auto"],
       branch_request_status: ["pending", "approved", "rejected", "canceled"],
       branch_status: ["active", "inactive"],
       campaign_origin: [

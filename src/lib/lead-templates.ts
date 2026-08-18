@@ -7,6 +7,12 @@ export type LeadTemplateContext = {
   vehiculo: string;
   concesionaria: string;
   telefono_concesionaria: string;
+  // Variables de "romper el hielo". Vienen de lead_interests y son OPCIONALES:
+  // si el dato no está cargado, la línea que las usa se descarta (ver
+  // applyTemplate). Nunca se manda un mensaje con un hueco.
+  cuadro?: string;
+  familia?: string;
+  hobby?: string;
 };
 
 export type LeadTemplate = {
@@ -55,17 +61,41 @@ export const LEAD_TEMPLATES: LeadTemplate[] = [
   },
 ];
 
+/**
+ * Reemplaza las variables de una plantilla.
+ *
+ * Las de interés ({cuadro}, {familia}, {hobby}) sólo se resuelven si el dato
+ * está cargado. Si falta, la línea que la contiene se ELIMINA entera en vez de
+ * dejar un hueco: "Hola Juan, ¿cómo va ?" es peor que no mencionarlo.
+ */
 export function applyTemplate(
   body: string,
   ctx: Partial<LeadTemplateContext>,
 ): string {
-  return body
+  const optional: (keyof LeadTemplateContext)[] = [
+    "cuadro",
+    "familia",
+    "hobby",
+  ];
+
+  // Primero se descartan las líneas que piden un dato de interés que no está.
+  const kept = body
+    .split("\n")
+    .filter((line) =>
+      optional.every((k) => !line.includes(`{${k}}`) || Boolean(ctx[k])),
+    )
+    .join("\n");
+
+  return kept
     .replaceAll("{nombre}", ctx.nombre || "")
     .replaceAll("{nombre_completo}", ctx.nombre_completo || "")
     .replaceAll("{vendedor}", ctx.vendedor || "")
     .replaceAll("{vehiculo}", ctx.vehiculo || "el vehículo")
     .replaceAll("{concesionaria}", ctx.concesionaria || "")
-    .replaceAll("{telefono_concesionaria}", ctx.telefono_concesionaria || "");
+    .replaceAll("{telefono_concesionaria}", ctx.telefono_concesionaria || "")
+    .replaceAll("{cuadro}", ctx.cuadro || "")
+    .replaceAll("{familia}", ctx.familia || "")
+    .replaceAll("{hobby}", ctx.hobby || "");
 }
 
 export function whatsappLink(phone: string, message: string): string {

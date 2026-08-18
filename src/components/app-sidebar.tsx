@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Fragment, useState } from "react";
 import {
   BarChart3,
+  Bot,
   FileBarChart,
   TrendingUp,
   Blocks,
@@ -111,6 +112,7 @@ const ADMIN_NAV: Section[] = [
       { href: "/admin/company", label: "Mi empresa", icon: Building2 },
       { href: "/admin/users", label: "Usuarios", icon: UsersRound },
       { href: "/admin/integraciones", label: "Integraciones", icon: Blocks },
+      { href: "/admin/bot", label: "Respuesta automática", icon: Bot },
     ],
   },
 ];

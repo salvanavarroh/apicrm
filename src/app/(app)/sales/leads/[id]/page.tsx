@@ -13,6 +13,7 @@ import {
   QuoteExpiryChip,
 } from "@/components/leads/ficha-blocks";
 import { InterestsSection } from "@/components/leads/interests-section";
+import { interestValue } from "@/lib/lead-interests";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import type { LeadNote } from "@/components/leads/notes-section";
@@ -270,6 +271,11 @@ export default async function SalesLeadDetailPage({
                 vehiculo: lead.vehicle_model ?? "el vehículo",
                 concesionaria: company?.name ?? "",
                 telefono_concesionaria: company?.phone ?? "",
+                // Datos para romper el hielo. Si no están cargados, la línea de
+                // la plantilla que los use se descarta.
+                cuadro: interestValue(interests, "cuadro"),
+                familia: interestValue(interests, "familia"),
+                hobby: interestValue(interests, "hobby"),
               }}
             />
           </>
