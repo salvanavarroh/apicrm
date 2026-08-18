@@ -73,12 +73,42 @@ export type PreviousTotals = {
   realRoas: number | null;
 };
 
+export type Funnel = {
+  leads: number;
+  contacted: number;
+  interested: number;
+  quoted: number;
+  sales: number;
+};
+
+/**
+ * Todo lo que el cliente NO puede recalcular solo cuando se filtra por
+ * plataforma.
+ *
+ * Los KPIs, el donut y la tabla salen de `rows`, así que el cliente los
+ * recalcula filtrando el array. Pero la serie diaria, el embudo, el heatmap y el
+ * período anterior se arman a partir de los LEADS, y un lead no dice de qué
+ * plataforma vino: hay que cruzarlo por `metadata.adId` contra la lista de
+ * anuncios, y eso sólo se puede hacer acá. Por eso el server manda una rebanada
+ * por plataforma, con los mismos nombres de campo que el objeto general: el
+ * cliente elige una u otra y el resto del render no cambia.
+ */
+export type PlatformSlice = {
+  previous: PreviousTotals;
+  funnel: Funnel;
+  daily: { date: string; leads: number; sales: number }[];
+  leadsByHour: number[][];
+  attribution: { attributed: number; total: number };
+};
+
 export type AdsPerformance = {
   connected: boolean;
   rows: AdRow[];
   totals: Totals;
   previous: PreviousTotals;
-  funnel: { leads: number; contacted: number; interested: number; quoted: number; sales: number };
+  funnel: Funnel;
+  // Rebanada por plataforma ("Meta" | "Google" | "TikTok") para el filtro.
+  platformSlices: Record<string, PlatformSlice>;
   byPlatform: GroupRow[];
   byCampaign: GroupRow[];
   daily: { date: string; leads: number; sales: number }[];
@@ -113,6 +143,11 @@ const PLATFORM_LABEL: Record<string, string> = {
   tiktok: "TikTok",
   google: "Google",
 };
+
+/** Etiqueta visible de la plataforma. "Meta" agrupa facebook/instagram/metaads. */
+function platformLabelOf(p: string): string {
+  return PLATFORM_LABEL[p.toLowerCase()] ?? p;
+}
 
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -155,6 +190,7 @@ export async function getAdsPerformance(input?: {
       totals: emptyTotals(),
       previous: emptyPrevious(),
       funnel: { leads: 0, contacted: 0, interested: 0, quoted: 0, sales: 0 },
+      platformSlices: {},
       byPlatform: [],
       byCampaign: [],
       daily: [],
@@ -167,6 +203,15 @@ export async function getAdsPerformance(input?: {
 
   // 1) Anuncios de Zernio del período (paginado, con tope).
   const ads = await collectAds(accounts, from, to, input?.platform, 5);
+
+  // adId → plataforma. Es lo que permite decir de qué plataforma vino un lead:
+  // el lead sólo guarda `metadata.adId`, la plataforma la sabe el anuncio.
+  const platformOfAd = new Map<string, string>();
+  for (const a of ads) {
+    if (a.platformAdId) {
+      platformOfAd.set(a.platformAdId, platformLabelOf(a.platform ?? "meta"));
+    }
+  }
 
   // 2) Embudo del CRM (leads del rango con atribución de anuncio) + ventas.
   const { data: leads } = await supabase
@@ -235,12 +280,40 @@ export async function getAdsPerformance(input?: {
   };
   const crm = new Map<string, CrmAgg>();
   const funnel = { leads: 0, contacted: 0, interested: 0, quoted: 0, sales: 0 };
+  const dayKeys: string[] = [];
   const dailyMap = new Map<string, { leads: number; sales: number }>();
   for (let i = 0; i < days && i < 92; i++) {
-    dailyMap.set(ymd(new Date(new Date(`${from}T00:00:00`).getTime() + i * 86400000)), {
-      leads: 0,
-      sales: 0,
-    });
+    const key = ymd(new Date(new Date(`${from}T00:00:00`).getTime() + i * 86400000));
+    dayKeys.push(key);
+    dailyMap.set(key, { leads: 0, sales: 0 });
+  }
+
+  // Rebanadas por plataforma. Se crean a demanda (una concesionaria puede tener
+  // sólo Meta) y arrancan con el mismo esqueleto de días que la serie general,
+  // así el gráfico no cambia de forma al filtrar.
+  const slices = new Map<
+    string,
+    {
+      previous: PreviousTotals;
+      funnel: Funnel;
+      daily: Map<string, { leads: number; sales: number }>;
+      leadsByHour: number[][];
+      attributed: number;
+    }
+  >();
+  function sliceOf(label: string) {
+    let s = slices.get(label);
+    if (!s) {
+      s = {
+        previous: emptyPrevious(),
+        funnel: { leads: 0, contacted: 0, interested: 0, quoted: 0, sales: 0 },
+        daily: new Map(dayKeys.map((d) => [d, { leads: 0, sales: 0 }])),
+        leadsByHour: emptyHeat(),
+        attributed: 0,
+      };
+      slices.set(label, s);
+    }
+    return s;
   }
 
   for (const l of leadRows) {
@@ -265,6 +338,30 @@ export async function getAdsPerformance(input?: {
     }
 
     if (!adId) continue;
+
+    // Mismo cálculo, pero acotado a la plataforma del anuncio que trajo el lead.
+    // Si el anuncio no está en la lista del período (borrado, o fuera del tope
+    // de páginas) no se puede saber la plataforma: cuenta en el general y no en
+    // ninguna rebanada. Es preferible a repartirlo por adivinanza.
+    const lab = platformOfAd.get(adId);
+    if (lab) {
+      const s = sliceOf(lab);
+      s.funnel.leads += 1;
+      if (rank >= 1) s.funnel.contacted += 1;
+      if (rank >= 2) s.funnel.interested += 1;
+      if (rank >= 3) s.funnel.quoted += 1;
+      if (isSale) s.funnel.sales += 1;
+      const sd = s.daily.get(day);
+      if (sd) {
+        sd.leads += 1;
+        if (isSale) sd.sales += 1;
+      }
+      s.attributed += 1;
+      // Heatmap: misma hora AR que la matriz general.
+      const hd = new Date(new Date(l.created_at).getTime() - 3 * 3600 * 1000);
+      s.leadsByHour[(hd.getUTCDay() + 6) % 7][hd.getUTCHours()] += 1;
+    }
+
     const agg =
       crm.get(adId) ??
       { leads: 0, contacted: 0, interested: 0, quoted: 0, sales: 0, revenue: 0 };
@@ -337,7 +434,7 @@ export async function getAdsPerformance(input?: {
   totals.realRoas = totals.spend > 0 ? totals.revenue / totals.spend : null;
 
   // Agrupaciones para gráficos.
-  const byPlatform = groupBy(rows, (r) => PLATFORM_LABEL[r.platform] ?? r.platform);
+  const byPlatform = groupBy(rows, (r) => platformLabelOf(r.platform));
   const byCampaign = groupBy(rows, (r) => r.campaignName ?? "Sin campaña")
     .sort((a, b) => b.spend - a.spend || b.leads - a.leads)
     .slice(0, 8);
@@ -360,23 +457,48 @@ export async function getAdsPerformance(input?: {
     realRoas: null,
   };
   const prevAds = await collectAds(accounts, prevFrom, prevTo, input?.platform, 3);
+  const prevPlatformOfAd = new Map<string, string>();
   for (const a of prevAds) {
     const m = a.metrics ?? {};
     previous.spend += num(m.spend);
     previous.impressions += num(m.impressions);
     previous.clicks += num(m.clicks);
     previous.metaLeads += metaLeadsOf(m);
+
+    const lab = platformLabelOf(a.platform ?? "meta");
+    if (a.platformAdId) prevPlatformOfAd.set(a.platformAdId, lab);
+    // La comparación con el período anterior también tiene que respetar el
+    // filtro: sin esto, al filtrar por Meta los deltas seguían midiendo contra
+    // la inversión de las tres plataformas.
+    const sp = sliceOf(lab).previous;
+    sp.spend += num(m.spend);
+    sp.impressions += num(m.impressions);
+    sp.clicks += num(m.clicks);
+    sp.metaLeads += metaLeadsOf(m);
   }
   const { data: prevLeads } = await supabase
     .from("leads")
-    .select("id")
+    .select("id, metadata")
     .eq("company_id", companyId)
     .gte("created_at", `${prevFrom}T00:00:00`)
     .lte("created_at", `${prevTo}T23:59:59`)
     .not("metadata->>adId", "is", null)
     .is("merged_into_id", null);
-  const prevIds = (prevLeads ?? []).map((l) => l.id);
+  const prevRows = (prevLeads ?? []) as Array<{
+    id: string;
+    metadata: Record<string, unknown> | null;
+  }>;
+  const prevIds = prevRows.map((l) => l.id);
   previous.leads = prevIds.length;
+  // Plataforma de cada lead del período anterior (para repartir ventas después).
+  const prevPlatformOfLead = new Map<string, string>();
+  for (const l of prevRows) {
+    const adId = String((l.metadata as { adId?: unknown })?.adId ?? "");
+    const lab = adId ? prevPlatformOfAd.get(adId) : undefined;
+    if (!lab) continue;
+    prevPlatformOfLead.set(l.id, lab);
+    sliceOf(lab).previous.leads += 1;
+  }
   if (prevIds.length) {
     const { data: prevSales } = await supabase
       .from("sales")
@@ -386,16 +508,41 @@ export async function getAdsPerformance(input?: {
       .in("lead_id", prevIds);
     const seen = new Set<string>();
     for (const s of prevSales ?? []) {
+      const lab = prevPlatformOfLead.get(s.lead_id);
       if (!seen.has(s.lead_id)) {
         seen.add(s.lead_id);
         previous.sales += 1;
+        if (lab) sliceOf(lab).previous.sales += 1;
       }
       previous.revenue += Number(s.final_price ?? 0);
+      if (lab) sliceOf(lab).previous.revenue += Number(s.final_price ?? 0);
     }
   }
   previous.costPerLead =
     previous.spend > 0 && previous.metaLeads > 0 ? previous.spend / previous.metaLeads : null;
   previous.realRoas = previous.spend > 0 ? previous.revenue / previous.spend : null;
+
+  // Cierre de las rebanadas: derivados y paso a la forma que consume el cliente.
+  const platformSlices: Record<string, PlatformSlice> = {};
+  for (const [label, s] of slices) {
+    s.previous.costPerLead =
+      s.previous.spend > 0 && s.previous.metaLeads > 0
+        ? s.previous.spend / s.previous.metaLeads
+        : null;
+    s.previous.realRoas =
+      s.previous.spend > 0 ? s.previous.revenue / s.previous.spend : null;
+    platformSlices[label] = {
+      previous: s.previous,
+      funnel: s.funnel,
+      daily: dayKeys.map((d) => ({ date: d, ...(s.daily.get(d) ?? { leads: 0, sales: 0 }) })),
+      leadsByHour: s.leadsByHour,
+      // `total` sigue siendo el total de leads del período (todos los canales):
+      // la pregunta que responde el panel es "cuántos de los leads que entraron
+      // los trajo esta plataforma", y para eso el denominador tiene que ser el
+      // total real, no los de la plataforma.
+      attribution: { attributed: s.attributed, total: (allLeads ?? []).length },
+    };
+  }
 
   return {
     connected: true,
@@ -403,6 +550,7 @@ export async function getAdsPerformance(input?: {
     totals,
     previous,
     funnel,
+    platformSlices,
     byPlatform,
     byCampaign,
     daily,

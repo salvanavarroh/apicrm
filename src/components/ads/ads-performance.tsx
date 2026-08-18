@@ -33,6 +33,7 @@ import {
   type AdRow,
   type AdsPerformance,
   type GroupRow,
+  type PlatformSlice,
   type PreviousTotals,
   type Totals,
 } from "@/app/(app)/admin/ads/actions";
@@ -140,6 +141,69 @@ function dayLabel(d: string): string {
   return `${day}/${m}`;
 }
 
+/**
+ * Totales de un conjunto de filas. Es la misma cuenta que hace el server, acá
+ * para poder recalcular los KPIs al filtrar sin volver a pedir nada.
+ */
+function sumTotals(rows: AdRow[]): Totals {
+  const t: Totals = {
+    spend: 0,
+    metaLeads: 0,
+    leads: 0,
+    contacted: 0,
+    interested: 0,
+    quoted: 0,
+    sales: 0,
+    revenue: 0,
+    impressions: 0,
+    clicks: 0,
+    costPerLead: null,
+    costPerSale: null,
+    realRoas: null,
+  };
+  for (const r of rows) {
+    t.spend += r.spend;
+    t.metaLeads += r.metaLeads;
+    t.leads += r.leads;
+    t.contacted += r.contacted;
+    t.interested += r.interested;
+    t.quoted += r.quoted;
+    t.sales += r.sales;
+    t.revenue += r.revenue;
+    t.impressions += r.impressions;
+    t.clicks += r.clicks;
+  }
+  t.costPerLead = t.spend > 0 && t.metaLeads > 0 ? t.spend / t.metaLeads : null;
+  t.costPerSale = t.spend > 0 && t.sales > 0 ? t.spend / t.sales : null;
+  t.realRoas = t.spend > 0 ? t.revenue / t.spend : null;
+  return t;
+}
+
+/**
+ * Rebanada vacía, para cuando se elige una plataforma sin datos en el período.
+ * Conserva los días del rango: así el gráfico queda plano en cero en vez de
+ * desaparecer, que es la diferencia entre "no hay nada" y "no cargó".
+ */
+function emptySlice(daily: { date: string }[]): PlatformSlice {
+  return {
+    previous: {
+      spend: 0,
+      impressions: 0,
+      clicks: 0,
+      metaLeads: 0,
+      leads: 0,
+      sales: 0,
+      revenue: 0,
+      costPerLead: null,
+      realRoas: null,
+    },
+    funnel: { leads: 0, contacted: 0, interested: 0, quoted: 0, sales: 0 },
+    daily: daily.map((d) => ({ date: d.date, leads: 0, sales: 0 })),
+    leadsByHour: Array.from({ length: 7 }, () => new Array(24).fill(0) as number[]),
+    attribution: { attributed: 0, total: 0 },
+  };
+}
+
 const STATUS_TONE: Record<string, string> = {
   ACTIVE: "bg-emerald-100 text-emerald-700",
   active: "bg-emerald-100 text-emerald-700",
@@ -193,6 +257,39 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
   const hiddenEmpty = useMemo(
     () => aggregateRows(filteredRows, groupMode).length - displayRows.length,
     [filteredRows, groupMode, displayRows.length],
+  );
+
+  // ---------------------------------------------------------------------
+  // El filtro de plataforma aplica a TODO el dashboard, no sólo a la tabla.
+  //
+  // Dos orígenes distintos:
+  //  · Lo que sale de los anuncios (KPIs, donut, insights) se recalcula acá
+  //    sumando las filas filtradas.
+  //  · Lo que sale de los leads (serie diaria, embudo, heatmap, período
+  //    anterior) no se puede recalcular en el cliente —un lead no dice de qué
+  //    plataforma vino— así que el server manda una rebanada por plataforma con
+  //    los mismos nombres de campo. `view` elige entre el general y la rebanada.
+  // ---------------------------------------------------------------------
+  const platformName = platform ? platformLabel(platform) : null;
+  const view = useMemo(
+    () =>
+      platformName
+        ? (data.platformSlices[platformName] ?? emptySlice(data.daily))
+        : data,
+    [data, platformName],
+  );
+  // Los totales se recalculan sobre las filas del filtro de plataforma. El
+  // estado (activas/pausadas) NO entra acá a propósito: es un filtro sobre qué
+  // anuncios se listan, y descontar la inversión de una campaña pausada que sí
+  // gastó en el período rompería el costo por lead.
+  const platformRows = useMemo(
+    () => data.rows.filter((r) => samePlatform(r.platform, platform)),
+    [data.rows, platform],
+  );
+  const t = useMemo(() => sumTotals(platformRows), [platformRows]);
+  const byPlatform = useMemo(
+    () => (platformName ? data.byPlatform.filter((x) => x.key === platformName) : data.byPlatform),
+    [data.byPlatform, platformName],
   );
   // Los charts (recharts) se montan solo en el cliente para evitar problemas de
   // hidratación (miden el ancho del contenedor con ResizeObserver).
@@ -256,8 +353,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
     );
   }
 
-  const t = data.totals;
-  const p = data.previous;
+  const p = view.previous;
   const insights = computeInsights(filteredRows, t, p);
 
   return (
@@ -343,7 +439,10 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
             aria-label="Hasta"
           />
         </div>
-        <div className="ml-auto inline-flex rounded-lg border p-0.5">
+        <span className="ml-auto text-xs text-muted-foreground" title="La inversión del período incluye lo que gastaron las campañas que hoy están pausadas: descontarla rompería el costo por lead.">
+          Estado (afecta la tabla)
+        </span>
+        <div className="inline-flex rounded-lg border p-0.5">
           {STATUS_TABS.map((x) => (
             <button
               key={x.value}
@@ -368,7 +467,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
           label="Leads"
           value={int(t.metaLeads)}
           delta={delta(t.metaLeads, p.metaLeads)}
-          spark={data.daily.map((d) => d.leads)}
+          spark={view.daily.map((d) => d.leads)}
         />
         <Kpi
           label="Costo / lead"
@@ -384,7 +483,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
           label="Ventas"
           value={int(t.sales)}
           delta={delta(t.sales, p.sales)}
-          spark={data.daily.map((d) => d.sales)}
+          spark={view.daily.map((d) => d.sales)}
         />
         <Kpi
           label="Costo / venta"
@@ -402,10 +501,13 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
 
       {/* Gráficos */}
       <div className="grid gap-3 lg:grid-cols-3">
-        <ChartCard title="Leads y ventas por día" className="lg:col-span-2">
+        <ChartCard
+          title={`Leads y ventas por día${platformName ? ` · ${platformName}` : ""}`}
+          className="lg:col-span-2"
+        >
           {mounted && (
             <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={data.daily} margin={{ left: -18, right: 8, top: 8 }}>
+              <AreaChart data={view.daily} margin={{ left: -18, right: 8, top: 8 }}>
                 <defs>
                   <linearGradient id="gL" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={C.leads} stopOpacity={0.35} />
@@ -434,8 +536,8 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
 
         <ChartCard title="Inversión por plataforma">
           {mounted &&
-            (data.byPlatform.some((x) => x.spend > 0) ? (
-              <PlatformDonut data={data.byPlatform} />
+            (byPlatform.some((x) => x.spend > 0) ? (
+              <PlatformDonut data={byPlatform} />
             ) : (
               <EmptyChart />
             ))}
@@ -444,12 +546,14 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
 
       {/* Embudo real + heatmap de horarios */}
       <div className="grid gap-3 lg:grid-cols-2">
-        <ChartCard title="Embudo real">
-          <Funnel funnel={data.funnel} />
-          <AttributionCoverage a={data.attribution} />
+        <ChartCard title={`Embudo real${platformName ? ` · ${platformName}` : ""}`}>
+          <Funnel funnel={view.funnel} />
+          <AttributionCoverage a={view.attribution} platform={platformName} />
         </ChartCard>
-        <ChartCard title="Cuándo entran los leads (por día y hora, AR)">
-          <Heatmap grid={data.leadsByHour} />
+        <ChartCard
+          title={`Cuándo entran los leads${platformName ? ` de ${platformName}` : ""} (por día y hora, AR)`}
+        >
+          <Heatmap grid={view.leadsByHour} />
         </ChartCard>
       </div>
 
@@ -766,21 +870,32 @@ function PlatformDonut({ data }: { data: GroupRow[] }) {
   );
 }
 
-function AttributionCoverage({ a }: { a: { attributed: number; total: number } }) {
+function AttributionCoverage({
+  a,
+  platform,
+}: {
+  a: { attributed: number; total: number };
+  platform: string | null;
+}) {
   const pctv = a.total > 0 ? Math.round((a.attributed / a.total) * 100) : 0;
   return (
     <div className="mt-3 border-t border-dashed pt-3 text-xs text-muted-foreground">
       <div className="flex items-center justify-between">
         <span>
-          <b className="text-foreground">{pctv}%</b> de {int(a.total)} leads atribuidos a un anuncio
+          <b className="text-foreground">{pctv}%</b> de {int(a.total)} leads
+          {platform ? ` atribuidos a un anuncio de ${platform}` : " atribuidos a un anuncio"}
         </span>
-        <span>{100 - pctv}% sin atribuir</span>
+        <span>{100 - pctv}% restante</span>
       </div>
       <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-muted">
         <span className="h-full bg-success" style={{ width: `${pctv}%` }} />
         <span className="h-full bg-muted-foreground/40" style={{ width: `${100 - pctv}%` }} />
       </div>
-      <p className="mt-1.5">El resto entra por click-to-WhatsApp, que Zernio no reenvía con atribución.</p>
+      <p className="mt-1.5">
+        {platform
+          ? `El resto son leads de otros canales o sin atribución (click-to-WhatsApp, que Zernio no reenvía con el anuncio).`
+          : "El resto entra por click-to-WhatsApp, que Zernio no reenvía con atribución."}
+      </p>
     </div>
   );
 }
