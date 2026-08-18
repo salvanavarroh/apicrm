@@ -7,6 +7,7 @@ import {
   FichaSection,
   LeadBusinessCard,
 } from "@/components/leads/ficha-blocks";
+import { InterestsSection } from "@/components/leads/interests-section";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { LeadConversationCard } from "@/components/leads/lead-conversation-card";
 import type { LeadNote } from "@/components/leads/notes-section";
@@ -21,6 +22,7 @@ import type { LeadTask } from "@/components/leads/tasks-section";
 import { TrackingCard } from "@/components/leads/tracking-card";
 import type { LeadVisit } from "@/components/leads/visits-section";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
 import { fullName } from "@/lib/leads";
 import { nextBestAction } from "@/lib/next-best-action";
@@ -46,6 +48,7 @@ export default async function AdminLeadDetailPage({
     team,
     { data: quotes },
     { data: leadSales },
+    { data: interests },
   ] = await Promise.all([
       supabase
         .from("leads")
@@ -103,6 +106,7 @@ export default async function AdminLeadDetailPage({
       // Presupuestos y venta abierta: sólo para calcular la próxima acción.
       supabase.from("quotes").select("created_at, sent_at").eq("lead_id", id),
       supabase.from("sales").select("status").eq("lead_id", id),
+      supabase.from("lead_interests").select("*").eq("lead_id", id),
     ]);
 
   if (!lead) notFound();
@@ -160,6 +164,9 @@ export default async function AdminLeadDetailPage({
     tasks: taskRows,
     visits: visitRows,
     quotes: quotes ?? [],
+    birthdays: (interests ?? [])
+      .filter((i) => i.kind === "cumpleanos")
+      .map((i) => ({ day: i.day, month: i.month })),
     activeSaleStatus:
       (leadSales ?? []).find((s) => s.status === "evaluating")?.status ?? null,
   });
@@ -224,6 +231,9 @@ export default async function AdminLeadDetailPage({
       {/* ---- LA GESTIÓN ---- */}
       <FichaSection icon={ListChecks} title="La gestión">
         <div className="flex flex-col gap-4">
+          <Card className="p-4">
+            <InterestsSection leadId={lead.id} interests={interests ?? []} />
+          </Card>
           <LeadConversationCard conversations={conversations} />
           <ActivitySection
             leadId={lead.id}

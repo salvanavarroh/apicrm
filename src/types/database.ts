@@ -2656,6 +2656,141 @@ export type Database = {
           },
         ]
       }
+      sheet_sources: {
+        Row: {
+          active: boolean
+          branch_id: string | null
+          campaign_id: string | null
+          column_map: Json
+          company_id: string
+          created_at: string
+          created_by: string | null
+          gid: string
+          id: string
+          last_error: string | null
+          last_result: string | null
+          last_synced_at: string | null
+          name: string
+          poll_minutes: number
+          product_type_id: string | null
+          spreadsheet_id: string
+          total_imported: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          branch_id?: string | null
+          campaign_id?: string | null
+          column_map?: Json
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          gid?: string
+          id?: string
+          last_error?: string | null
+          last_result?: string | null
+          last_synced_at?: string | null
+          name: string
+          poll_minutes?: number
+          product_type_id?: string | null
+          spreadsheet_id: string
+          total_imported?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          branch_id?: string | null
+          campaign_id?: string | null
+          column_map?: Json
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          gid?: string
+          id?: string
+          last_error?: string | null
+          last_result?: string | null
+          last_synced_at?: string | null
+          name?: string
+          poll_minutes?: number
+          product_type_id?: string | null
+          spreadsheet_id?: string
+          total_imported?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_sources_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_sources_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_sources_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_sources_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_sources_product_type_id_fkey"
+            columns: ["product_type_id"]
+            isOneToOne: false
+            referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sheet_synced_rows: {
+        Row: {
+          imported_at: string
+          lead_id: string | null
+          row_hash: string
+          source_id: string
+        }
+        Insert: {
+          imported_at?: string
+          lead_id?: string | null
+          row_hash: string
+          source_id: string
+        }
+        Update: {
+          imported_at?: string
+          lead_id?: string | null
+          row_hash?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_synced_rows_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_synced_rows_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "sheet_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_payments: {
         Row: {
           amount: number

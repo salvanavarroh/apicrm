@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Fragment, useState } from "react";
 import {
   BarChart3,
+  Sheet,
   Bot,
   FileBarChart,
   TrendingUp,
@@ -97,6 +98,7 @@ const ADMIN_NAV: Section[] = [
       { href: "/admin/campaigns", label: "Campañas", icon: Megaphone },
       { href: "/admin/ads", label: "Rendimiento Ads", icon: BarChart3 },
       { href: "/admin/forms", label: "Formularios", icon: FileInput },
+      { href: "/admin/sheets", label: "Google Sheets", icon: Sheet },
     ],
   },
   {
