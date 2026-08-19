@@ -460,6 +460,18 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
         </div>
       </div>
 
+      {/* Aviso de datos incompletos. Va arriba de los KPIs porque afecta a todos
+          los números de la pantalla: si faltan anuncios, falta inversión y falta
+          atribución. Silenciarlo hace que un informe incompleto se lea como
+          completo. */}
+      {(data.quality.truncated || data.quality.failedPages > 0) && (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-text">
+          {data.quality.truncated
+            ? "La cuenta tiene más anuncios de los que se pueden traer en una consulta: faltan anuncios en este informe, así que la inversión y la atribución están subestimadas. Acortá el rango de fechas para verlo completo."
+            : `No se pudieron traer ${data.quality.failedPages} página(s) de anuncios. Probá con Actualizar.`}
+        </div>
+      )}
+
       {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Kpi label="Inversión" value={money(t.spend)} delta={delta(t.spend, p.spend)} mood="neutral" />

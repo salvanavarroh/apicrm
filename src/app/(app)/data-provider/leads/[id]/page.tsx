@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { LeadForm } from "@/components/leads/lead-form";
 import { LeadBusinessCard } from "@/components/leads/ficha-blocks";
+import { EditContactDialog } from "@/components/leads/edit-contact-dialog";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -68,6 +69,13 @@ export default async function ProviderLeadDetailPage({
         lastContactedAt={lead.last_contacted_at}
         phone={lead.phone}
         email={lead.email}
+        contactEditor={
+          <EditContactDialog
+            leadId={lead.id}
+            phone={lead.phone}
+            email={lead.email}
+          />
+        }
         city={lead.city}
         vehicle={
           [lead.vehicle_model, lead.vehicle_version].filter(Boolean).join(" ") ||

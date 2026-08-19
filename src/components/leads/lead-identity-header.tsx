@@ -62,6 +62,7 @@ export function LeadIdentityHeader({
   vehicle,
   assigneeName,
   actions,
+  contactEditor,
   className,
 }: {
   firstName: string | null;
@@ -83,6 +84,11 @@ export function LeadIdentityHeader({
   assigneeName?: string | null;
   /** Controles de la ficha: WhatsApp, estado, temperatura, iniciar venta. */
   actions?: React.ReactNode;
+  /**
+   * Editor de teléfono/email. Va en la tira de contacto y no en `actions`
+   * porque edita justamente los datos que la tira muestra.
+   */
+  contactEditor?: React.ReactNode;
   className?: string;
 }) {
   const age = daysSince(createdAt);
@@ -200,6 +206,8 @@ export function LeadIdentityHeader({
             }
             emphasis={contacted === null}
           />
+
+          {contactEditor}
         </div>
       </div>
     </div>

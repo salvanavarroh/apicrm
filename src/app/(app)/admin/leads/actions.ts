@@ -830,6 +830,118 @@ export async function updateLeadTemperature(
 }
 
 // ----------------------------------------------------------------------------
+// Contacto del lead (teléfono / email).
+//
+// Existe aparte de `updateLead` porque es lo único que se corrige a diario —el
+// número mal tipeado, el mail con un typo— y no tiene sentido abrir el formulario
+// completo del lead para eso.
+//
+// Lo importante: recalcula `phone_e164`. Ese campo es el que usa el inbox para
+// atar un WhatsApp entrante a este lead; si se cambia `phone` y no se recalcula,
+// el lead queda con el número viejo para la mensajería y los mensajes del cliente
+// entran como si fuera otra persona.
+// ----------------------------------------------------------------------------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function updateLeadContact(
+  leadId: string,
+  input: { phone: string; email: string },
+): Promise<Result<{ leadId: string }>> {
+  const profile = await requireRole([
+    "admin",
+    "manager",
+    "supervisor",
+    "sales",
+    "data_provider",
+  ]);
+  if (!profile.company_id) {
+    return { ok: false, message: "No tenés empresa asignada" };
+  }
+
+  const rawPhone = (input.phone ?? "").trim();
+  const phone = normalizePhone(rawPhone || null);
+  const email = normalizeEmail((input.email ?? "").trim() || null);
+
+  // Misma regla que al crear: sin teléfono ni email el lead no es contactable.
+  if (!phone && !email) {
+    return {
+      ok: false,
+      message: "Necesitás teléfono o email para poder contactarlo",
+    };
+  }
+  if (email && !EMAIL_RE.test(email)) {
+    return { ok: false, message: "Revisá el formato del email" };
+  }
+
+  const supabase = await createClient();
+  const phoneE164 = await resolveCompanyE164(supabase, profile.company_id, rawPhone || null);
+
+  // Si el dato nuevo ya es de OTRO lead, no se guarda: crear un duplicado a mano
+  // es peor que el typo. Para unificarlos está la revisión de duplicados.
+  const clash: string[] = [];
+  if (phoneE164) clash.push(`phone_e164.eq.${phoneE164}`);
+  if (email) clash.push(`email.eq.${email}`);
+  if (clash.length > 0) {
+    const { data: other } = await supabase
+      .from("leads")
+      .select("id, first_name, last_name")
+      .eq("company_id", profile.company_id)
+      .neq("id", leadId)
+      .is("merged_into_id", null)
+      .or(clash.join(","))
+      .limit(1)
+      .maybeSingle();
+    if (other) {
+      const who = fullName(other.first_name, other.last_name) || "otro lead";
+      return {
+        ok: false,
+        message: `Ese teléfono o email ya es de ${who}. Revisalo en Duplicados si son la misma persona.`,
+      };
+    }
+  }
+
+  // Valores previos, para dejar rastro de qué cambió.
+  const { data: before } = await supabase
+    .from("leads")
+    .select("phone, email")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  const { error } = await supabase
+    .from("leads")
+    .update({ phone, email, phone_e164: phoneE164 })
+    .eq("id", leadId);
+  if (error) return { ok: false, message: error.message };
+
+  // Nota automática: cambiar el contacto de un lead es el tipo de edición que
+  // después nadie recuerda haber hecho.
+  const changes: string[] = [];
+  if ((before?.phone ?? null) !== phone) {
+    changes.push(`teléfono: ${before?.phone || "—"} → ${phone || "—"}`);
+  }
+  if ((before?.email ?? null) !== email) {
+    changes.push(`email: ${before?.email || "—"} → ${email || "—"}`);
+  }
+  if (changes.length > 0) {
+    await supabase.from("lead_notes").insert({
+      lead_id: leadId,
+      company_id: profile.company_id,
+      author_id: profile.id,
+      content: `Contacto actualizado — ${changes.join(" · ")}`,
+      activity_type: null,
+    });
+  }
+
+  revalidateLeadsPaths();
+  revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath(`/manager/leads/${leadId}`);
+  revalidatePath(`/sales/leads/${leadId}`);
+  revalidatePath(`/data-provider/leads/${leadId}`);
+  return { ok: true, leadId };
+}
+
+// ----------------------------------------------------------------------------
 // Notas del lead.
 // ----------------------------------------------------------------------------
 

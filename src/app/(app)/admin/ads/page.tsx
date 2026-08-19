@@ -14,6 +14,12 @@ export default async function AdsPage() {
           Qué anuncio te trae ventas reales y a qué costo. Cruza el gasto de Meta /
           Google / TikTok con tu embudo del CRM.
         </p>
+        {/* Aclaración necesaria para el gerente: la inversión es de la cuenta de
+            ads de la concesionaria y no se puede repartir por gerencia, así que
+            los leads también se cuentan sobre toda la concesionaria. */}
+        <p className="mt-1 text-xs text-muted-foreground">
+          Los números son de toda la concesionaria, no de una gerencia.
+        </p>
       </header>
       <AdsPerformanceView initial={initial} />
     </div>

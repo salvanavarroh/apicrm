@@ -14,6 +14,7 @@ import {
 } from "@/components/leads/ficha-blocks";
 import { InterestsSection } from "@/components/leads/interests-section";
 import { interestValue } from "@/lib/lead-interests";
+import { EditContactDialog } from "@/components/leads/edit-contact-dialog";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
 import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import type { LeadNote } from "@/components/leads/notes-section";
@@ -230,6 +231,13 @@ export default async function SalesLeadDetailPage({
         lastContactedAt={lead.last_contacted_at}
         phone={lead.phone}
         email={lead.email}
+        contactEditor={
+          <EditContactDialog
+            leadId={lead.id}
+            phone={lead.phone}
+            email={lead.email}
+          />
+        }
         city={lead.city}
         vehicle={
           [lead.vehicle_model, lead.vehicle_version].filter(Boolean).join(" ") ||

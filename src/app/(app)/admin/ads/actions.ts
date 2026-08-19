@@ -2,7 +2,7 @@
 
 import { requireRole } from "@/lib/auth";
 import { listAds, type ZernioAd } from "@/lib/messaging/zernio";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // Rendimiento por anuncio: métricas reales de Zernio (inversión, impresiones,
 // clics, CTR, CPC, ROAS) cruzadas con el embudo real del CRM (leads → ventas →
@@ -116,6 +116,8 @@ export type AdsPerformance = {
   // anuncio (metadata.adId) vs. el total. El resto (mayormente click-to-WhatsApp)
   // Zernio no lo reenvía con atribución.
   attribution: { attributed: number; total: number };
+  // Cuántos anuncios se pudieron traer y si faltó alguno.
+  quality: AdsFetchQuality;
   // Heatmap "cuándo entran los leads": 7 (lun→dom) × 24 (hora) en hora AR.
   leadsByHour: number[][];
   range: { from: string; to: string };
@@ -160,7 +162,19 @@ export async function getAdsPerformance(input?: {
 }): Promise<AdsPerformance> {
   const profile = await requireRole(["admin", "manager"]);
   const companyId = profile.company_id!;
-  const supabase = await createClient();
+
+  // Este informe es de la CONCESIONARIA COMPLETA, no del scope del usuario, y
+  // por eso las consultas del CRM van con service_role acotadas a mano por
+  // company_id.
+  //
+  // El motivo: la inversión sale de Zernio (cuenta de ads de toda la empresa) y
+  // no se puede repartir por gerencia. Con el cliente RLS, un gerente veía la
+  // plata de toda la empresa pero sólo los leads de SUS gerencias: costo por
+  // lead, embudo, heatmap y serie diaria quedaban en cero o mal calculados, con
+  // pinta de bug. Mezclar dos alcances en la misma tarjeta es peor que mostrar
+  // el total: son conteos y plata agregados, sin datos personales de ningún
+  // lead. El acceso a la pantalla lo sigue gobernando el requireRole de arriba.
+  const supabase = createAdminClient();
 
   const to = input?.to ?? ymd(new Date());
   const from = input?.from ?? ymd(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
@@ -195,6 +209,7 @@ export async function getAdsPerformance(input?: {
       byCampaign: [],
       daily: [],
       attribution: { attributed: 0, total: 0 },
+      quality: { fetched: 0, truncated: false, failedPages: 0 },
       leadsByHour: emptyHeat(),
       range,
       generatedAt: new Date().toISOString(),
@@ -202,7 +217,7 @@ export async function getAdsPerformance(input?: {
   }
 
   // 1) Anuncios de Zernio del período (paginado, con tope).
-  const ads = await collectAds(accounts, from, to, input?.platform, 5);
+  const { ads, quality } = await collectAds(accounts, from, to, input?.platform, MAX_PAGES);
 
   // adId → plataforma. Es lo que permite decir de qué plataforma vino un lead:
   // el lead sólo guarda `metadata.adId`, la plataforma la sabe el anuncio.
@@ -456,7 +471,13 @@ export async function getAdsPerformance(input?: {
     costPerLead: null,
     realRoas: null,
   };
-  const prevAds = await collectAds(accounts, prevFrom, prevTo, input?.platform, 3);
+  const { ads: prevAds } = await collectAds(
+    accounts,
+    prevFrom,
+    prevTo,
+    input?.platform,
+    MAX_PAGES,
+  );
   const prevPlatformOfAd = new Map<string, string>();
   for (const a of prevAds) {
     const m = a.metrics ?? {};
@@ -555,6 +576,7 @@ export async function getAdsPerformance(input?: {
     byCampaign,
     daily,
     attribution,
+    quality,
     leadsByHour,
     range,
     generatedAt: new Date().toISOString(),
@@ -566,6 +588,31 @@ function emptyHeat(): number[][] {
   return Array.from({ length: 7 }, () => new Array(24).fill(0) as number[]);
 }
 
+/**
+ * Techo de páginas por cuenta (100 anuncios por página).
+ *
+ * Antes era 5, y era la causa de que la atribución no funcionara: la cuenta de
+ * Meta del piloto devuelve 9 páginas en 30 días, y los anuncios que realmente
+ * traían los leads estaban en la página 7. Se descartaban en silencio, así que
+ * ningún lead cruzaba con su anuncio: ventas 0, ROAS 0.00x y embudo vacío, con
+ * la inversión igual de subestimada.
+ *
+ * Las páginas se piden en paralelo, así que subir el techo no multiplica la
+ * espera. Si igual se topa, el informe lo dice en vez de mentir por lo bajo.
+ */
+const MAX_PAGES = 30;
+
+export type AdsFetchQuality = {
+  /** Anuncios efectivamente traídos. */
+  fetched: number;
+  /** Alguna cuenta tenía más páginas que el techo: faltan anuncios. */
+  truncated: boolean;
+  /** Páginas que Zernio no devolvió (timeout, rate limit). */
+  failedPages: number;
+};
+
+type AdsFetch = { ads: ZernioAd[]; quality: AdsFetchQuality };
+
 // Baja los anuncios de todas las cuentas conectadas para un rango (paginado, con
 // tope de páginas). Reutilizado para el período actual y el anterior.
 async function collectAds(
@@ -574,14 +621,16 @@ async function collectAds(
   to: string,
   platform: string | undefined,
   maxPages: number,
-): Promise<ZernioAd[]> {
+): Promise<AdsFetch> {
   // Todas las cuentas en paralelo (antes era secuencial → era la causa real de la
   // demora al entrar al dashboard).
   const perAccount = await Promise.all(
     accounts.map(async (acc) => {
       const accountId = acc.zernio_account_id;
-      if (!accountId) return [] as ZernioAd[];
+      if (!accountId) return { ads: [] as ZernioAd[], truncated: false, failed: 0 };
       const out: ZernioAd[] = [];
+      let truncated = false;
+      let failed = 0;
       try {
         const first = await listAds({
           accountId,
@@ -592,7 +641,9 @@ async function collectAds(
           page: 1,
         });
         out.push(...(first.ads ?? []));
-        const pages = Math.min(first.pagination?.pages ?? 1, maxPages);
+        const total = first.pagination?.pages ?? 1;
+        truncated = total > maxPages;
+        const pages = Math.min(total, maxPages);
         if (pages > 1) {
           const rest = await Promise.all(
             Array.from({ length: pages - 1 }, (_, i) =>
@@ -603,18 +654,31 @@ async function collectAds(
                 platform: platform || undefined,
                 limit: 100,
                 page: i + 2,
-              }).catch(() => ({ ads: [] as ZernioAd[] })),
+              }).catch(() => null),
             ),
           );
-          for (const r of rest) out.push(...(r.ads ?? []));
+          for (const r of rest) {
+            // Una página que falla es un agujero en la atribución, no un cero:
+            // se cuenta para poder avisarlo.
+            if (r === null) failed++;
+            else out.push(...(r.ads ?? []));
+          }
         }
       } catch {
-        /* seguimos con lo que haya */
+        failed++;
       }
-      return out;
+      return { ads: out, truncated, failed };
     }),
   );
-  return perAccount.flat();
+  const ads = perAccount.flatMap((r) => r.ads);
+  return {
+    ads,
+    quality: {
+      fetched: ads.length,
+      truncated: perAccount.some((r) => r.truncated),
+      failedPages: perAccount.reduce((n, r) => n + r.failed, 0),
+    },
+  };
 }
 
 function groupBy(rows: AdRow[], keyOf: (r: AdRow) => string): GroupRow[] {

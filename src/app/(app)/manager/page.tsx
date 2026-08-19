@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   CalendarCheck,
   ChevronRight,
+  ClipboardList,
   Inbox,
   Megaphone,
   ShoppingBag,
@@ -20,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { actingManagerId, requireRole } from "@/lib/auth";
 import { fetchPaged } from "@/lib/leads-fetch";
 import { fullName, type LeadStatus } from "@/lib/leads";
+import { TASK_TYPE_LABEL } from "@/lib/tasks";
 import { loadForecast } from "@/lib/forecast";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -157,6 +159,29 @@ export default async function ManagerHomePage() {
         .limit(6)
     : { data: [] };
 
+  // Tareas pendientes: las del gerente y las de su equipo, en una sola consulta.
+  // Van separadas en la vista porque son dos trabajos distintos: lo que TIENE que
+  // hacer él y lo que tiene que CONTROLAR que hagan.
+  const { data: pendingTasks } = await supabase
+    .from("lead_tasks")
+    .select(
+      `id, title, task_type, priority, due_date, due_time, assigned_to, lead_id,
+       lead:leads!lead_id (first_name, last_name),
+       assignee:profiles!assigned_to (first_name, last_name)`,
+    )
+    .eq("company_id", cid!)
+    .is("completed_at", null)
+    .in("assigned_to", [profile.id, ...teamIds])
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("due_time", { ascending: true, nullsFirst: false })
+    .limit(200);
+
+  const myTasks = (pendingTasks ?? []).filter(
+    (t) => t.assigned_to === profile.id,
+  );
+  const teamTasks = (pendingTasks ?? []).filter(
+    (t) => t.assigned_to !== profile.id,
+  );
   const pipelineByStatus = ACTIVE_STATUSES.map((s) => ({
     status: s,
     count: teamLeads.filter((l) => l.status === s).length,
@@ -249,6 +274,35 @@ export default async function ManagerHomePage() {
       {/* 2. Actividad ------------------------------------------------------ */}
       <Section icon={CalendarCheck} title="Actividad de hoy">
         <AgendaCalendar items={agendaItems} todayKey={today} />
+      </Section>
+
+      {/* 2b. Tareas pendientes: las mías y las del equipo ------------------- */}
+      <Section icon={ClipboardList} title="Tareas pendientes">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TaskListCard
+            title="Mías"
+            tasks={myTasks}
+            today={today}
+            emptyText="No tenés tareas pendientes."
+          />
+          <TaskListCard
+            title="De mis vendedores"
+            tasks={teamTasks}
+            today={today}
+            showAssignee
+            emptyText="Tu equipo no tiene tareas pendientes."
+          />
+        </div>
+        {(myTasks.length > 0 || teamTasks.length > 0) && (
+          <div className="mt-2 flex justify-end">
+            <Link
+              href="/manager/tasks-visits"
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              Ver todas las tareas y visitas →
+            </Link>
+          </div>
+        )}
       </Section>
 
       {/* 3. Lo que hay que accionar ---------------------------------------- */}
@@ -460,4 +514,123 @@ function Section({
 function daysAgoLabel(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   return `hace ${days} días`;
+}
+
+type PendingTask = {
+  id: string;
+  title: string | null;
+  task_type: keyof typeof TASK_TYPE_LABEL;
+  due_date: string | null;
+  due_time: string | null;
+  lead_id: string;
+  lead: { first_name: string | null; last_name: string | null } | null;
+  assignee: { first_name: string | null; last_name: string | null } | null;
+};
+
+/** dd/mm de una fecha YYYY-MM-DD, sin construir Date (evita corrimientos de TZ). */
+function shortDate(ymd: string): string {
+  const [, m, d] = ymd.split("-");
+  return `${d}/${m}`;
+}
+
+/**
+ * Lista de tareas pendientes. Ordena vencidas primero: una tarea vencida es la
+ * única de la lista que representa una promesa incumplida a un cliente.
+ */
+function TaskListCard({
+  title,
+  tasks,
+  today,
+  showAssignee = false,
+  emptyText,
+}: {
+  title: string;
+  tasks: PendingTask[];
+  today: string;
+  showAssignee?: boolean;
+  emptyText: string;
+}) {
+  const isOverdue = (t: PendingTask) => Boolean(t.due_date && t.due_date < today);
+  const sorted = [...tasks].sort((a, b) => {
+    const ao = isOverdue(a) ? 0 : 1;
+    const bo = isOverdue(b) ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    return (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999");
+  });
+  const shown = sorted.slice(0, 6);
+  const overdueCount = tasks.filter(isOverdue).length;
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">
+          {title}{" "}
+          <span className="font-normal text-muted-foreground">
+            ({tasks.length})
+          </span>
+        </h3>
+        {overdueCount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">
+            {overdueCount} vencida{overdueCount === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+
+      {shown.length === 0 ? (
+        <p className="py-6 text-center text-xs text-muted-foreground">
+          {emptyText}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {shown.map((t) => {
+            const over = isOverdue(t);
+            return (
+              <li key={t.id}>
+                <Link
+                  href={`/manager/leads/${t.lead_id}`}
+                  className="flex items-center justify-between gap-3 rounded-md border bg-card px-3 py-2 text-sm transition-colors hover:border-accent/50"
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">
+                      {t.title || TASK_TYPE_LABEL[t.task_type] || "Tarea"}
+                    </span>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {fullName(
+                        t.lead?.first_name ?? null,
+                        t.lead?.last_name ?? null,
+                      ) || "Lead sin nombre"}
+                      {showAssignee && t.assignee
+                        ? ` · ${fullName(t.assignee.first_name, t.assignee.last_name)}`
+                        : ""}
+                    </span>
+                  </span>
+                  <span
+                    className={
+                      over
+                        ? "shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive"
+                        : "shrink-0 text-xs text-muted-foreground"
+                    }
+                  >
+                    {t.due_date
+                      ? over
+                        ? `venció ${shortDate(t.due_date)}`
+                        : t.due_date === today
+                          ? "hoy"
+                          : shortDate(t.due_date)
+                      : "sin fecha"}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {tasks.length > shown.length && (
+        <p className="text-xs text-muted-foreground">
+          +{tasks.length - shown.length} más
+        </p>
+      )}
+    </Card>
+  );
 }
