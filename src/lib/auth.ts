@@ -25,6 +25,29 @@ export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
     .eq("id", user.id)
     .maybeSingle();
 
+  if (!profile) return null;
+
+  // ---------------------------------------------------------------------
+  // Admin de grupo: se le completa `company_id` con la MARCA ACTIVA.
+  //
+  // Es el espejo en app-layer de la función SQL `current_company_id()`. Con
+  // esto, las ~200 consultas que hacen `.eq("company_id", profile.company_id)`
+  // funcionan sin cambios: el admin de grupo es un Admin de la marca que tiene
+  // seleccionada. La marca activa se lee de `group_admin_state`, la misma tabla
+  // que valida Postgres, así que app y RLS nunca pueden discrepar.
+  //
+  // Si todavía no eligió marca, `company_id` queda null y no ve datos de
+  // ninguna: el default es no ver nada, y el selector obliga a elegir.
+  // ---------------------------------------------------------------------
+  if (profile.role === "group_admin" && profile.group_id) {
+    const { data: state } = await supabase
+      .from("group_admin_state")
+      .select("active_company_id")
+      .eq("user_id", profile.id)
+      .maybeSingle();
+    return { ...profile, company_id: state?.active_company_id ?? null };
+  }
+
   return profile;
 });
 
@@ -44,8 +67,21 @@ export async function requireProfile(): Promise<Profile> {
  */
 export async function requireRole(roles: UserRole[]): Promise<Profile> {
   const profile = await requireProfile();
-  if (!roles.includes(profile.role)) redirect("/");
+  if (!hasRole(profile, roles)) redirect("/");
   return profile;
+}
+
+/**
+ * ¿El profile cumple con alguno de los roles pedidos?
+ *
+ * Un `group_admin` cumple donde se pide `admin`: dentro de la marca activa es un
+ * Admin con todas las facultades (decisión del cliente multimarca). Es el mismo
+ * criterio que aplica `current_role()` en las policies, y tenerlo en una sola
+ * función evita que app y base opinen distinto.
+ */
+export function hasRole(profile: Profile, roles: UserRole[]): boolean {
+  if (roles.includes(profile.role)) return true;
+  return profile.role === "group_admin" && roles.includes("admin");
 }
 
 /**
@@ -55,6 +91,9 @@ export function homePathForRole(role: UserRole): string {
   switch (role) {
     case "super_admin":
       return "/super-admin";
+    case "group_admin":
+      // Su casa es el consolidado del grupo; de ahí entra a cada marca.
+      return "/group";
     case "admin":
       return "/admin";
     case "manager":

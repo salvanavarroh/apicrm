@@ -646,6 +646,7 @@ export type Database = {
           country: string | null
           created_at: string
           cuit: string | null
+          group_id: string | null
           id: string
           inbox_hours_days: number[] | null
           inbox_hours_enabled: boolean
@@ -672,6 +673,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           cuit?: string | null
+          group_id?: string | null
           id?: string
           inbox_hours_days?: number[] | null
           inbox_hours_enabled?: boolean
@@ -698,6 +700,7 @@ export type Database = {
           country?: string | null
           created_at?: string
           cuit?: string | null
+          group_id?: string | null
           id?: string
           inbox_hours_days?: number[] | null
           inbox_hours_enabled?: boolean
@@ -719,7 +722,15 @@ export type Database = {
           updated_at?: string
           zernio_profile_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "companies_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversations: {
         Row: {
@@ -837,6 +848,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      group_admin_state: {
+        Row: {
+          active_company_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_company_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_company_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_admin_state_active_company_id_fkey"
+            columns: ["active_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_admin_state_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          billing_contact_name: string | null
+          billing_email: string | null
+          created_at: string
+          cuit: string | null
+          id: string
+          legal_name: string | null
+          monthly_price: number
+          name: string
+          notes: string | null
+          status: Database["public"]["Enums"]["company_status"]
+          subscription_ends_at: string | null
+          subscription_starts_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_contact_name?: string | null
+          billing_email?: string | null
+          created_at?: string
+          cuit?: string | null
+          id?: string
+          legal_name?: string | null
+          monthly_price?: number
+          name: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["company_status"]
+          subscription_ends_at?: string | null
+          subscription_starts_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_contact_name?: string | null
+          billing_email?: string | null
+          created_at?: string
+          cuit?: string | null
+          id?: string
+          legal_name?: string | null
+          monthly_price?: number
+          name?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["company_status"]
+          subscription_ends_at?: string | null
+          subscription_starts_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       impersonation_log: {
         Row: {
@@ -2230,6 +2322,7 @@ export type Database = {
           company_id: string | null
           created_at: string
           first_name: string
+          group_id: string | null
           id: string
           inbox_available: boolean
           inbox_available_at: string | null
@@ -2250,6 +2343,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           first_name?: string
+          group_id?: string | null
           id: string
           inbox_available?: boolean
           inbox_available_at?: string | null
@@ -2270,6 +2364,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           first_name?: string
+          group_id?: string | null
           id?: string
           inbox_available?: boolean
           inbox_available_at?: string | null
@@ -2294,6 +2389,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
             referencedColumns: ["id"]
           },
           {
@@ -3087,7 +3189,9 @@ export type Database = {
       }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
       bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }
+      company_in_my_group: { Args: { cid: string }; Returns: boolean }
       current_company_id: { Args: never; Returns: string }
+      current_group_id: { Args: never; Returns: string }
       current_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
@@ -3121,6 +3225,7 @@ export type Database = {
         Args: { p_absorbed: string[]; p_reason?: string; p_survivor: string }
         Returns: Json
       }
+      my_group_company_ids: { Args: never; Returns: string[] }
       pick_campaign_branch: { Args: { p_campaign_id: string }; Returns: string }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
@@ -3218,6 +3323,7 @@ export type Database = {
         | "sales"
         | "data_provider"
         | "supervisor"
+        | "group_admin"
       visit_status: "scheduled" | "completed" | "no_show" | "canceled"
     }
     CompositeTypes: {
@@ -3446,6 +3552,7 @@ export const Constants = {
         "sales",
         "data_provider",
         "supervisor",
+        "group_admin",
       ],
       visit_status: ["scheduled", "completed", "no_show", "canceled"],
     },

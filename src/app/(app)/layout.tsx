@@ -8,6 +8,7 @@ import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { OverdueBanner } from "@/components/overdue-banner";
 import { getOverdueInfo } from "@/lib/billing";
 import { requireProfile } from "@/lib/auth";
+import { loadGroupContext } from "@/lib/groups";
 import { fullName } from "@/lib/leads";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -22,6 +23,7 @@ function badgeHrefs(role: string): Partial<Record<string, string>> {
     case "sales":
       return { sales: "/sales/sales", leads: "/sales/leads" };
     case "admin":
+    case "group_admin":
       return { sales: "/admin/sales", leads: "/admin/leads" };
     case "data_provider":
       return { leads: "/data-provider/leads" };
@@ -38,6 +40,8 @@ export default async function AppLayout({
   const profile = await requireProfile();
   const overdue = await getOverdueInfo(profile.company_id);
   const impersonating = (await cookies()).get("impersonation_origin") != null;
+  // Null para todos los roles menos el admin de grupo.
+  const groupContext = await loadGroupContext();
 
   // Contadores del sidebar del superadmin: leads nuevos + solicitudes de
   // sucursal pendientes (a nivel plataforma).
@@ -79,7 +83,11 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
-      <AppSidebar profile={profile} badges={sidebarBadges} />
+      <AppSidebar
+        profile={profile}
+        badges={sidebarBadges}
+        groupContext={groupContext}
+      />
 
       {/* Sólo esta sección scrollea; el menú queda fijo al 100% del alto. */}
       <main className="flex flex-1 flex-col overflow-y-auto bg-background">

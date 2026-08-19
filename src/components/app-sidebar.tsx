@@ -20,6 +20,7 @@ import {
   Home,
   Inbox,
   Layers,
+  LayoutGrid,
   LogOut,
   Megaphone,
   MessageCircle,
@@ -33,6 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { BrandSwitcher } from "@/components/groups/brand-switcher";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { UserAvatar } from "@/components/user-avatar";
@@ -43,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { signOut } from "@/app/auth/actions";
 
 import type { Profile, UserRole } from "@/lib/auth";
+import type { GroupContext } from "@/lib/groups";
 
 type Item = { href: string; label: string; icon: LucideIcon; match?: string };
 // Sección del menú. `title` opcional: los roles con un solo bloque (vendedor,
@@ -66,6 +69,7 @@ const SUPER_ADMIN_NAV: Section[] = [
     title: "Concesionarias",
     items: [
       { href: "/super-admin/companies", label: "Concesionarias", icon: Building2 },
+      { href: "/super-admin/groups", label: "Grupos", icon: LayoutGrid },
       { href: "/super-admin/branch-requests", label: "Solicitudes", icon: Layers },
     ],
   },
@@ -203,7 +207,9 @@ const APP_NAV: Section[] = [
 
 function navForRole(role: UserRole): Section[] {
   if (role === "super_admin") return SUPER_ADMIN_NAV;
-  if (role === "admin") return ADMIN_NAV;
+  // El admin de grupo ES un admin dentro de la marca activa: mismas pantallas.
+  // El acceso al grupo va aparte, en el selector de marca.
+  if (role === "admin" || role === "group_admin") return ADMIN_NAV;
   if (role === "manager") return MANAGER_NAV;
   if (role === "supervisor") return SUPERVISOR_NAV;
   if (role === "sales") return SALES_NAV;
@@ -234,10 +240,13 @@ function activeHref(pathname: string, items: Item[]): string | null {
 export function AppSidebar({
   profile,
   badges = {},
+  groupContext = null,
 }: {
   profile: Profile;
   // Contadores por href (ej. leads nuevos, solicitudes pendientes).
   badges?: Record<string, number>;
+  /** Sólo para el admin de grupo: sus marcas y cuál está activa. */
+  groupContext?: GroupContext | null;
 }) {
   const pathname = usePathname();
   const sections = navForRole(profile.role);
@@ -345,6 +354,14 @@ export function AppSidebar({
         </div>
       </div>
 
+      {/* El selector de marca va antes del menú porque define el alcance de TODO
+          lo que sigue: sin saber en qué marca estás, ningún ítem significa nada. */}
+      {groupContext && (
+        <div className={cn("pb-3", collapsed ? "px-2" : "px-5")}>
+          <BrandSwitcher ctx={groupContext} collapsed={collapsed} />
+        </div>
+      )}
+
       <Separator className="bg-sidebar-border" />
 
       <nav
@@ -443,6 +460,7 @@ export function AppSidebar({
 const ROLE_LABELS: Record<UserRole, string> = {
   super_admin: "SuperAdmin",
   admin: "Admin",
+  group_admin: "Admin del grupo",
   manager: "Gerente de ventas",
   supervisor: "Supervisor",
   sales: "Vendedor",
