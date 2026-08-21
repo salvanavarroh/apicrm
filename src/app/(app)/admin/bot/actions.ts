@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
 import { BASE_INTENTS } from "@/lib/bot/base-intents";
+import { BOT_VARS, describeHours } from "@/lib/bot/variables";
 import { createClient } from "@/lib/supabase/server";
 
 // Server actions de la configuración del bot. Todo requiere admin: es
@@ -23,6 +24,9 @@ export type BotBranchConfig = {
   maxTurns: number;
   greetingName: string | null;
   qualify: boolean;
+  freeAnswer: boolean;
+  knowledge: string | null;
+  maxAnswerChars: number;
 };
 
 /** Config por sucursal. Las que no tienen fila todavía salen con los defaults. */
@@ -60,6 +64,9 @@ export async function listBotConfigs(): Promise<BotBranchConfig[]> {
       maxTurns: c?.max_turns ?? 3,
       greetingName: c?.greeting_name ?? null,
       qualify: c?.qualify ?? false,
+      freeAnswer: c?.free_answer ?? false,
+      knowledge: c?.knowledge ?? null,
+      maxAnswerChars: c?.max_answer_chars ?? 400,
     };
   });
 }
@@ -74,6 +81,9 @@ export async function saveBotConfig(input: {
   maxTurns: number;
   greetingName: string | null;
   qualify: boolean;
+  freeAnswer: boolean;
+  knowledge: string | null;
+  maxAnswerChars: number;
 }): Promise<Result> {
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
@@ -90,6 +100,9 @@ export async function saveBotConfig(input: {
       max_turns: input.maxTurns,
       greeting_name: input.greetingName?.trim() || null,
       qualify: input.qualify,
+      free_answer: input.freeAnswer,
+      knowledge: input.knowledge?.trim() || null,
+      max_answer_chars: input.maxAnswerChars,
     },
     { onConflict: "branch_id" },
   );
@@ -267,4 +280,71 @@ export async function createIntentFromQuestion(input: {
   if (error) return { ok: false, message: error.message };
   revalidatePath("/admin/bot");
   return { ok: true };
+}
+
+// --- Variables ---------------------------------------------------------------
+
+export type BranchVars = {
+  branchId: string;
+  branchName: string;
+  values: Record<string, string>;
+  /** Variables sin dato cargado. Son las que van a salir vacías. */
+  missing: string[];
+};
+
+/**
+ * Valores reales de las variables, por sucursal.
+ *
+ * Es lo que arregla el problema de fondo: el admin veía `{horario}` crudo en cada
+ * respuesta y creía que tenía que completarlo a mano en las ocho. Se resuelven
+ * solas desde la empresa y la sucursal; acá se muestran ya resueltas para que se
+ * vea que no hay nada que escribir, y qué dato falta cargar cuando falta.
+ */
+export async function getBranchVariables(): Promise<BranchVars[]> {
+  const profile = await requireRole(["admin"]);
+  const supabase = await createClient();
+
+  const [{ data: company }, { data: branches }, { data: configs }] =
+    await Promise.all([
+      supabase
+        .from("companies")
+        .select(
+          "name, phone, inbox_hours_enabled, inbox_hours_start, inbox_hours_end, inbox_hours_days",
+        )
+        .eq("id", profile.company_id!)
+        .maybeSingle(),
+      supabase
+        .from("branches")
+        .select("id, name, address, phone")
+        .eq("company_id", profile.company_id!)
+        .eq("status", "active")
+        .order("name"),
+      supabase
+        .from("bot_configs")
+        .select("branch_id, greeting_name")
+        .eq("company_id", profile.company_id!),
+    ]);
+
+  const greetingByBranch = new Map(
+    (configs ?? []).map((c) => [c.branch_id, c.greeting_name]),
+  );
+  const horario = company ? describeHours(company) : "de lunes a viernes";
+
+  return (branches ?? []).map((b) => {
+    const values: Record<string, string> = {
+      // El nombre del cliente sale de cada conversación: acá se muestra un
+      // ejemplo para que la vista previa se lea como un mensaje de verdad.
+      nombre: "Juan",
+      concesionaria:
+        greetingByBranch.get(b.id) || company?.name || "la concesionaria",
+      sucursal: b.name ?? "",
+      direccion: b.address ?? "",
+      telefono: b.phone ?? company?.phone ?? "",
+      horario,
+    };
+    const missing = BOT_VARS.filter(
+      (v) => v.key !== "nombre" && !values[v.key],
+    ).map((v) => v.key);
+    return { branchId: b.id, branchName: b.name, values, missing };
+  });
 }

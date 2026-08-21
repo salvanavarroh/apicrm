@@ -20,9 +20,12 @@ export type Database = {
           company_id: string
           created_at: string
           enabled: boolean
+          free_answer: boolean
           greeting_name: string | null
           id: string
           idle_trigger_minutes: number | null
+          knowledge: string | null
+          max_answer_chars: number
           max_turns: number
           mode: Database["public"]["Enums"]["bot_mode"]
           outside_hours: boolean
@@ -35,9 +38,12 @@ export type Database = {
           company_id: string
           created_at?: string
           enabled?: boolean
+          free_answer?: boolean
           greeting_name?: string | null
           id?: string
           idle_trigger_minutes?: number | null
+          knowledge?: string | null
+          max_answer_chars?: number
           max_turns?: number
           mode?: Database["public"]["Enums"]["bot_mode"]
           outside_hours?: boolean
@@ -50,9 +56,12 @@ export type Database = {
           company_id?: string
           created_at?: string
           enabled?: boolean
+          free_answer?: boolean
           greeting_name?: string | null
           id?: string
           idle_trigger_minutes?: number | null
+          knowledge?: string | null
+          max_answer_chars?: number
           max_turns?: number
           mode?: Database["public"]["Enums"]["bot_mode"]
           outside_hours?: boolean

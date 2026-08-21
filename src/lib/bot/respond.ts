@@ -1,6 +1,9 @@
+import { generateAnswer } from "@/lib/bot/answer";
 import { classify } from "@/lib/bot/classify";
 import { decide, type BotConfig } from "@/lib/bot/decide";
 import { checkGuardrails } from "@/lib/bot/guardrails";
+import { detectInjection, sanitizeInbound } from "@/lib/bot/injection";
+import { describeHours, fillVars, hourOf } from "@/lib/bot/variables";
 import { sendInboxMessage } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -27,25 +30,6 @@ const UNKNOWN_REPLY =
 function minutesSince(iso: string | null): number | null {
   if (!iso) return null;
   return Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
-}
-
-/** Reemplaza las variables de la respuesta con datos reales. */
-function fill(
-  reply: string,
-  ctx: { nombre: string; sucursal: string; horario: string; concesionaria: string },
-): string {
-  return reply
-    .replaceAll("{nombre}", ctx.nombre)
-    .replaceAll("{sucursal}", ctx.sucursal)
-    .replaceAll("{horario}", ctx.horario)
-    .replaceAll("{concesionaria}", ctx.concesionaria);
-}
-
-/** "09:00:00" → 9. Las columnas de horario son `time`, no enteros. */
-function hourOf(t: string | null, fallback: number): number {
-  if (!t) return fallback;
-  const h = Number(t.slice(0, 2));
-  return Number.isFinite(h) ? h : fallback;
 }
 
 /** Está dentro del horario de atención configurado en la empresa. */
@@ -115,7 +99,7 @@ export async function runBotForConversation(
       admin
         .from("companies")
         .select(
-          "name, inbox_hours_enabled, inbox_hours_start, inbox_hours_end, inbox_hours_days",
+          "name, phone, inbox_hours_enabled, inbox_hours_start, inbox_hours_end, inbox_hours_days",
         )
         .eq("id", conv.company_id)
         .maybeSingle(),
@@ -165,14 +149,55 @@ export async function runBotForConversation(
     return { acted: false, reason: decision.reason };
   }
 
-  // ---- Guardrails: corren ANTES del clasificador -------------------------
-  const guard = checkGuardrails(inboundText);
+  // ---- Variables, resueltas UNA vez --------------------------------------
+  //
+  // Todas salen de datos que ya están cargados en la empresa y en la sucursal.
+  // El admin no tiene que repetir el horario ni la dirección en cada respuesta:
+  // si mañana cambia el horario en Empresa, las respuestas del bot cambian solas.
+  const { data: branch } = await admin
+    .from("branches")
+    .select("name, address, phone")
+    .eq("id", conv.branch_id)
+    .maybeSingle();
+
+  const vars = {
+    nombre: (conv.participant_name ?? "").split(" ")[0] ?? "",
+    concesionaria: cfgRow.greeting_name || company?.name || "la concesionaria",
+    sucursal: branch?.name ?? "",
+    direccion: branch?.address ?? "",
+    telefono: branch?.phone ?? company?.phone ?? "",
+    horario: company ? describeHours(company) : "de lunes a viernes",
+  };
+
+  // ---- Saneo + guardrails: corren ANTES de cualquier modelo --------------
+  //
+  // `inbound` es lo único que se le pasa a un modelo, y va saneado: sin
+  // caracteres de control, sin marcadores de rol, con tope de largo.
+  const inbound = sanitizeInbound(inboundText);
+  const guard = checkGuardrails(inbound);
+  const injection = detectInjection(inbound);
 
   let reply: string;
   let intentSlug: string | null = null;
   let matchedBy = "blacklist";
 
-  if (guard.kind === "handoff" || guard.kind === "blocked") {
+  // Un intento de manipulación se trata como los temas de plata: no se le
+  // contesta, se deriva a un humano. Es la defensa más confiable porque no
+  // depende de que el modelo se porte bien — el modelo ni se entera.
+  if (injection.suspicious) {
+    reply = HANDOFF_REPLY;
+    matchedBy = "injection";
+    await admin
+      .from("bot_conversation_state")
+      .upsert(
+        {
+          conversation_id: conversationId,
+          company_id: conv.company_id,
+          handoff_requested: true,
+        },
+        { onConflict: "conversation_id" },
+      );
+  } else if (guard.kind === "handoff" || guard.kind === "blocked") {
     reply = HANDOFF_REPLY;
     matchedBy = guard.kind === "handoff" ? "handoff" : "blacklist";
     // El que pregunta por plata es el más caliente que hay.
@@ -209,34 +234,39 @@ export async function runBotForConversation(
       label: i.label,
       keywords: i.keywords ?? [],
     }));
-    const cls = await classify(inboundText, candidates);
+    const cls = await classify(inbound, candidates);
     intentSlug = cls.slug;
     matchedBy = cls.matchedBy;
 
     const found = (intents ?? []).find((i) => i.slug === cls.slug);
     reply = found?.reply ?? UNKNOWN_REPLY;
+
+    // ---- Fuera de la lista ----------------------------------------------
+    // Si no se reconoció la pregunta y la concesionaria habilitó responder
+    // libremente, se genera una respuesta acotada a lo que el bot sabe. Si algo
+    // falla, queda la respuesta segura de arriba: nunca peor que antes.
+    if (!found && cfgRow.free_answer) {
+      const gen = await generateAnswer(inbound, {
+        botName: cfgRow.greeting_name || company?.name || "la concesionaria",
+        // Las FAQ van con las variables YA resueltas: el modelo no tiene por qué
+        // ver un {horario} ni tener que adivinar qué significa.
+        faqs: (intents ?? []).map((i) => ({
+          label: i.label,
+          reply: fillVars(i.reply, vars),
+        })),
+        knowledge: cfgRow.knowledge,
+        maxChars: cfgRow.max_answer_chars ?? 400,
+      });
+      if (gen.ok) {
+        reply = gen.text;
+        matchedBy = "llm_answer";
+      } else {
+        matchedBy = `llm_answer_rechazada:${gen.reason}`.slice(0, 60);
+      }
+    }
   }
 
-  const branchName = await admin
-    .from("branches")
-    .select("name")
-    .eq("id", conv.branch_id)
-    .maybeSingle();
-
-  const horario =
-    company?.inbox_hours_enabled && company.inbox_hours_start
-      ? `de ${hourOf(company.inbox_hours_start, 9)}:00 a ${hourOf(
-          company.inbox_hours_end,
-          18,
-        )}:00`
-      : "de lunes a viernes";
-
-  const finalText = fill(reply, {
-    nombre: (conv.participant_name ?? "").split(" ")[0] ?? "",
-    sucursal: branchName.data?.name ?? "",
-    horario,
-    concesionaria: cfgRow.greeting_name || company?.name || "la concesionaria",
-  });
+  const finalText = fillVars(reply, vars);
 
   // ---- Envío o borrador --------------------------------------------------
   let sent = false;

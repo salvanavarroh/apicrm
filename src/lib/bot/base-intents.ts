@@ -50,14 +50,16 @@ export const BASE_INTENTS: BaseIntent[] = [
     label: "Horarios de atención",
     keywords: ["horario", "abren", "cierran", "sabado", "domingo", "atienden"],
     reply:
-      "Nuestro horario es {horario}. Si me dejás tu consulta ahora, un asesor te responde cuando abrimos.",
+      "Atendemos {horario}. Si me dejás tu consulta ahora, un asesor te responde cuando abrimos.",
   },
   {
     slug: "ubicacion",
     label: "Dirección y cómo llegar",
     keywords: ["donde", "direccion", "ubicacion", "sucursal", "como llego"],
+    // Antes decía "Estamos en {sucursal}", que es el NOMBRE de la sucursal
+    // ("Estamos en Quilmes"). La dirección ya está cargada en la sucursal.
     reply:
-      "Estamos en {sucursal}. Si querés pasar, avisame y coordinamos con un asesor para que te esté esperando.",
+      "Estamos en {direccion} ({sucursal}). Si querés pasar, avisame y coordinamos con un asesor para que te esté esperando.",
   },
   {
     slug: "modelos",
@@ -86,7 +88,7 @@ export const BASE_INTENTS: BaseIntent[] = [
     label: "Service y posventa",
     keywords: ["service", "turno", "taller", "garantia", "repuesto", "arreglo"],
     reply:
-      "Para service y posventa te atiende el área correspondiente en horario de {horario}. Dejame tu consulta y te contactan.",
+      "Para service y posventa te atiende el área correspondiente, {horario}. Dejame tu consulta y te contactan.",
   },
 ];
 
