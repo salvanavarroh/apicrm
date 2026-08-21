@@ -1235,62 +1235,6 @@ function Thread({
         <div ref={bottomRef} />
       </div>
 
-      {/* Composer */}
-      <div className="flex h-[68px] items-center border-t bg-card px-3">
-        {isPool ? (
-          <Button onClick={claim} disabled={pending} className="w-full">
-            Tomar conversación
-          </Button>
-        ) : win.expired ? (
-          <div className="flex w-full items-center justify-between gap-3">
-            <p className="text-xs text-amber-600">
-              Ventana de 24h cerrada. Enviá una plantilla aprobada para reabrir.
-            </p>
-            <TemplateSendDialog
-              conversationId={conversation.id}
-              onSent={refreshMessages}
-              trigger={<Button size="sm">Enviar plantilla</Button>}
-            />
-          </div>
-        ) : (
-          <div className="flex w-full flex-col gap-2">
-            <input
-              ref={fileRef}
-              type="file"
-              hidden
-              accept={ACCEPT_ATTR}
-              onChange={onFilePick}
-            />
-            {/* Archivo adjunto listo para enviar (con un mensaje opcional). */}
-            {staged && !recording && (
-              <div className="flex items-center gap-2.5 rounded-lg border bg-muted/40 p-2">
-                {staged.file.type.startsWith("image/") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={staged.url} alt="" className="size-10 shrink-0 rounded object-cover" />
-                ) : staged.file.type.startsWith("video/") ? (
-                  <video src={staged.url} muted className="size-10 shrink-0 rounded object-cover" />
-                ) : (
-                  <span className="grid size-10 shrink-0 place-items-center rounded bg-background">
-                    <Paperclip className="size-4 text-muted-foreground" />
-                  </span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-xs font-medium">{staged.file.name}</div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {fmtSize(staged.file.size)} · listo para enviar
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={removeStaged}
-                  title="Quitar"
-                  className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-            )}
-
       {/* Sugerencia del bot (modo borrador). No se mandó nada: el asesor la
           revisa, la edita si quiere y la envía. Es la fase donde se descubre
           qué preguntas frecuentes faltan cargar. */}
@@ -1354,6 +1298,62 @@ function Thread({
           </div>
         </div>
       )}
+
+      {/* Composer */}
+      <div className="flex h-[68px] items-center border-t bg-card px-3">
+        {isPool ? (
+          <Button onClick={claim} disabled={pending} className="w-full">
+            Tomar conversación
+          </Button>
+        ) : win.expired ? (
+          <div className="flex w-full items-center justify-between gap-3">
+            <p className="text-xs text-amber-600">
+              Ventana de 24h cerrada. Enviá una plantilla aprobada para reabrir.
+            </p>
+            <TemplateSendDialog
+              conversationId={conversation.id}
+              onSent={refreshMessages}
+              trigger={<Button size="sm">Enviar plantilla</Button>}
+            />
+          </div>
+        ) : (
+          <div className="flex w-full flex-col gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              hidden
+              accept={ACCEPT_ATTR}
+              onChange={onFilePick}
+            />
+            {/* Archivo adjunto listo para enviar (con un mensaje opcional). */}
+            {staged && !recording && (
+              <div className="flex items-center gap-2.5 rounded-lg border bg-muted/40 p-2">
+                {staged.file.type.startsWith("image/") ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={staged.url} alt="" className="size-10 shrink-0 rounded object-cover" />
+                ) : staged.file.type.startsWith("video/") ? (
+                  <video src={staged.url} muted className="size-10 shrink-0 rounded object-cover" />
+                ) : (
+                  <span className="grid size-10 shrink-0 place-items-center rounded bg-background">
+                    <Paperclip className="size-4 text-muted-foreground" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium">{staged.file.name}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {fmtSize(staged.file.size)} · listo para enviar
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeStaged}
+                  title="Quitar"
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            )}
 
             <div className="flex w-full items-center gap-2">
               {!recording && (
