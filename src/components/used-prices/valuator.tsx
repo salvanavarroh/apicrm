@@ -62,6 +62,7 @@ export function Valuator({
   /** Si está, aparece el botón de enviar con el texto ya armado. */
   onSend?: (text: string) => Promise<void> | void;
   onSaved?: () => void;
+  /** Una columna, para el panel angosto del inbox. */
   compact?: boolean;
 }) {
   const [brands, setBrands] = useState<string[]>([]);
@@ -168,7 +169,7 @@ export function Valuator({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className={cn("grid gap-2", compact ? "grid-cols-2" : "sm:grid-cols-3")}>
+      <div className={cn("grid gap-2", compact ? "grid-cols-1" : "sm:grid-cols-3")}>
         <Field label="Marca">
           <Combo value={brand} onChange={pickBrand} options={brands} placeholder="Marca" />
         </Field>
@@ -181,7 +182,7 @@ export function Valuator({
             disabled={!brand}
           />
         </Field>
-        <Field label="Versión" className={compact ? "col-span-2" : "sm:col-span-3"}>
+        <Field label="Versión" className={compact ? undefined : "sm:col-span-3"}>
           <Combo
             value={version}
             onChange={pickVersion}
@@ -325,7 +326,7 @@ export function Valuator({
                 type="number"
                 value={offer}
                 onChange={(e) => setOffer(e.target.value)}
-                className="h-9 w-44 font-mono"
+                className="h-9 w-40 font-mono"
               />
             </div>
             <Button
