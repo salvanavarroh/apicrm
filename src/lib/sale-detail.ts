@@ -23,6 +23,7 @@ export async function loadSaleDetail(
         payment_check, payment_comment,
         general_comment, rejection_reason, commission_percent_snapshot,
         vendor:profiles!vendor_id (first_name, last_name, commission_percent),
+        lead_id,
         lead:leads (first_name, last_name, vehicle_model),
         quote:quotes (id, modality)
       `,

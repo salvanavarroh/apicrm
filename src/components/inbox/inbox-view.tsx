@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Calculator,
   Sparkles,
   FileText,
   ImageOff,
@@ -27,6 +28,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
+
+import { Valuator } from "@/components/used-prices/valuator";
 
 import { ChannelPill } from "@/components/inbox/channel-pill";
 import { ContactAvatar } from "@/components/inbox/contact-avatar";
@@ -938,6 +941,18 @@ function Thread({
       } else toast.error(res.message);
     });
   }
+  // Cotizador de usados: se abre sobre el composer. Va acá y no en el panel del
+  // lead porque el momento de cotizar es mientras se está chateando; si hay que
+  // navegar a otra pantalla, el asesor tira un número de memoria.
+  const [showValuator, setShowValuator] = useState(false);
+
+  /** Manda el texto de una cotización por el mismo canal de la conversación. */
+  async function sendQuoteText(body: string) {
+    const res = await sendMessage(conversation.id, body);
+    if (res.ok) refreshMessages();
+    else toast.error(res.message);
+  }
+
   function send() {
     const body = text.trim();
     if (!body || !canSend) return;
@@ -1252,6 +1267,45 @@ function Thread({
                 </button>
               </div>
             )}
+
+      {/* Cotizador de usados. Cerrado por default: ocupa lugar y no se usa en
+          todas las conversaciones. */}
+      {canSend && (
+        <div className="mx-3 mb-2">
+          {showValuator ? (
+            <div className="flex flex-col gap-2 rounded-lg border bg-card p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-accent uppercase">
+                  <Calculator className="size-3" /> Cotizar un usado
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowValuator(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <Valuator
+                leadId={conversation.lead_id ?? null}
+                conversationId={conversation.id}
+                onSend={sendQuoteText}
+                onSaved={() => setShowValuator(false)}
+                compact
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowValuator(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-dashed px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground"
+            >
+              <Calculator className="size-3.5" />
+              Cotizar un usado
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Sugerencia del bot (modo borrador). No se mandó nada: el asesor la
           revisa, la edita si quiere y la envía. Es la fase donde se descubre

@@ -16,6 +16,8 @@ import { InterestsSection } from "@/components/leads/interests-section";
 import { interestValue } from "@/lib/lead-interests";
 import { EditContactDialog } from "@/components/leads/edit-contact-dialog";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
+import { UsedCarSection } from "@/components/used-prices/used-car-section";
+import { listLeadValuations } from "@/app/(app)/admin/valuations/actions";
 import { NextBestActionCard } from "@/components/leads/next-best-action-card";
 import type { LeadNote } from "@/components/leads/notes-section";
 import { StatusChanger } from "@/components/leads/status-changer";
@@ -39,6 +41,11 @@ import { nextBestAction } from "@/lib/next-best-action";
 import { loadSaleDocs } from "@/lib/sale-docs";
 import { createClient } from "@/lib/supabase/server";
 import { loadLeadConversations } from "@/lib/lead-conversations";
+
+// `Date.now()` fuera del render: lo prohíbe react-hooks/purity.
+function nowMs(): number {
+  return Date.now();
+}
 
 export default async function SalesLeadDetailPage({
   params,
@@ -212,6 +219,13 @@ export default async function SalesLeadDetailPage({
     }),
   );
 
+  // Tasaciones del usado. Va aparte del Promise.all de arriba porque pasa por
+
+  // la server action (que ya resuelve rol y empresa).
+
+  const valuations = await listLeadValuations(lead.id);
+
+
   return (
     <div className="flex flex-col gap-6">
       <Link
@@ -301,6 +315,11 @@ export default async function SalesLeadDetailPage({
               interests={interests ?? []}
             />
           </Card>
+          <UsedCarSection
+            leadId={lead.id}
+            valuations={valuations}
+            now={nowMs()}
+          />
           <LeadConversationCard conversations={conversations} />
           <ActivitySection
             leadId={lead.id}

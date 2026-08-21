@@ -5,9 +5,14 @@
 // ACARA: cotizar tiene que ser instantáneo y tiene que seguir funcionando si la
 // fuente se cae.
 //
-// Toda consulta se resuelve contra la guía MÁS RECIENTE (`as_of` máximo), pero
-// devolviendo ese `as_of` para que la cotización lo pueda guardar. Sin eso, una
-// cotización de hace dos meses no se puede reproducir.
+// Las listas de opciones salen de funciones SQL (`guide_brands`, `guide_models`,
+// …) y no de un select con DISTINCT en el cliente. El motivo es concreto: la
+// guía tiene ~15.000 filas, PostgREST corta en 1000, y el DISTINCT del cliente
+// devolvía 3 marcas de 72. El mismo tope que ya nos había mordido en leads.
+//
+// Toda consulta se resuelve contra la guía MÁS RECIENTE, pero devolviendo su
+// `as_of` para que la cotización lo pueda guardar: sin eso, una cotización de
+// hace dos meses no se puede reproducir.
 // ============================================================================
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -32,42 +37,28 @@ export type GuidePrice = {
  */
 export async function latestAsOf(): Promise<string | null> {
   const db = createAdminClient();
-  const { data } = await db
-    .from("used_price_guide")
-    .select("as_of")
-    .eq("source", "acara")
-    .order("as_of", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return data?.as_of ?? null;
+  const { data } = await db.rpc("guide_latest_as_of");
+  return (data as string | null) ?? null;
+}
+
+function toOptions(rows: unknown): GuideOption[] {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((r) => (typeof r === "string" ? r : String(r)))
+    .filter(Boolean)
+    .map((v) => ({ value: v, label: v }));
 }
 
 export async function listGuideBrands(): Promise<GuideOption[]> {
   const db = createAdminClient();
-  const asOf = await latestAsOf();
-  if (!asOf) return [];
-  // `brand` está en el índice de lookup, así que el distinct sale barato.
-  const { data } = await db
-    .from("used_price_guide")
-    .select("brand")
-    .eq("source", "acara")
-    .eq("as_of", asOf)
-    .order("brand");
-  return dedupe((data ?? []).map((r) => r.brand));
+  const { data } = await db.rpc("guide_brands");
+  return toOptions(data);
 }
 
 export async function listGuideModels(brand: string): Promise<GuideOption[]> {
   const db = createAdminClient();
-  const asOf = await latestAsOf();
-  if (!asOf) return [];
-  const { data } = await db
-    .from("used_price_guide")
-    .select("model")
-    .eq("source", "acara")
-    .eq("as_of", asOf)
-    .eq("brand", brand)
-    .order("model");
-  return dedupe((data ?? []).map((r) => r.model));
+  const { data } = await db.rpc("guide_models", { p_brand: brand });
+  return toOptions(data);
 }
 
 export async function listGuideVersions(
@@ -75,17 +66,11 @@ export async function listGuideVersions(
   model: string,
 ): Promise<GuideOption[]> {
   const db = createAdminClient();
-  const asOf = await latestAsOf();
-  if (!asOf) return [];
-  const { data } = await db
-    .from("used_price_guide")
-    .select("version")
-    .eq("source", "acara")
-    .eq("as_of", asOf)
-    .eq("brand", brand)
-    .eq("model", model)
-    .order("version");
-  return dedupe((data ?? []).map((r) => r.version));
+  const { data } = await db.rpc("guide_versions", {
+    p_brand: brand,
+    p_model: model,
+  });
+  return toOptions(data);
 }
 
 /** Años con precio para esa versión, del más nuevo al más viejo. */
@@ -95,19 +80,13 @@ export async function listGuideYears(
   version: string,
 ): Promise<number[]> {
   const db = createAdminClient();
-  const asOf = await latestAsOf();
-  if (!asOf) return [];
-  const { data } = await db
-    .from("used_price_guide")
-    .select("year")
-    .eq("source", "acara")
-    .eq("as_of", asOf)
-    .eq("brand", brand)
-    .eq("model", model)
-    .eq("version", version)
-    .not("year", "is", null)
-    .order("year", { ascending: false });
-  return [...new Set((data ?? []).map((r) => r.year as number))];
+  const { data } = await db.rpc("guide_years", {
+    p_brand: brand,
+    p_model: model,
+    p_version: version,
+  });
+  if (!Array.isArray(data)) return [];
+  return data.map((y) => Number(y)).filter((y) => Number.isFinite(y));
 }
 
 /** Precio de guía de una versión y año concretos. */
@@ -176,8 +155,4 @@ export async function guideNewPrice(input: {
     value: Number(data.value),
     asOf: data.as_of,
   };
-}
-
-function dedupe(values: string[]): GuideOption[] {
-  return [...new Set(values)].map((v) => ({ value: v, label: v }));
 }

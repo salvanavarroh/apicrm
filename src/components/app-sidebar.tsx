@@ -12,6 +12,7 @@ import {
   Blocks,
   Briefcase,
   Building2,
+  Calculator,
   CalendarCheck,
   ChevronsLeft,
   ChevronsRight,
@@ -110,6 +111,7 @@ const ADMIN_NAV: Section[] = [
     items: [
       { href: "/admin/product-types", label: "Tipos de producto", icon: Briefcase },
       { href: "/admin/prices", label: "Precios", icon: Receipt },
+      { href: "/admin/valuations", label: "Cotizador usados", icon: Calculator },
     ],
   },
   {

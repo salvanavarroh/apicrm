@@ -2672,6 +2672,9 @@ export type Database = {
           started_at: string
           status: Database["public"]["Enums"]["sale_status"]
           updated_at: string
+          used_car_paid: number | null
+          used_car_resold: number | null
+          used_valuation_id: string | null
           vendor_id: string | null
         }
         Insert: {
@@ -2695,6 +2698,9 @@ export type Database = {
           started_at?: string
           status?: Database["public"]["Enums"]["sale_status"]
           updated_at?: string
+          used_car_paid?: number | null
+          used_car_resold?: number | null
+          used_valuation_id?: string | null
           vendor_id?: string | null
         }
         Update: {
@@ -2718,6 +2724,9 @@ export type Database = {
           started_at?: string
           status?: Database["public"]["Enums"]["sale_status"]
           updated_at?: string
+          used_car_paid?: number | null
+          used_car_resold?: number | null
+          used_valuation_id?: string | null
           vendor_id?: string | null
         }
         Relationships: [
@@ -2747,6 +2756,13 @@ export type Database = {
             columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_used_valuation_id_fkey"
+            columns: ["used_valuation_id"]
+            isOneToOne: false
+            referencedRelation: "used_valuations"
             referencedColumns: ["id"]
           },
           {
@@ -3037,6 +3053,113 @@ export type Database = {
         }
         Relationships: []
       }
+      used_valuations: {
+        Row: {
+          brand: string
+          breakdown: Json
+          company_id: string
+          condition: Database["public"]["Enums"]["vehicle_condition"]
+          conversation_id: string | null
+          created_at: string
+          created_by: string | null
+          guide_as_of: string
+          guide_currency: string
+          guide_source: string
+          guide_value: number
+          id: string
+          km: number
+          lead_id: string | null
+          market_value: number
+          model: string
+          notes: string | null
+          offer_max: number
+          offer_min: number
+          offer_sent: number | null
+          sent_at: string | null
+          version: string
+          year: number
+        }
+        Insert: {
+          brand: string
+          breakdown?: Json
+          company_id: string
+          condition?: Database["public"]["Enums"]["vehicle_condition"]
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          guide_as_of: string
+          guide_currency: string
+          guide_source?: string
+          guide_value: number
+          id?: string
+          km: number
+          lead_id?: string | null
+          market_value: number
+          model: string
+          notes?: string | null
+          offer_max: number
+          offer_min: number
+          offer_sent?: number | null
+          sent_at?: string | null
+          version: string
+          year: number
+        }
+        Update: {
+          brand?: string
+          breakdown?: Json
+          company_id?: string
+          condition?: Database["public"]["Enums"]["vehicle_condition"]
+          conversation_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          guide_as_of?: string
+          guide_currency?: string
+          guide_source?: string
+          guide_value?: number
+          id?: string
+          km?: number
+          lead_id?: string | null
+          market_value?: number
+          model?: string
+          notes?: string | null
+          offer_max?: number
+          offer_min?: number
+          offer_sent?: number | null
+          sent_at?: string | null
+          version?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "used_valuations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "used_valuations_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "used_valuations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "used_valuations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_product_types: {
         Row: {
           created_at: string
@@ -3066,6 +3189,62 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      valuation_settings: {
+        Row: {
+          company_id: string
+          condition_adjust: Json
+          created_at: string
+          km_adjust_cap: number
+          km_bonus_per_10k: number
+          km_penalty_per_10k: number
+          km_per_year: number
+          margin_percent: number
+          recon_percent: number
+          spread_percent: number
+          updated_at: string
+          usd_rate: number | null
+          usd_rate_updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          condition_adjust?: Json
+          created_at?: string
+          km_adjust_cap?: number
+          km_bonus_per_10k?: number
+          km_penalty_per_10k?: number
+          km_per_year?: number
+          margin_percent?: number
+          recon_percent?: number
+          spread_percent?: number
+          updated_at?: string
+          usd_rate?: number | null
+          usd_rate_updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          condition_adjust?: Json
+          created_at?: string
+          km_adjust_cap?: number
+          km_bonus_per_10k?: number
+          km_penalty_per_10k?: number
+          km_per_year?: number
+          margin_percent?: number
+          recon_percent?: number
+          spread_percent?: number
+          updated_at?: string
+          usd_rate?: number | null
+          usd_rate_updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "valuation_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -3292,6 +3471,17 @@ export type Database = {
           phone_e164: string
         }[]
       }
+      guide_brands: { Args: never; Returns: string[] }
+      guide_latest_as_of: { Args: never; Returns: string }
+      guide_models: { Args: { p_brand: string }; Returns: string[] }
+      guide_versions: {
+        Args: { p_brand: string; p_model: string }
+        Returns: string[]
+      }
+      guide_years: {
+        Args: { p_brand: string; p_model: string; p_version: string }
+        Returns: number[]
+      }
       has_overdue_payment: {
         Args: { p_company_id: string; p_grace_days?: number }
         Returns: boolean
@@ -3411,6 +3601,7 @@ export type Database = {
         | "data_provider"
         | "supervisor"
         | "group_admin"
+      vehicle_condition: "excelente" | "bueno" | "regular" | "malo"
       visit_status: "scheduled" | "completed" | "no_show" | "canceled"
     }
     CompositeTypes: {
@@ -3641,6 +3832,7 @@ export const Constants = {
         "supervisor",
         "group_admin",
       ],
+      vehicle_condition: ["excelente", "bueno", "regular", "malo"],
       visit_status: ["scheduled", "completed", "no_show", "canceled"],
     },
   },

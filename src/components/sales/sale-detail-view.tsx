@@ -10,6 +10,7 @@ import { fullName } from "@/lib/leads";
 
 export type SaleForView = {
   id: string;
+  lead_id: string;
   status: "evaluating" | "accepted" | "rejected";
   final_price: number;
   started_at: string;
@@ -51,12 +52,15 @@ export function SaleDetailView({
   reviews,
   companyId,
   backHref,
+  usedCarCard,
 }: {
   sale: SaleForView;
   docs: SaleDoc[];
   reviews: SaleReview[];
   companyId: string;
   backHref: string;
+  /** Tarjeta de la toma del usado. Se arma en el server: necesita la tasación. */
+  usedCarCard?: React.ReactNode;
 }) {
   const isPending = sale.status === "evaluating";
 
@@ -127,6 +131,8 @@ export function SaleDetailView({
               />
             </CardContent>
           </Card>
+
+          {usedCarCard}
 
           <Card>
             <CardHeader>
