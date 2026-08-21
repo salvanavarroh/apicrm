@@ -19,6 +19,7 @@
     "backfill:phone-e164": "tsx scripts/backfill-phone-e164.ts",
     "seed:mock-inbox": "tsx scripts/seed-mock-inbox.ts",
     "seed:company": "tsx scripts/seed-company-setup.ts",
+    "sync:acara": "tsx scripts/sync-acara-prices.ts",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public --workdir . 2>/dev/null | grep -vE '^(Using workdir|A new version|We recommend)' > src/types/database.ts"
   },
   "dependencies": {

@@ -2950,6 +2950,93 @@ export type Database = {
           },
         ]
       }
+      used_price_guide: {
+        Row: {
+          as_of: string
+          brand: string
+          brand_id: number
+          created_at: string
+          currency: string
+          id: string
+          model: string
+          model_id: number | null
+          source: string
+          value: number
+          vehicle_type: number
+          version: string
+          version_id: number | null
+          year: number | null
+        }
+        Insert: {
+          as_of: string
+          brand: string
+          brand_id: number
+          created_at?: string
+          currency: string
+          id?: string
+          model: string
+          model_id?: number | null
+          source?: string
+          value: number
+          vehicle_type?: number
+          version: string
+          version_id?: number | null
+          year?: number | null
+        }
+        Update: {
+          as_of?: string
+          brand?: string
+          brand_id?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          model?: string
+          model_id?: number | null
+          source?: string
+          value?: number
+          vehicle_type?: number
+          version?: string
+          version_id?: number | null
+          year?: number | null
+        }
+        Relationships: []
+      }
+      used_price_syncs: {
+        Row: {
+          as_of: string
+          brands_failed: number
+          brands_ok: number
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          id: string
+          rows_upserted: number
+          source: string
+        }
+        Insert: {
+          as_of: string
+          brands_failed?: number
+          brands_ok?: number
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          rows_upserted?: number
+          source?: string
+        }
+        Update: {
+          as_of?: string
+          brands_failed?: number
+          brands_ok?: number
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          id?: string
+          rows_upserted?: number
+          source?: string
+        }
+        Relationships: []
+      }
       user_product_types: {
         Row: {
           created_at: string
