@@ -189,7 +189,15 @@ const TEMPERATURE_LABELS: Record<LeadTemperature | "none", string> = {
  * está conectada, la API de la plataforma falla o tarda, el informe se muestra
  * igual con `spend: null` y las columnas de costo en "—". Un informe sin costo
  * por lead sigue sirviendo; un informe que no carga, no.
+ *
+ * TOLERANTE A FALLOS INCLUYE TOLERANTE A LENTO. Era tolerante a errores pero
+ * esperaba lo que hiciera falta, y con la cuenta del piloto eso son 24 pedidos a
+ * Zernio: medido, 68 segundos. La página quedaba en blanco todo ese tiempo y se
+ * leía como "el informe ejecutivo no abre" — que es exactamente como lo reportó
+ * el QA. Ahora hay un tope: si en 5 segundos no volvió, el informe sale sin la
+ * inversión.
  */
+const SPEND_TIMEOUT_MS = 5000;
 async function loadSpendByChannel(
   range: ReportRange,
 ): Promise<Map<string, number>> {
@@ -198,11 +206,18 @@ async function loadSpendByChannel(
     const { getAdsPerformance } = await import(
       "@/app/(app)/admin/ads/actions"
     );
-    const ads = await getAdsPerformance({
-      from: range.from ?? undefined,
-      to: range.to ?? undefined,
-    });
-    if (!ads.connected) return out;
+    const ads = await Promise.race([
+      getAdsPerformance({
+        from: range.from ?? undefined,
+        to: range.to ?? undefined,
+      }),
+      new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), SPEND_TIMEOUT_MS),
+      ),
+    ]);
+    // null = se agotó el tiempo. El informe sale sin costo por lead, que es
+    // mejor que no salir.
+    if (!ads || !ads.connected) return out;
     // El informe agrupa por origen de campaña; ads agrupa por plataforma.
     const PLATFORM_TO_ORIGIN: Record<string, string> = {
       Meta: "meta_ads",

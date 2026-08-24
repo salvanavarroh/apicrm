@@ -254,17 +254,25 @@ export function AppSidebar({
   const sections = navForRole(profile.role);
   const activeItemHref = activeHref(pathname, flatItems(sections));
 
-  // Menú acoplado (solo íconos + logo). Auto en el inbox; con botón para togglear.
-  // El override manual se resetea al cruzar el borde del inbox (entrar/salir),
-  // así CADA vez que se abre el inbox el menú vuelve a colapsarse solo.
-  const onInbox = pathname.includes("/inbox");
-  const [override, setOverride] = useState<boolean | null>(null);
-  const [prevOnInbox, setPrevOnInbox] = useState(onInbox);
-  if (prevOnInbox !== onInbox) {
-    setPrevOnInbox(onInbox);
-    setOverride(null);
-  }
-  const collapsed = override ?? onInbox;
+  // ---------------------------------------------------------------------
+  // Abierto / colapsado.
+  //
+  // El menú vive colapsado y se abre al pasar el mouse (desktop). Al elegir una
+  // opción se vuelve a colapsar solo: así no hay que usar la flecha todo el
+  // tiempo y la pantalla recupera el ancho.
+  //
+  // La flecha sigue estando para fijarlo abierto: si el usuario la usa, el hover
+  // deja de mandar hasta que la vuelva a tocar. Antes el inbox lo colapsaba a la
+  // fuerza y eso confundía —el menú se cerraba solo al entrar a Inbox—; con el
+  // hover esa regla especial ya no hace falta.
+  // ---------------------------------------------------------------------
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [hovering, setHovering] = useState(false);
+  const collapsed = !pinnedOpen && !hovering;
+
+  // Al elegir una opción el menú se cierra: es lo que pedía el QA y lo que hace
+  // que el hover no sea molesto. Si está fijado con la flecha, no se toca.
+  const closeAfterNav = () => setHovering(false);
 
   const renderLink = (item: Item, indent = false) => {
     const active = item.href === activeItemHref;
@@ -276,6 +284,7 @@ export function AppSidebar({
           key={item.href}
           href={item.href}
           title={item.label}
+          onClick={closeAfterNav}
           className={cn(
             "relative flex items-center justify-center rounded-md py-2.5 transition-colors",
             active
@@ -294,6 +303,7 @@ export function AppSidebar({
       <Link
         key={item.href}
         href={item.href}
+        onClick={closeAfterNav}
         className={cn(
           "relative flex items-center gap-3 rounded-md py-2.5 text-sm font-medium transition-colors",
           indent ? "pr-3 pl-9" : "px-3",
@@ -312,7 +322,9 @@ export function AppSidebar({
         {active && (
           <span
             aria-hidden
-            className="absolute top-1.5 right-0 bottom-1.5 w-[3px] rounded-l-full bg-sidebar-accent"
+            // -right-3 compensa el px-3 del <nav>: sin eso la línea queda
+            // flotando a 12px del borde en vez de pegada.
+            className="absolute top-1.5 -right-3 bottom-1.5 w-[3px] rounded-l-full bg-sidebar-accent"
           />
         )}
       </Link>
@@ -321,39 +333,48 @@ export function AppSidebar({
 
   return (
     <aside
+      // El hover abre el menú en desktop. En touch no hay hover, así que ahí
+      // manda la flecha, que sigue estando.
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
       className={cn(
         "flex h-full shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200",
         collapsed ? "w-16" : "w-60",
       )}
     >
+      {/* Cabecera: el logo arriba y la flecha SIEMPRE debajo, abierto o cerrado.
+          Antes la flecha estaba al lado del logo cuando el menú estaba abierto y
+          debajo cuando estaba cerrado, y saltaba de lugar al togglear. */}
       <div
         className={cn(
-          "flex",
-          collapsed
-            ? "flex-col items-center gap-2 px-2 pt-6 pb-4"
-            : "items-center justify-between px-6 pt-7 pb-5",
+          "flex flex-col items-center gap-2 pb-4",
+          collapsed ? "px-2 pt-6" : "px-6 pt-7",
         )}
       >
-        <Link href="/" aria-label="Ir al inicio">
-          <Logo size={collapsed ? 30 : 44} />
-        </Link>
-        <div className="flex items-center gap-1">
+        <div className="flex w-full items-center justify-center gap-2">
+          <Link href="/" aria-label="Ir al inicio">
+            {/* Colapsado va sólo el isotipo, y más grande: el texto "API" a 30px
+                no se lee y le roba tamaño al símbolo. */}
+            <Logo size={collapsed ? 36 : 44} mark={collapsed} />
+          </Link>
           {!collapsed && profile.role !== "super_admin" && (
-            <NotificationBell className="text-sidebar-muted hover:bg-white/10 hover:text-sidebar-foreground" />
+            <NotificationBell className="ml-auto text-sidebar-muted hover:bg-white/10 hover:text-sidebar-foreground" />
           )}
-          <button
-            type="button"
-            onClick={() => setOverride(!collapsed)}
-            title={collapsed ? "Expandir menú" : "Contraer menú"}
-            className="rounded-md p-1.5 text-sidebar-muted transition-colors hover:bg-white/10 hover:text-sidebar-foreground"
-          >
-            {collapsed ? (
-              <ChevronsRight className="size-4" />
-            ) : (
-              <ChevronsLeft className="size-4" />
-            )}
-          </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setPinnedOpen((p) => !p)}
+          title={pinnedOpen ? "Soltar el menú" : "Dejar el menú fijo"}
+          aria-label={pinnedOpen ? "Soltar el menú" : "Dejar el menú fijo"}
+          className="rounded-md p-1 text-sidebar-muted transition-colors hover:bg-white/10 hover:text-sidebar-foreground"
+        >
+          {pinnedOpen ? (
+            <ChevronsLeft className="size-4" />
+          ) : (
+            <ChevronsRight className="size-4" />
+          )}
+        </button>
       </div>
 
       {/* El selector de marca va antes del menú porque define el alcance de TODO
@@ -429,9 +450,10 @@ export function AppSidebar({
 
         <Separator className="my-1 bg-sidebar-border" />
 
-        <button
-          type="button"
+        <Link
+          href="/ayuda"
           title="Ayuda"
+          onClick={closeAfterNav}
           className={cn(
             "flex items-center rounded-md py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground",
             collapsed ? "w-full justify-center" : "gap-3 px-3",
@@ -439,7 +461,7 @@ export function AppSidebar({
         >
           <HelpCircle className="size-5 shrink-0" />
           {!collapsed && <span>Ayuda</span>}
-        </button>
+        </Link>
 
         <form action={signOut} className="w-full">
           <Button

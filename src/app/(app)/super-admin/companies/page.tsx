@@ -34,7 +34,14 @@ type CompanyData = {
   created_at: string;
 };
 
-export default async function CompaniesPage() {
+export default async function CompaniesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ nueva?: string }>;
+}) {
+  // `?nueva=1` abre el formulario directo. Es el atajo del inicio: "Cargar
+  // concesionaria" dejaba al usuario en el listado y había que buscar el botón.
+  const { nueva } = await searchParams;
   await requireRole(["super_admin"]);
 
   const supabase = await createClient();
@@ -154,7 +161,7 @@ export default async function CompaniesPage() {
             desempeño.
           </p>
         </div>
-        <CreateCompanyDialog trigger={cta} />
+        <CreateCompanyDialog trigger={cta} defaultOpen={nueva === "1"} />
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

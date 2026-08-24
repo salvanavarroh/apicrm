@@ -82,9 +82,17 @@ const emptyAdmin: AdminData = {
   phone: "",
 };
 
-export function CreateCompanyDialog({ trigger }: { trigger: ReactNode }) {
+export function CreateCompanyDialog({
+  trigger,
+  defaultOpen = false,
+}: {
+  trigger: ReactNode;
+  /** Abre el formulario al entrar. Lo usa el atajo "Cargar concesionaria" del
+   *  inicio, que antes sólo dejaba al usuario en el listado. */
+  defaultOpen?: boolean;
+}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [step, setStep] = useState(0);
   const [company, setCompany] = useState<CompanyData>(emptyCompany);
   const [billing, setBilling] = useState<BillingData>(emptyBilling);

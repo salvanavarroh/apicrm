@@ -121,7 +121,7 @@ export default async function SuperAdminHomePage() {
               <strong className="text-foreground">administradores</strong>.
             </p>
             <Button asChild>
-              <Link href="/super-admin/companies">
+              <Link href="/super-admin/companies?nueva=1">
                 Cargar concesionaria
                 <ChevronRight className="ml-1 size-4" />
               </Link>
@@ -163,7 +163,7 @@ export default async function SuperAdminHomePage() {
           </p>
         </div>
         <Button asChild>
-          <Link href="/super-admin/companies">
+          <Link href="/super-admin/companies?nueva=1">
             Cargar concesionaria
             <ChevronRight className="ml-1 size-4" />
           </Link>

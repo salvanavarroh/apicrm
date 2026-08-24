@@ -532,11 +532,14 @@ export function InboxView({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<"chats" | "insights">("chats");
-  const [selected, setSelected] = useState<ConversationListItem | null>(() =>
-    initialConversationId
-      ? (conversations.find((c) => c.id === initialConversationId) ?? null)
-      : null,
-  );
+  // Arranca con la primera conversación abierta: entrar al inbox y ver "Elegí una
+  // conversación" es un clic de más en la pantalla donde más se trabaja.
+  const [selected, setSelected] = useState<ConversationListItem | null>(() => {
+    if (initialConversationId) {
+      return conversations.find((c) => c.id === initialConversationId) ?? null;
+    }
+    return conversations[0] ?? null;
+  });
   const [infoOpen, setInfoOpen] = useState(false);
   // El cotizador se abre como panel derecho, igual que la info del lead. Los dos
   // son excluyentes: con tres columnas abiertas el chat queda sin ancho útil
@@ -917,7 +920,14 @@ function Thread({
     getMessages(conversation.id).then(setMessages);
     // La sugerencia del bot se pide junto con los mensajes: si el asesor ya
     // respondió después, la action devuelve null y no se muestra nada.
-    getBotSuggestion(conversation.id).then(setSuggestion);
+    // La sugerencia se carga COMO BORRADOR en el composer. Antes era una tarjeta
+    // aparte con borde naranja y sus propios botones, y se leía como un error
+    // (así lo reportó el QA). Puesta en el mismo input, con el mismo botón de
+    // Enviar, se entiende sola: es un texto propuesto que se puede editar.
+    getBotSuggestion(conversation.id).then((sug) => {
+      setSuggestion(sug);
+      if (sug) setText((t) => (t.trim() ? t : sug.reply));
+    });
   }, [conversation.id]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView();
@@ -1235,72 +1245,11 @@ function Thread({
         <div ref={bottomRef} />
       </div>
 
-      {/* Sugerencia del bot (modo borrador). No se mandó nada: el asesor la
-          revisa, la edita si quiere y la envía. Es la fase donde se descubre
-          qué preguntas frecuentes faltan cargar. */}
-      {suggestion && canSend && (
-        <div className="mx-3 mb-2 flex flex-col gap-2 rounded-lg border border-accent/40 bg-accent/5 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wide text-accent uppercase">
-              <Sparkles className="size-3" /> Respuesta sugerida
-              {suggestion.matchedBy === "blacklist" && (
-                <span className="font-normal text-muted-foreground normal-case">
-                  · preguntó por precio, se deriva
-                </span>
-              )}
-              {suggestion.matchedBy === "none" && (
-                <span className="font-normal text-warning-text normal-case">
-                  · no reconoció la pregunta
-                </span>
-              )}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                const id = suggestion.id;
-                setSuggestion(null);
-                void dismissBotSuggestion(id);
-              }}
-              className="text-[11px] text-muted-foreground hover:text-foreground"
-            >
-              Descartar
-            </button>
-          </div>
-          <p className="text-sm whitespace-pre-wrap">{suggestion.reply}</p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => {
-                setText(suggestion.reply);
-                setSuggestion(null);
-                void dismissBotSuggestion(suggestion.id);
-              }}
-            >
-              Usar y editar
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
-              onClick={() => {
-                const body = suggestion.reply;
-                const id = suggestion.id;
-                setSuggestion(null);
-                void dismissBotSuggestion(id);
-                setText(body);
-                // Se envía en el próximo tick, cuando el composer ya tiene el texto.
-                setTimeout(() => send(), 0);
-              }}
-            >
-              Enviar tal cual
-            </Button>
-          </div>
-        </div>
-      )}
-
       {/* Composer */}
-      <div className="flex h-[68px] items-center border-t bg-card px-3">
+      {/* Sin alto fijo: el textarea crece hasta 5 renglones. El h-[68px] de
+          antes era lo que hacía que cualquier cosa más alta se desbordara sobre
+          los mensajes. */}
+      <div className="flex min-h-[68px] shrink-0 items-center border-t bg-card px-3 py-2.5">
         {isPool ? (
           <Button onClick={claim} disabled={pending} className="w-full">
             Tomar conversación
@@ -1325,6 +1274,34 @@ function Thread({
               accept={ACCEPT_ATTR}
               onChange={onFilePick}
             />
+
+            {/* Sugerencia del asistente: misma caja, mismos colores, un solo CTA
+                (el "Enviar" de siempre). Sin borde de alerta: no es un error. */}
+            {suggestion && (
+              <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <Sparkles className="size-3 shrink-0 text-accent" />
+                <span className="min-w-0 truncate">
+                  Sugerencia del asistente
+                  {suggestion.matchedBy === "blacklist" &&
+                    " · preguntó por precio, se deriva"}
+                  {suggestion.matchedBy === "none" &&
+                    " · no reconoció la pregunta"}
+                  . Editala o mandala como está.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = suggestion.id;
+                    setSuggestion(null);
+                    setText("");
+                    void dismissBotSuggestion(id);
+                  }}
+                  className="ml-auto shrink-0 hover:text-foreground"
+                >
+                  Descartar
+                </button>
+              </div>
+            )}
             {/* Archivo adjunto listo para enviar (con un mensaje opcional). */}
             {staged && !recording && (
               <div className="flex items-center gap-2.5 rounded-lg border bg-muted/40 p-2">
@@ -1376,7 +1353,12 @@ function Thread({
               />
               {!recording && (
                 <>
-                  <input
+                  {/* Textarea y no input: con un renglón sólo había que moverse
+                      con las flechas para releer lo escrito. Crece hasta 5
+                      renglones y después scrollea. Enter sigue enviando;
+                      Shift+Enter hace salto de línea. */}
+                  <textarea
+                    rows={1}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={(e) => {
@@ -1393,7 +1375,7 @@ function Thread({
                           : "Sólo el dueño responde"
                     }
                     disabled={!canSend}
-                    className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
+                    className="max-h-32 min-h-10 flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none transition-[box-shadow,border-color] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50"
                   />
                   <Button onClick={onSend} disabled={!canSend || (!text.trim() && !staged)}>
                     Enviar

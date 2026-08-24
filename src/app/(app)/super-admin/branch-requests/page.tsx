@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireRole } from "@/lib/auth";
 
 import { DecisionButtons } from "./decision-buttons";
+import { RequestRow } from "./request-detail";
 
 type Row = {
   id: string;
@@ -80,7 +81,20 @@ export default async function BranchRequestsPage() {
                       "—"
                     : "—";
                   return (
-                    <tr key={r.id} className="border-t border-border bg-card hover:bg-muted/40">
+                    <RequestRow
+                      key={r.id}
+                      detail={{
+                        id: r.id,
+                        companyName: r.company?.name ?? "—",
+                        branchName: r.name,
+                        address: fullAddress || null,
+                        phone: r.phone ?? null,
+                        requester: requester === "—" ? null : requester,
+                        status: r.status,
+                        decisionNote: r.decision_note ?? null,
+                        createdAt: r.created_at,
+                      }}
+                    >
                       <td className="px-4 py-3 font-medium">
                         {r.company?.name ?? "—"}
                       </td>
@@ -100,10 +114,14 @@ export default async function BranchRequestsPage() {
                           month: "short",
                         })}
                       </td>
-                      <td className="px-4 py-3">
+                      {/* Los botones no deben disparar el detalle de la fila. */}
+                      <td
+                        className="px-4 py-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <DecisionButtons requestId={r.id} />
                       </td>
-                    </tr>
+                    </RequestRow>
                   );
                 })}
               </tbody>
@@ -128,7 +146,23 @@ export default async function BranchRequestsPage() {
               </thead>
               <tbody>
                 {resolved.map((r) => (
-                  <tr key={r.id} className="border-t border-border bg-card hover:bg-muted/40">
+                  <RequestRow
+                    key={r.id}
+                    detail={{
+                      id: r.id,
+                      companyName: r.company?.name ?? "—",
+                      branchName: r.name,
+                      address: [r.address, r.city].filter(Boolean).join(", ") || null,
+                      phone: r.phone ?? null,
+                      requester: r.requester
+                        ? `${r.requester.first_name} ${r.requester.last_name}`.trim() ||
+                          null
+                        : null,
+                      status: r.status,
+                      decisionNote: r.decision_note ?? null,
+                      createdAt: r.created_at,
+                    }}
+                  >
                     <td className="px-4 py-3">{r.company?.name ?? "—"}</td>
                     <td className="px-4 py-3 font-medium">{r.name}</td>
                     <td className="px-4 py-3">
@@ -144,7 +178,7 @@ export default async function BranchRequestsPage() {
                         year: "numeric",
                       })}
                     </td>
-                  </tr>
+                  </RequestRow>
                 ))}
               </tbody>
             </table>

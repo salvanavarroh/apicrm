@@ -2,6 +2,7 @@
 
 import { ChevronRight, PencilLine, Search, Shield } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("name");
 
@@ -117,9 +119,13 @@ export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
           </thead>
           <tbody>
             {filtered.map((c) => (
+              // Toda la fila abre la concesionaria, no sólo la flecha del final.
+              // El `stopPropagation` de la última celda evita que los botones de
+              // acción (editar, ingresar como) disparen también la navegación.
               <tr
                 key={c.id}
-                className="border-t border-border bg-card hover:bg-muted/40"
+                onClick={() => router.push(`/super-admin/companies/${c.id}`)}
+                className="cursor-pointer border-t border-border bg-card hover:bg-muted/40"
               >
                 <td className="px-4 py-3 font-medium">
                   <Link
@@ -152,7 +158,10 @@ export function CompaniesTable({ rows }: { rows: CompanyRow[] }) {
                   <StatusBadge status={c.status} />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
+                  <div
+                    className="flex items-center justify-end gap-1"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <EditCompanyAsSuperAdminDialog
                       initial={{
                         id: c.id,
