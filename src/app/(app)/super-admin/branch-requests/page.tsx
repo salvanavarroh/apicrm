@@ -59,7 +59,9 @@ export default async function BranchRequestsPage() {
           </Card>
         ) : (
           <Card className="overflow-hidden p-0">
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto">
+
+              <table className="w-full text-sm">
               <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Concesionaria</th>
@@ -126,6 +128,7 @@ export default async function BranchRequestsPage() {
                 })}
               </tbody>
             </table>
+          </div>
           </Card>
         )}
       </div>
@@ -134,7 +137,9 @@ export default async function BranchRequestsPage() {
         <div className="flex flex-col gap-3">
           <h2 className="text-2xl font-bold">Historial</h2>
           <Card className="overflow-hidden p-0">
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto">
+
+              <table className="w-full text-sm">
               <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Concesionaria</th>
@@ -182,6 +187,7 @@ export default async function BranchRequestsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
           </Card>
         </div>
       )}

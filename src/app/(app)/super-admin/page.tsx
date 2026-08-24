@@ -288,7 +288,9 @@ export default async function SuperAdminHomePage() {
               No hay pagos pendientes — todo al día.
             </div>
           ) : (
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto">
+
+              <table className="w-full text-sm">
               <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Concesionaria</th>
@@ -345,6 +347,7 @@ export default async function SuperAdminHomePage() {
                 })}
               </tbody>
             </table>
+          </div>
           )}
         </Card>
       </div>

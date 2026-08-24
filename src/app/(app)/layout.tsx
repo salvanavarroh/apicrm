@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { Suspense } from "react";
 
 import { AppContent } from "@/components/app-content";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppShell } from "@/components/app-shell";
 import { FlashToast } from "@/components/flash-toast";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { OverdueBanner } from "@/components/overdue-banner";
@@ -82,15 +82,13 @@ export default async function AppLayout({
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <AppSidebar
-        profile={profile}
-        badges={sidebarBadges}
-        groupContext={groupContext}
-      />
-
+    <AppShell
+      profile={profile}
+      badges={sidebarBadges}
+      groupContext={groupContext}
+    >
       {/* Sólo esta sección scrollea; el menú queda fijo al 100% del alto. */}
-      <main className="flex flex-1 flex-col overflow-y-auto bg-background">
+      <main className="flex min-w-0 flex-1 flex-col overflow-y-auto bg-background">
         {impersonating && (
           <ImpersonationBanner
             name={fullName(profile.first_name, profile.last_name)}
@@ -107,6 +105,6 @@ export default async function AppLayout({
       <Suspense fallback={null}>
         <FlashToast />
       </Suspense>
-    </div>
+    </AppShell>
   );
 }

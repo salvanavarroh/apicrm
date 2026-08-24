@@ -111,7 +111,7 @@ export function SalesDateFilter({
       )}
     >
       <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
-      <div className="inline-flex rounded-lg border p-0.5">
+      <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border p-0.5">
         {PRESETS.map((r) => (
           <button
             key={r.days}

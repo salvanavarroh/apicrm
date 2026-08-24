@@ -24,8 +24,9 @@ export function AppContent({
     );
   }
   return (
-    <div className="mx-auto w-full max-w-7xl flex-1 px-8 py-8">
-      {banner && <div className="mb-6">{banner}</div>}
+    // px-8 en un teléfono son 64px de los 390 disponibles. Escala: 16 → 24 → 32.
+    <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+      {banner && <div className="mb-4 sm:mb-6">{banner}</div>}
       {children}
     </div>
   );

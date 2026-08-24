@@ -77,7 +77,9 @@ export default async function UnassignedLeadsPage() {
         </div>
       ) : (
         <div className="overflow-hidden rounded-md border">
-          <table className="w-full text-sm">
+          <div className="w-full overflow-x-auto">
+
+            <table className="w-full text-sm">
             <thead className="border-b bg-muted text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left">Cliente</th>
@@ -123,6 +125,7 @@ export default async function UnassignedLeadsPage() {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </div>

@@ -45,7 +45,7 @@ export default async function GroupPage({
             Todas tus marcas juntas: quién trae leads, quién vende y a qué costo.
           </p>
         </div>
-        <div className="inline-flex rounded-lg border p-0.5">
+        <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border p-0.5">
           {PRESETS.map((p) => (
             <a
               key={p.days}

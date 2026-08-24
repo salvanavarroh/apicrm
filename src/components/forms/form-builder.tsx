@@ -176,7 +176,7 @@ export function FormBuilder({
                 placeholder="Ej: Captura Meta Ads Marzo"
               />
             </Row>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Row label="Sucursal *">
                 {branches.length === 0 ? (
                   <EmptySelector tone="warning">
@@ -224,7 +224,7 @@ export function FormBuilder({
                 )}
               </Row>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Row label="Campaña (opcional)">
                 {campaigns.length === 0 ? (
                   <EmptySelector>
@@ -289,7 +289,7 @@ export function FormBuilder({
                 onChange={(e) => update("subtitle", e.target.value)}
               />
             </Row>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Row label="Texto del botón">
                 <Input
                   value={data.submit_label}

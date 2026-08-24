@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useState } from "react";
+import { useEffect, Fragment, useState } from "react";
 import {
   BarChart3,
   Sheet,
@@ -243,12 +243,17 @@ export function AppSidebar({
   profile,
   badges = {},
   groupContext = null,
+  mobileOpen = false,
+  onMobileClose,
 }: {
   profile: Profile;
   // Contadores por href (ej. leads nuevos, solicitudes pendientes).
   badges?: Record<string, number>;
   /** Sólo para el admin de grupo: sus marcas y cuál está activa. */
   groupContext?: GroupContext | null;
+  /** En mobile el menú es un cajón que se abre desde la barra superior. */
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }) {
   const pathname = usePathname();
   const sections = navForRole(profile.role);
@@ -268,11 +273,25 @@ export function AppSidebar({
   // ---------------------------------------------------------------------
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [hovering, setHovering] = useState(false);
-  const collapsed = !pinnedOpen && !hovering;
+  // En mobile el menú es un cajón y va SIEMPRE expandido: el modo íconos existe
+  // para no comerse ancho en desktop, y en un cajón que tapa la pantalla no
+  // aporta nada.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const collapsed = !isMobile && !pinnedOpen && !hovering;
 
   // Al elegir una opción el menú se cierra: es lo que pedía el QA y lo que hace
   // que el hover no sea molesto. Si está fijado con la flecha, no se toca.
-  const closeAfterNav = () => setHovering(false);
+  const closeAfterNav = () => {
+    setHovering(false);
+    onMobileClose?.();
+  };
 
   const renderLink = (item: Item, indent = false) => {
     const active = item.href === activeItemHref;
@@ -334,12 +353,15 @@ export function AppSidebar({
   return (
     <aside
       // El hover abre el menú en desktop. En touch no hay hover, así que ahí
-      // manda la flecha, que sigue estando.
-      onMouseEnter={() => setHovering(true)}
-      onMouseLeave={() => setHovering(false)}
+      // manda el botón de la barra superior.
+      onMouseEnter={() => !isMobile && setHovering(true)}
+      onMouseLeave={() => !isMobile && setHovering(false)}
       className={cn(
-        "flex h-full shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-[width] duration-200",
-        collapsed ? "w-16" : "w-60",
+        "flex flex-col bg-sidebar text-sidebar-foreground transition-transform duration-200",
+        // Mobile: cajón fijo que entra desde la izquierda por encima de todo.
+        "fixed inset-y-0 left-0 z-50 w-64 lg:static lg:z-auto lg:h-full lg:shrink-0 lg:translate-x-0 lg:transition-[width]",
+        mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
+        collapsed ? "lg:w-16" : "lg:w-60",
       )}
     >
       {/* Cabecera: el logo arriba y la flecha SIEMPRE debajo, abierto o cerrado.
@@ -362,12 +384,14 @@ export function AppSidebar({
           )}
         </div>
 
+        {/* Fijar el menú es una herramienta de desktop: en mobile es un cajón y
+            siempre está expandido, así que la flecha no haría nada. */}
         <button
           type="button"
           onClick={() => setPinnedOpen((p) => !p)}
           title={pinnedOpen ? "Soltar el menú" : "Dejar el menú fijo"}
           aria-label={pinnedOpen ? "Soltar el menú" : "Dejar el menú fijo"}
-          className="rounded-md p-1 text-sidebar-muted transition-colors hover:bg-white/10 hover:text-sidebar-foreground"
+          className="hidden rounded-md p-1 text-sidebar-muted transition-colors hover:bg-white/10 hover:text-sidebar-foreground lg:block"
         >
           {pinnedOpen ? (
             <ChevronsLeft className="size-4" />

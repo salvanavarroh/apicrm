@@ -103,7 +103,9 @@ export function UsersDialog({ trigger, companyName, users }: Props) {
                   </span>
                 </div>
                 <div className="overflow-hidden rounded-md border border-border">
-                  <table className="w-full text-sm">
+                  <div className="w-full overflow-x-auto">
+
+                    <table className="w-full text-sm">
                     <thead className="bg-muted text-left text-[11px] uppercase tracking-wide text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2 font-medium">Nombre</th>
@@ -143,6 +145,7 @@ export function UsersDialog({ trigger, companyName, users }: Props) {
                       ))}
                     </tbody>
                   </table>
+                </div>
                 </div>
               </section>
             ))}

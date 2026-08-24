@@ -40,7 +40,7 @@ export function VariablesCard({ branches }: { branches: BranchVars[] }) {
           </p>
         </div>
         {branches.length > 1 && (
-          <div className="inline-flex rounded-lg border p-0.5">
+          <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border p-0.5">
             {branches.map((x, i) => (
               <button
                 key={x.branchId}

@@ -2,6 +2,7 @@
 
 import {
   Calculator,
+  ChevronLeft,
   Sparkles,
   FileText,
   ImageOff,
@@ -540,6 +541,10 @@ export function InboxView({
     }
     return conversations[0] ?? null;
   });
+  // En desktop la primera conversación viene abierta (pedido del QA). En mobile
+  // eso significaría entrar directo a un chat sin haber visto la lista, así que
+  // ahí el chat se muestra sólo cuando el usuario elige una conversación.
+  const [openedByUser, setOpenedByUser] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   // El cotizador se abre como panel derecho, igual que la info del lead. Los dos
   // son excluyentes: con tres columnas abiertas el chat queda sin ancho útil
@@ -606,7 +611,12 @@ export function InboxView({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3">
+      <header
+        className={cn(
+          "flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-6",
+          openedByUser ? "hidden lg:flex" : "flex",
+        )}
+      >
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Inbox</h1>
           <p className="text-xs text-muted-foreground">
@@ -635,8 +645,14 @@ export function InboxView({
         <InboxInsights />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          {/* Filtros */}
-          <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-4 py-2">
+          {/* Filtros. Con un chat abierto en mobile se ocultan: son 3 renglones
+              de controles sobre 844px de alto, y el chat necesita la pantalla. */}
+          <div
+            className={cn(
+              "flex-wrap items-center gap-2 border-b bg-muted/30 px-3 py-2 sm:px-4",
+              openedByUser ? "hidden lg:flex" : "flex",
+            )}
+          >
             <div className="relative">
               <Search className="pointer-events-none absolute top-1.5 left-2 size-4 text-muted-foreground" />
               <input
@@ -684,10 +700,17 @@ export function InboxView({
             </span>
           </div>
 
-          {/* 3 paneles */}
+          {/* 3 paneles en desktop. En mobile es UNA columna: se ve la lista o
+              se ve el chat, nunca los dos — 320px de lista sobre 390px de
+              pantalla no dejan lugar para nada más. */}
           <div className="flex min-h-0 flex-1">
             {/* Lista */}
-            <div className="w-80 shrink-0 overflow-y-auto border-r bg-muted/20">
+            <div
+              className={cn(
+                "w-full shrink-0 overflow-y-auto border-r bg-muted/20 lg:block lg:w-80",
+                openedByUser ? "hidden lg:block" : "block",
+              )}
+            >
               {filtered.length === 0 ? (
                 <p className="p-6 text-center text-sm text-muted-foreground">
                   No hay conversaciones con esos filtros.
@@ -701,7 +724,14 @@ export function InboxView({
                     currentUserId={currentUserId}
                     onClick={() => {
                       setSelected(c);
-                      setInfoOpen(!!c.lead_id);
+                      setOpenedByUser(true);
+                      // El panel de info sólo se abre solo en desktop: en mobile
+                      // taparía el chat que el usuario acaba de abrir.
+                      setInfoOpen(
+                        !!c.lead_id &&
+                          typeof window !== "undefined" &&
+                          window.innerWidth >= 1024,
+                      );
                     }}
                   />
                 ))
@@ -709,7 +739,12 @@ export function InboxView({
             </div>
 
             {/* Chat */}
-            <div className="flex min-w-0 flex-1 flex-col bg-background">
+            <div
+              className={cn(
+                "min-w-0 flex-1 flex-col bg-background",
+                openedByUser ? "flex" : "hidden lg:flex",
+              )}
+            >
               {activeConv ? (
                 <Thread
                   key={activeConv.id}
@@ -722,6 +757,7 @@ export function InboxView({
                     setInfoOpen((o) => !o);
                     setQuoteOpen(false);
                   }}
+                  onBack={() => setOpenedByUser(false)}
                   quoteOpen={quoteOpen}
                   onToggleQuote={() => {
                     setQuoteOpen((o) => !o);
@@ -742,22 +778,26 @@ export function InboxView({
 
             {/* Panel info */}
             {infoOpen && activeConv?.lead_id && (
-              <LeadInfoPanel
-                key={activeConv.lead_id}
-                leadId={activeConv.lead_id}
-                onClose={() => setInfoOpen(false)}
-              />
+              <div className="fixed inset-0 z-40 flex justify-end bg-black/40 lg:static lg:z-auto lg:block lg:bg-transparent">
+                <LeadInfoPanel
+                  key={activeConv.lead_id}
+                  leadId={activeConv.lead_id}
+                  onClose={() => setInfoOpen(false)}
+                />
+              </div>
             )}
 
             {/* Panel del cotizador. El mensaje enviado aparece en el hilo por la
                 suscripción realtime, sin necesidad de refrescar a mano. */}
             {quoteOpen && activeConv && (
-              <UsedQuotePanel
-                key={activeConv.id}
-                conversationId={activeConv.id}
-                leadId={activeConv.lead_id ?? null}
-                onClose={() => setQuoteOpen(false)}
-              />
+              <div className="fixed inset-0 z-40 flex justify-end bg-black/40 lg:static lg:z-auto lg:block lg:bg-transparent">
+                <UsedQuotePanel
+                  key={activeConv.id}
+                  conversationId={activeConv.id}
+                  leadId={activeConv.lead_id ?? null}
+                  onClose={() => setQuoteOpen(false)}
+                />
+              </div>
             )}
           </div>
         </div>
@@ -810,6 +850,7 @@ function ConversationRow({
   return (
     <button
       onClick={onClick}
+      data-conversation-row
       className={cn(
         "flex w-full items-start gap-3 border-b px-3 py-2.5 text-left transition-colors hover:bg-muted/60",
         active && "bg-card shadow-sm",
@@ -883,6 +924,7 @@ function Thread({
   onToggleInfo,
   quoteOpen,
   onToggleQuote,
+  onBack,
   onClaimed,
 }: {
   conversation: ConversationListItem;
@@ -893,6 +935,8 @@ function Thread({
   onToggleInfo: () => void;
   quoteOpen: boolean;
   onToggleQuote: () => void;
+  /** Vuelve a la lista. Sólo se usa en mobile. */
+  onBack: () => void;
   onClaimed: () => void;
 }) {
   const router = useRouter();
@@ -1105,8 +1149,18 @@ function Thread({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex flex-col gap-2 border-b px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          {/* En mobile el chat ocupa toda la pantalla: sin esto no hay forma de
+              volver a la lista de conversaciones. */}
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Volver a las conversaciones"
+            className="-ml-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted lg:hidden"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
           <ContactAvatar
             name={conversation.participant_name ?? conversation.participant_handle}
             photoUrl={conversation.participant_photo_url}
@@ -1127,7 +1181,10 @@ function Thread({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        {/* En mobile las acciones van en su propia fila y scrollean: en 390px
+            no entran el contador de ventana, Plantilla, Cotizar e Info en la
+            misma línea que el nombre del contacto — se superponían. */}
+        <div className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 sm:mx-0 sm:justify-end sm:gap-2 sm:overflow-visible sm:px-0 sm:pb-0">
           <WindowCountdown expiresAt={conversation.window_expires_at} />
           {isPriv && vendors.length > 0 && (
             <select

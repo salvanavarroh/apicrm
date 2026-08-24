@@ -360,7 +360,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
     <div className={cn("flex flex-col gap-4", pending && "opacity-70")}>
       {/* Plataforma (pestañas) + "actualizado hace X" */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-lg border p-0.5">
+        <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border p-0.5">
           {PLATFORM_TABS.map((x) => (
             <button
               key={x.value}
@@ -400,7 +400,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
 
       {/* Rango de fechas (presets + manual) + estado */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border p-0.5">
+        <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border p-0.5">
           {PRESETS.map((x) => (
             <button
               key={x.days}
@@ -442,7 +442,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
         <span className="ml-auto text-xs text-muted-foreground" title="La inversión del período incluye lo que gastaron las campañas que hoy están pausadas: descontarla rompería el costo por lead.">
           Estado (afecta la tabla)
         </span>
-        <div className="inline-flex rounded-lg border p-0.5">
+        <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border p-0.5">
           {STATUS_TABS.map((x) => (
             <button
               key={x.value}
@@ -590,7 +590,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
             <span className="font-normal text-muted-foreground">(clic para ver detalle)</span>
           </span>
           <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-lg border p-0.5">
+            <div className="inline-flex max-w-full shrink-0 overflow-x-auto rounded-lg border p-0.5">
               {GROUP_MODES.map((g) => (
                 <button
                   key={g.value}

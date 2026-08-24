@@ -99,7 +99,9 @@ export function CommercialLeadsTable({
       </Card>
 
       <Card className="overflow-hidden p-0">
-        <table className="w-full text-sm">
+        <div className="w-full overflow-x-auto">
+
+          <table className="w-full text-sm">
           <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th className="px-4 py-3 font-medium">Contacto</th>
@@ -196,6 +198,7 @@ export function CommercialLeadsTable({
             })}
           </tbody>
         </table>
+      </div>
       </Card>
     </div>
   );

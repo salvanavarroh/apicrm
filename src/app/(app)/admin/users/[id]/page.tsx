@@ -401,7 +401,9 @@ function ManagerView({
             Todavía no tiene vendedores asignados.
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="w-full overflow-x-auto">
+
+            <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 font-medium">Vendedor</th>
@@ -458,6 +460,7 @@ function ManagerView({
               ))}
             </tbody>
           </table>
+        </div>
         )}
       </Card>
     </div>

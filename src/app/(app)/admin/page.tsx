@@ -337,7 +337,9 @@ export default async function AdminHomePage() {
       {pendingSales.length > 0 && (
         <Section icon={ShoppingBag} title="Ventas por validar">
           <Card className="overflow-hidden p-0">
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto">
+
+              <table className="w-full text-sm">
             <thead className="border-b bg-muted text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-5 py-2">Lead</th>
@@ -383,6 +385,7 @@ export default async function AdminHomePage() {
               ))}
               </tbody>
             </table>
+          </div>
           </Card>
         </Section>
       )}

@@ -216,7 +216,9 @@ export function LeadAdsManager({
               </div>
             )}
             <div className="max-h-80 overflow-y-auto">
-              <table className="w-full text-sm">
+              <div className="w-full overflow-x-auto">
+
+                <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="border-b text-left text-xs text-muted-foreground">
                     <th className="px-4 py-2 font-medium">Formulario</th>
@@ -258,6 +260,7 @@ export function LeadAdsManager({
                   )}
                 </tbody>
               </table>
+            </div>
             </div>
             <div className="border-t px-4 py-2 text-xs text-muted-foreground">
               {filteredPulled.length}
