@@ -3,11 +3,13 @@ import { Suspense } from "react";
 
 import { AppContent } from "@/components/app-content";
 import { AppShell } from "@/components/app-shell";
+import { AssistantWidget } from "@/components/assistant/assistant-widget";
 import { FlashToast } from "@/components/flash-toast";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { OverdueBanner } from "@/components/overdue-banner";
 import { getOverdueInfo } from "@/lib/billing";
 import { requireProfile } from "@/lib/auth";
+import { greetingFor, suggestionsFor } from "@/lib/assistant/suggestions";
 import { loadGroupContext } from "@/lib/groups";
 import { fullName } from "@/lib/leads";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -101,6 +103,14 @@ export default async function AppLayout({
           {children}
         </AppContent>
       </main>
+
+      {/* El asistente vive en el layout a propósito: tiene que estar en TODAS las
+          pantallas. Si hay que ir a buscarlo a una sección, no se usa. Recibe el
+          saludo y las sugerencias ya resueltas por rol desde el server. */}
+      <AssistantWidget
+        suggestions={suggestionsFor(profile.role)}
+        greeting={greetingFor(profile.first_name)}
+      />
 
       <Suspense fallback={null}>
         <FlashToast />

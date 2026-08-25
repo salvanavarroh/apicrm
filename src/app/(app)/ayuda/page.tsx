@@ -1,19 +1,15 @@
-import {
-  Bot,
-  Calculator,
-  HelpCircle,
-  Inbox,
-  LifeBuoy,
-  Megaphone,
-  Users,
-} from "lucide-react";
+import { Bot, Calculator, HelpCircle, Inbox, LifeBuoy, Megaphone, Users } from "lucide-react";
 import Link from "next/link";
 
+import { AssistantChat } from "@/components/assistant/assistant-chat";
 import { Card } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
+import { greetingFor, suggestionsFor } from "@/lib/assistant/suggestions";
 
-// Página de ayuda. El botón "Ayuda" del menú no llevaba a ningún lado (lo marcó
-// el QA); esto es lo mínimo honesto: qué hace cada sección y a quién escribirle.
+// La página de Ayuda es ahora el asistente a pantalla completa. Antes eran cinco
+// tarjetas estáticas: servían para leer, no para resolver una duda concreta. Las
+// tarjetas siguen abajo como referencia rápida y como atajo a cada sección, pero
+// lo que contesta es el chat.
 
 const SUPPORT_EMAIL = "hello@cambalache.studio";
 
@@ -79,7 +75,7 @@ const TOPICS: Topic[] = [
 ];
 
 export default async function AyudaPage() {
-  await requireProfile();
+  const profile = await requireProfile();
 
   return (
     <div className="flex flex-col gap-6">
@@ -88,14 +84,22 @@ export default async function AyudaPage() {
           <HelpCircle className="size-6 text-accent" /> Ayuda
         </h1>
         <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
-          Cómo funciona cada parte del CRM, y a quién escribirle cuando algo no
-          anda.
+          Preguntale al asistente cómo funciona cada parte del CRM. Contesta con
+          la documentación del sistema y con tus propios datos.
         </p>
       </header>
 
+      <div className="flex h-[32rem] flex-col">
+        <AssistantChat
+          variant="page"
+          suggestions={suggestionsFor(profile.role)}
+          greeting={greetingFor(profile.first_name)}
+        />
+      </div>
+
       <Card className="flex flex-col gap-2 border-accent/30 bg-accent/5 p-4">
         <p className="flex items-center gap-2 text-sm font-semibold">
-          <LifeBuoy className="size-4 text-accent" /> ¿Necesitás una mano?
+          <LifeBuoy className="size-4 text-accent" /> ¿El asistente no supo?
         </p>
         <p className="text-sm text-muted-foreground">
           Escribinos a{" "}
@@ -105,30 +109,33 @@ export default async function AyudaPage() {
           >
             {SUPPORT_EMAIL}
           </a>
-          . Si es un problema con algo que estabas haciendo, contanos en qué
-          pantalla estabas y qué esperabas que pasara: con eso se resuelve mucho
-          más rápido.
+          . Contanos en qué pantalla estabas y qué esperabas que pasara: con eso
+          se resuelve mucho más rápido. Toda pregunta que el asistente no supo
+          contestar nos queda registrada y se convierte en documentación.
         </p>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {TOPICS.map((t) => (
-          <Card key={t.title} className="flex flex-col gap-2 p-4">
-            <p className="flex items-center gap-2 text-sm font-semibold">
-              <t.icon className="size-4 text-accent" />
-              {t.title}
-            </p>
-            <p className="flex-1 text-sm text-muted-foreground">{t.body}</p>
-            {t.href && (
-              <Link
-                href={t.href}
-                className="text-xs font-medium text-accent hover:underline"
-              >
-                {t.linkLabel} →
-              </Link>
-            )}
-          </Card>
-        ))}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold">Referencia rápida</h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          {TOPICS.map((t) => (
+            <Card key={t.title} className="flex flex-col gap-2 p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <t.icon className="size-4 text-accent" />
+                {t.title}
+              </p>
+              <p className="flex-1 text-sm text-muted-foreground">{t.body}</p>
+              {t.href && (
+                <Link
+                  href={t.href}
+                  className="text-xs font-medium text-accent hover:underline"
+                >
+                  {t.linkLabel} →
+                </Link>
+              )}
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

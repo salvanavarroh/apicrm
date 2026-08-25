@@ -1,0 +1,65 @@
+# ============================================================================
+# La base de conocimiento del asistente se actualiza CON EL CÓDIGO.
+#
+# Este es el mecanismo que hace que no pueda quedar atrás: si cambió un
+# documento, el menú, el catálogo de reportes, la matriz de permisos o los
+# planes, se regenera y se reindexa en el mismo merge que introdujo el cambio.
+#
+# `kb:build` no toca la red: corre siempre y falla temprano si alguien rompió el
+# generador o dejó un slug duplicado. `kb:sync` sí necesita secretos, y es
+# incremental: sólo re-embebe los fragmentos cuyo hash cambió.
+# ============================================================================
+name: Reindexar la base de conocimiento
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "PRD_API_CRM_v2.md"
+      - "README.md"
+      - "src/lib/nav.ts"
+      - "src/lib/permissions.ts"
+      - "src/lib/plans.ts"
+      - "src/lib/reports/registry.ts"
+      - "src/lib/campaign-origins.ts"
+      - "src/lib/tasks.ts"
+      - "src/lib/kb/**"
+      - "scripts/kb-*.ts"
+  # Para poder forzarlo desde la pestaña Actions sin tocar un archivo.
+  workflow_dispatch:
+
+concurrency:
+  group: kb-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Los tests puros del asistente corren primero: si el ruteador o el
+      # troceador están rotos, no tiene sentido subir nada.
+      - run: pnpm test:assistant
+      - run: pnpm test:permissions
+
+      - run: pnpm kb:build
+
+      - run: pnpm kb:sync
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

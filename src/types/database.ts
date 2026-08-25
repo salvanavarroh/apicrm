@@ -14,6 +14,200 @@ export type Database = {
   }
   public: {
     Tables: {
+      assistant_cache: {
+        Row: {
+          answer: string
+          article_ids: string[]
+          created_at: string
+          embedding: string
+          expires_at: string
+          hits: number
+          id: string
+          question: string
+          scope_key: string
+          sources: Json
+        }
+        Insert: {
+          answer: string
+          article_ids?: string[]
+          created_at?: string
+          embedding: string
+          expires_at?: string
+          hits?: number
+          id?: string
+          question: string
+          scope_key: string
+          sources?: Json
+        }
+        Update: {
+          answer?: string
+          article_ids?: string[]
+          created_at?: string
+          embedding?: string
+          expires_at?: string
+          hits?: number
+          id?: string
+          question?: string
+          scope_key?: string
+          sources?: Json
+        }
+        Relationships: []
+      }
+      assistant_gaps: {
+        Row: {
+          cluster_id: string | null
+          company_id: string | null
+          created_at: string
+          embedding: string | null
+          hits: number
+          id: string
+          question: string
+          resolved_article_id: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
+          status: Database["public"]["Enums"]["assistant_gap_status"]
+          updated_at: string
+        }
+        Insert: {
+          cluster_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          embedding?: string | null
+          hits?: number
+          id?: string
+          question: string
+          resolved_article_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          status?: Database["public"]["Enums"]["assistant_gap_status"]
+          updated_at?: string
+        }
+        Update: {
+          cluster_id?: string | null
+          company_id?: string | null
+          created_at?: string
+          embedding?: string | null
+          hits?: number
+          id?: string
+          question?: string
+          resolved_article_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          status?: Database["public"]["Enums"]["assistant_gap_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_gaps_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_gaps_resolved_article_id_fkey"
+            columns: ["resolved_article_id"]
+            isOneToOne: false
+            referencedRelation: "kb_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_messages: {
+        Row: {
+          chunk_ids: string[]
+          content: string
+          created_at: string
+          feedback: number | null
+          feedback_note: string | null
+          id: string
+          latency_ms: number | null
+          role: string
+          route: string | null
+          thread_id: string
+          tokens_in: number | null
+          tokens_out: number | null
+          tool_calls: Json
+        }
+        Insert: {
+          chunk_ids?: string[]
+          content: string
+          created_at?: string
+          feedback?: number | null
+          feedback_note?: string | null
+          id?: string
+          latency_ms?: number | null
+          role: string
+          route?: string | null
+          thread_id: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_calls?: Json
+        }
+        Update: {
+          chunk_ids?: string[]
+          content?: string
+          created_at?: string
+          feedback?: number | null
+          feedback_note?: string | null
+          id?: string
+          latency_ms?: number | null
+          role?: string
+          route?: string | null
+          thread_id?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          tool_calls?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_threads: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_threads_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_threads_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bot_configs: {
         Row: {
           branch_id: string
@@ -974,6 +1168,107 @@ export type Database = {
             columns: ["target_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kb_articles: {
+        Row: {
+          audience_roles: Database["public"]["Enums"]["user_role"][] | null
+          body_md: string
+          created_at: string
+          feature: string | null
+          id: string
+          keywords: string[]
+          min_plan: Database["public"]["Enums"]["company_plan"] | null
+          route_prefix: string | null
+          slug: string
+          source: Database["public"]["Enums"]["kb_source"]
+          source_path: string | null
+          summary: string | null
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          audience_roles?: Database["public"]["Enums"]["user_role"][] | null
+          body_md: string
+          created_at?: string
+          feature?: string | null
+          id?: string
+          keywords?: string[]
+          min_plan?: Database["public"]["Enums"]["company_plan"] | null
+          route_prefix?: string | null
+          slug: string
+          source: Database["public"]["Enums"]["kb_source"]
+          source_path?: string | null
+          summary?: string | null
+          title: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          audience_roles?: Database["public"]["Enums"]["user_role"][] | null
+          body_md?: string
+          created_at?: string
+          feature?: string | null
+          id?: string
+          keywords?: string[]
+          min_plan?: Database["public"]["Enums"]["company_plan"] | null
+          route_prefix?: string | null
+          slug?: string
+          source?: Database["public"]["Enums"]["kb_source"]
+          source_path?: string | null
+          summary?: string | null
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      kb_chunks: {
+        Row: {
+          article_id: string
+          content: string
+          content_hash: string
+          created_at: string
+          embedding: string | null
+          fts: unknown
+          heading_path: string
+          id: string
+          ord: number
+          tokens: number
+        }
+        Insert: {
+          article_id: string
+          content: string
+          content_hash: string
+          created_at?: string
+          embedding?: string | null
+          fts?: unknown
+          heading_path?: string
+          id?: string
+          ord: number
+          tokens?: number
+        }
+        Update: {
+          article_id?: string
+          content?: string
+          content_hash?: string
+          created_at?: string
+          embedding?: string | null
+          fts?: unknown
+          heading_path?: string
+          id?: string
+          ord?: number
+          tokens?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kb_chunks_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "kb_articles"
             referencedColumns: ["id"]
           },
         ]
@@ -3464,6 +3759,8 @@ export type Database = {
       }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
       bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }
+      bump_assistant_cache_hit: { Args: { p_id: string }; Returns: undefined }
+      bump_assistant_gap_hit: { Args: { p_id: string }; Returns: undefined }
       company_in_my_group: { Args: { cid: string }; Returns: boolean }
       current_company_id: { Args: never; Returns: string }
       current_group_id: { Args: never; Returns: string }
@@ -3500,11 +3797,66 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: never; Returns: boolean }
+      kb_plan_covers: {
+        Args: {
+          p_min_plan: Database["public"]["Enums"]["company_plan"]
+          p_plan: Database["public"]["Enums"]["company_plan"]
+        }
+        Returns: boolean
+      }
       lead_status_counts: {
         Args: never
         Returns: {
           cnt: number
           status: Database["public"]["Enums"]["lead_status"]
+        }[]
+      }
+      match_assistant_cache: {
+        Args: {
+          min_similarity?: number
+          p_scope_key: string
+          query_embedding: string
+        }
+        Returns: {
+          answer: string
+          id: string
+          similarity: number
+          sources: Json
+        }[]
+      }
+      match_assistant_gaps: {
+        Args: { min_similarity?: number; query_embedding: string }
+        Returns: {
+          cluster_id: string
+          id: string
+          question: string
+          similarity: number
+        }[]
+      }
+      match_kb: {
+        Args: {
+          candidate_count?: number
+          match_count?: number
+          p_features?: string[]
+          p_plan?: Database["public"]["Enums"]["company_plan"]
+          p_role: Database["public"]["Enums"]["user_role"]
+          p_route?: string
+          per_article?: number
+          query_embedding: string
+          query_text: string
+        }
+        Returns: {
+          article_id: string
+          chunk_id: string
+          content: string
+          heading_path: string
+          score: number
+          similarity: number
+          slug: string
+          summary: string
+          text_rank: number
+          title: string
+          vector_rank: number
         }[]
       }
       merge_leads: {
@@ -3513,10 +3865,21 @@ export type Database = {
       }
       my_group_company_ids: { Args: never; Returns: string[] }
       pick_campaign_branch: { Args: { p_campaign_id: string }; Returns: string }
+      rls_audit: {
+        Args: never
+        Returns: {
+          command: string
+          policy_name: string
+          rls_enabled: boolean
+          roles: string[]
+          table_name: string
+        }[]
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
+      assistant_gap_status: "abierto" | "respondido" | "descartado"
       bot_mode: "draft" | "auto"
       branch_request_status: "pending" | "approved" | "rejected" | "canceled"
       branch_status: "active" | "inactive"
@@ -3563,6 +3926,7 @@ export type Database = {
         | "vehiculo_actual"
         | "no_molestar"
         | "otro"
+      kb_source: "repo" | "generado" | "manual"
       lead_payment_method:
         | "cash"
         | "financed"
@@ -3739,6 +4103,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      assistant_gap_status: ["abierto", "respondido", "descartado"],
       bot_mode: ["draft", "auto"],
       branch_request_status: ["pending", "approved", "rejected", "canceled"],
       branch_status: ["active", "inactive"],
@@ -3789,6 +4154,7 @@ export const Constants = {
         "no_molestar",
         "otro",
       ],
+      kb_source: ["repo", "generado", "manual"],
       lead_payment_method: [
         "cash",
         "financed",
