@@ -33,7 +33,7 @@ test.describe("Asistente del CRM", () => {
     await expect(launcher).toBeVisible();
     await launcher.click();
 
-    const panel = page.getByRole("dialog", { name: "Asistente del CRM" });
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
     await expect(panel).toBeVisible();
     // Las sugerencias son el manual de uso: si no están, nadie sabe qué preguntar.
     await expect(
@@ -61,7 +61,7 @@ test.describe("Asistente del CRM", () => {
     page,
   }) => {
     await page.getByRole("button", { name: "Abrir el asistente" }).click();
-    const panel = page.getByRole("dialog", { name: "Asistente del CRM" });
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
 
     const input = panel.getByPlaceholder("Preguntame algo del CRM…");
     await input.fill("el PDF del presupuesto sale en blanco");
@@ -86,7 +86,7 @@ test.describe("Asistente del CRM", () => {
     page,
   }) => {
     await page.getByRole("button", { name: "Abrir el asistente" }).click();
-    const panel = page.getByRole("dialog", { name: "Asistente del CRM" });
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
 
     const input = panel.getByPlaceholder("Preguntame algo del CRM…");
     await input.fill("¿dónde está la facturación?");
@@ -100,7 +100,7 @@ test.describe("Asistente del CRM", () => {
 
   test("permisos: explica y deriva a quien corresponde", async ({ page }) => {
     await page.getByRole("button", { name: "Abrir el asistente" }).click();
-    const panel = page.getByRole("dialog", { name: "Asistente del CRM" });
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
 
     const input = panel.getByPlaceholder("Preguntame algo del CRM…");
     await input.fill("¿por qué no puedo aprobar una venta?");
@@ -115,7 +115,7 @@ test.describe("Asistente del CRM", () => {
 
   test("la plata de la plataforma se deriva a soporte", async ({ page }) => {
     await page.getByRole("button", { name: "Abrir el asistente" }).click();
-    const panel = page.getByRole("dialog", { name: "Asistente del CRM" });
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
 
     const input = panel.getByPlaceholder("Preguntame algo del CRM…");
     await input.fill("¿cuánto pagamos por el sistema?");
@@ -135,7 +135,7 @@ test.describe("Asistente del CRM", () => {
     test.skip(!process.env.OPENAI_API_KEY, "sin OPENAI_API_KEY");
 
     await page.getByRole("button", { name: "Abrir el asistente" }).click();
-    const panel = page.getByRole("dialog", { name: "Asistente del CRM" });
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
 
     const input = panel.getByPlaceholder("Preguntame algo del CRM…");
     await input.fill("¿cómo funciona la asignación automática de leads?");
@@ -147,6 +147,20 @@ test.describe("Asistente del CRM", () => {
       timeout: 45_000,
     });
     await expect(panel.getByText(/Sistema y reglas/i).first()).toBeVisible();
+  });
+
+  test("el botón Ayuda del menú abre el chat, no una página", async ({
+    page,
+  }) => {
+    // Mandar a alguien que necesita ayuda a leer una página de links es hacerle
+    // dar una vuelta de más: el chat contesta la pregunta concreta.
+    await page.goto("/super-admin/companies");
+    await page.getByRole("button", { name: "Ayuda" }).click();
+
+    await expect(page).toHaveURL(/super-admin\/companies/);
+    await expect(
+      page.getByRole("dialog", { name: "Agente de API" }),
+    ).toBeVisible();
   });
 
   test("la página de Ayuda es el asistente y manda con Enter", async ({

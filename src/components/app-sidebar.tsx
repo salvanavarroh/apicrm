@@ -108,6 +108,7 @@ export function AppSidebar({
   groupContext = null,
   mobileOpen = false,
   onMobileClose,
+  onOpenAssistant,
 }: {
   profile: Profile;
   // Contadores por href (ej. leads nuevos, solicitudes pendientes).
@@ -117,6 +118,8 @@ export function AppSidebar({
   /** En mobile el menú es un cajón que se abre desde la barra superior. */
   mobileOpen?: boolean;
   onMobileClose?: () => void;
+  /** Abre el panel del asistente. "Ayuda" ES el asistente. */
+  onOpenAssistant?: () => void;
 }) {
   const pathname = usePathname();
   const sections = navForRole(profile.role);
@@ -337,10 +340,14 @@ export function AppSidebar({
 
         <Separator className="my-1 bg-sidebar-border" />
 
-        <Link
-          href="/ayuda"
+        {/* "Ayuda" abre el asistente, no una página. Mandar a alguien que
+            necesita ayuda a leer una página de links es hacerle dar una vuelta
+            de más: el chat contesta la pregunta concreta. La página /ayuda sigue
+            existiendo con la referencia rápida. */}
+        <button
+          type="button"
+          onClick={() => onOpenAssistant?.()}
           title="Ayuda"
-          onClick={closeAfterNav}
           className={cn(
             "flex items-center rounded-md py-2.5 text-sm font-medium text-sidebar-muted transition-colors hover:bg-white/5 hover:text-sidebar-foreground",
             collapsed ? "w-full justify-center" : "gap-3 px-3",
@@ -348,7 +355,7 @@ export function AppSidebar({
         >
           <HelpCircle className="size-5 shrink-0" />
           {!collapsed && <span>Ayuda</span>}
-        </Link>
+        </button>
 
         <form action={signOut} className="w-full">
           <Button

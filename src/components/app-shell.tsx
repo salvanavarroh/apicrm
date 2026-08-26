@@ -36,6 +36,9 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // El panel del asistente se abre desde dos lados —el riel y el botón "Ayuda"
+  // del menú—, así que el estado vive acá, que es el padre común.
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -45,6 +48,10 @@ export function AppShell({
         groupContext={groupContext}
         mobileOpen={menuOpen}
         onMobileClose={() => setMenuOpen(false)}
+        onOpenAssistant={() => {
+          setAssistantOpen(true);
+          setMenuOpen(false);
+        }}
       />
 
       {/* Fondo del cajón. Sólo en mobile y sólo cuando está abierto. */}
@@ -86,6 +93,8 @@ export function AppShell({
       <AssistantRail
         suggestions={assistant.suggestions}
         greeting={assistant.greeting}
+        open={assistantOpen}
+        setOpen={setAssistantOpen}
       />
     </div>
   );

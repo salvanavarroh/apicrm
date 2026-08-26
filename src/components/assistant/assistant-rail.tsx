@@ -15,7 +15,9 @@
 // pantalla completa.
 // ============================================================================
 
-import { Bug, PanelRightClose, Plus, Sparkles, X } from "lucide-react";
+import { Bug, PanelRightClose, Plus, X } from "lucide-react";
+
+import { Logo } from "@/components/logo";
 import { useEffect, useState } from "react";
 
 import {
@@ -30,11 +32,18 @@ type Mode = { kind: "chat" } | { kind: "report"; threadId: string | null; text: 
 export function AssistantRail({
   suggestions,
   greeting,
+  open,
+  setOpen,
 }: {
   suggestions: Suggestion[];
   greeting: string;
+  /**
+   * El estado vive en `AppShell` y no acá porque el botón "Ayuda" del menú
+   * también abre el panel: son dos disparadores para una misma cosa.
+   */
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>({ kind: "chat" });
   // Cambiar esta clave remonta el chat: es el "conversación nueva".
   const [chatKey, setChatKey] = useState(0);
@@ -46,7 +55,7 @@ export function AssistantRail({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, setOpen]);
 
   const openReport = (ctx: { threadId: string | null; question: string }) => {
     // Arranca con lo que la persona ya escribió: si tuvo que contarlo dos veces,
@@ -78,32 +87,39 @@ export function AssistantRail({
   return (
     <>
       {/* ------------------------------------------------- riel (desktop) -- */}
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-label={open ? "Cerrar el asistente" : "Abrir el asistente"}
-        title="Asistente del CRM"
-        className={cn(
-          "hidden w-11 shrink-0 flex-col items-center gap-3 border-l border-sidebar-border bg-sidebar py-4 transition-colors lg:flex",
-          "text-sidebar-muted hover:bg-white/5 hover:text-sidebar-foreground",
-          open && "text-sidebar-accent",
-        )}
-      >
-        <span className="relative">
-          <Sparkles className="size-5" />
-          {/* El punto dice "está disponible", sin ocupar una línea de texto. */}
-          <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent" />
-        </span>
-        <span className="text-xs font-medium tracking-wide [writing-mode:vertical-rl]">
-          Asistente
-        </span>
-      </button>
+      {/* Dos capas a propósito. Si el fondo oscuro y el hover viven en el MISMO
+          elemento, `hover:bg-white/7%` REEMPLAZA al oscuro en vez de aclararlo:
+          el blanco translúcido queda compuesto sobre la página clara y la franja
+          se lava entera. Con el oscuro en el contenedor, el hover del botón se
+          compone sobre él y aclara, que es lo que uno espera. Es el mismo motivo
+          por el que los ítems del menú se ven bien: su fondo lo pone el aside. */}
+      <div className="hidden w-11 shrink-0 border-l border-sidebar-border bg-sidebar lg:block">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-label={open ? "Cerrar el asistente" : "Abrir el asistente"}
+          className={cn(
+            "flex h-full w-full flex-col items-center gap-3 py-4 transition-colors",
+            "text-sidebar-muted hover:bg-white/[0.07] hover:text-sidebar-foreground",
+            open && "bg-white/[0.07] text-sidebar-accent",
+          )}
+        >
+          <span className="relative">
+            <Logo size={20} mark />
+            {/* El punto dice "está disponible", sin ocupar una línea de texto. */}
+            <span className="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-accent" />
+          </span>
+          <span className="text-xs font-medium tracking-wide [writing-mode:vertical-rl]">
+            Agente de API
+          </span>
+        </button>
+      </div>
 
       {/* ------------------------------------------------------- el panel -- */}
       {open && (
         <aside
           role="dialog"
-          aria-label="Asistente del CRM"
+          aria-label="Agente de API"
           className={cn(
             "flex flex-col bg-card",
             // Mobile: pantalla completa. Un panel de 26rem en un teléfono es la
@@ -125,7 +141,8 @@ export function AssistantRail({
               <X className="size-4 lg:hidden" />
             </button>
 
-            <span className="text-sm font-semibold">Asistente</span>
+            <Logo size={16} mark />
+            <span className="text-sm font-semibold">Agente de API</span>
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
               beta
             </span>
@@ -167,7 +184,7 @@ export function AssistantRail({
           aria-label="Abrir el asistente"
           className="fixed right-4 bottom-4 z-40 flex size-12 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg lg:hidden"
         >
-          <Sparkles className="size-5" />
+          <Logo size={22} mark />
         </button>
       )}
     </>

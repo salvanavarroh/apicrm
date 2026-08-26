@@ -53,10 +53,17 @@ const DOCS: DocMeta[] = [
     feature: "cotizador",
     routePrefix: "/admin/valuations",
   },
-  // Bot del inbox: lo configura el admin.
+  // Respuesta automática: manual de USO, con los rótulos de la pantalla.
+  //
+  // Antes acá estaba `bot-inbox-respuesta-automatica.md`, que es el documento de
+  // DISEÑO: describe la tabla de configuración con sus nombres de columna
+  // (`outside_hours`, `max_turns`, `idle_trigger_minutes`). El asistente los
+  // citaba fielmente y le contestaba al admin con nombres de campos de base de
+  // datos que en el CRM no existen por ningún lado. El diseño pasó a soporte y
+  // este manual ocupó su lugar.
   {
-    path: "docs/bot-inbox-respuesta-automatica.md",
-    audienceRoles: ["admin", "group_admin", "super_admin"],
+    path: "docs/respuesta-automatica.md",
+    audienceRoles: ["admin", "group_admin", "manager", "supervisor", "super_admin"],
     feature: "bot",
     routePrefix: "/admin/bot",
   },
@@ -68,6 +75,7 @@ const DOCS: DocMeta[] = [
     routePrefix: "/group",
   },
   // Documentación de arquitectura y de diseño: soporte solamente.
+  { path: "docs/bot-inbox-respuesta-automatica.md", audienceRoles: SOLO_SOPORTE, feature: "bot", routePrefix: null },
   { path: "docs/mensajeria-zernio-arquitectura.md", audienceRoles: SOLO_SOPORTE, feature: "inbox", routePrefix: null },
   { path: "docs/mensajeria-zernio-plan.md", audienceRoles: SOLO_SOPORTE, feature: "inbox", routePrefix: null },
   { path: "docs/carga-leads-ia.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
