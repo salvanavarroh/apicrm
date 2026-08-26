@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 import {
   CSV_HEADERS,
   fullName,
@@ -217,6 +217,22 @@ export async function createLead(
     assigned_at: profile.role === "sales" ? new Date().toISOString() : null,
   };
 
+  // Gerente/supervisor: el lead TIENE que caer dentro de una de sus gerencias.
+  // No es una preferencia de producto, es lo que exige la RLS: `leads_select_*`
+  // sólo deja ver los leads cuyo par sucursal+tipo está en `managements`, y el
+  // insert lleva `RETURNING id`, así que Postgres aborta con "new row violates
+  // row-level security policy" cuando el par no coincide. Sin este chequeo el
+  // cliente veía ese texto crudo al dejar sucursal o tipo en blanco.
+  if (profile.role === "manager" || profile.role === "supervisor") {
+    const scopeError = await checkManagedScope(
+      supabase,
+      actingManagerId(profile),
+      insert.branch_id ?? null,
+      insert.product_type_id ?? null,
+    );
+    if (scopeError) return { ok: false, message: scopeError };
+  }
+
   const { data: lead, error } = await supabase
     .from("leads")
     .insert(insert)
@@ -224,7 +240,7 @@ export async function createLead(
     .single();
 
   if (error || !lead) {
-    return { ok: false, message: error?.message ?? "Error inesperado" };
+    return { ok: false, message: humanizeLeadError(error?.message) };
   }
 
   // Registrar submission inicial (snapshot de la carga original).
@@ -255,6 +271,50 @@ export async function createLead(
 
   revalidateLeadsPaths();
   return { ok: true, leadId: lead.id };
+}
+
+/**
+ * Verifica que el par sucursal+tipo sea una de las gerencias del manager. Si no
+ * lo es, devuelve el mensaje a mostrar; si está todo bien, `null`.
+ */
+async function checkManagedScope(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  managerId: string,
+  branchId: string | null,
+  productTypeId: string | null,
+): Promise<string | null> {
+  const { data: managements } = await supabase
+    .from("managements")
+    .select("branch_id, product_type_id")
+    .eq("manager_id", managerId);
+
+  if (!managements || managements.length === 0) {
+    return "Todavía no tenés ninguna gerencia asignada. Pedile al administrador que te asigne una sucursal y un tipo de producto.";
+  }
+
+  if (!branchId || !productTypeId) {
+    return "Elegí sucursal y tipo de producto: el lead tiene que quedar dentro de una de tus gerencias, si no no lo podrías ver.";
+  }
+
+  const inScope = managements.some(
+    (m) => m.branch_id === branchId && m.product_type_id === productTypeId,
+  );
+  if (!inScope) {
+    return "No manejás esa combinación de sucursal y tipo de producto.";
+  }
+  return null;
+}
+
+/**
+ * Los errores de RLS de Postgres llegan en inglés y hablando de policies. Es lo
+ * último que le sirve leer a un vendedor: se traducen al idioma del problema.
+ */
+function humanizeLeadError(message: string | undefined): string {
+  if (!message) return "Error inesperado";
+  if (/row-level security/i.test(message)) {
+    return "No podés crear el lead con esa clasificación: tiene que quedar dentro de una sucursal y un tipo de producto que manejés.";
+  }
+  return message;
 }
 
 function sanitizedSnapshot(data: Record<string, unknown>) {

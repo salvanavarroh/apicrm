@@ -59,6 +59,9 @@ type Props = {
   redirectTo: string;
   // Bloquea/auto-completa branch+product_type+campaign (ej: Provider no elige).
   lockClassification?: boolean;
+  // Gerencias de quien carga. Si viene, sucursal+tipo pasan a ser obligatorios
+  // y sólo se aceptan las combinaciones de la lista (gerente/supervisor).
+  managedPairs?: ManagedPair[];
 };
 
 const EMPTY: LeadInput = {
@@ -91,23 +94,39 @@ const EMPTY: LeadInput = {
 // reemplaza la validación del server, la anticipa.
 // ---------------------------------------------------------------------------
 
-type FieldKey = "phone" | "email" | "budget_max";
+type FieldKey =
+  | "phone"
+  | "email"
+  | "budget_max"
+  | "branch_id"
+  | "product_type_id";
 type FieldErrors = Partial<Record<FieldKey, string>>;
 
 const FIELD_LABELS: Record<FieldKey, string> = {
   phone: "Teléfono",
   email: "Email",
   budget_max: "Presupuesto hasta",
+  branch_id: "Sucursal",
+  product_type_id: "Tipo de producto",
 };
 
 /** Orden en el que se recorren los errores para enfocar el primero. */
-const FIELD_ORDER: FieldKey[] = ["phone", "email", "budget_max"];
+const FIELD_ORDER: FieldKey[] = [
+  "phone",
+  "email",
+  "budget_max",
+  "branch_id",
+  "product_type_id",
+];
 
 const fieldId = (key: FieldKey | string) => `lf-${key}`;
 
 const CONTACT_RULE = "Necesitás teléfono o email para poder contactarlo.";
 
-function validate(d: LeadInput): FieldErrors {
+/** Una gerencia: el par sucursal + tipo de producto que alguien maneja. */
+export type ManagedPair = { branchId: string; productTypeId: string };
+
+function validate(d: LeadInput, managed?: ManagedPair[]): FieldErrors {
   const errors: FieldErrors = {};
 
   const phone = String(d.phone ?? "").trim();
@@ -125,6 +144,30 @@ function validate(d: LeadInput): FieldErrors {
     errors.budget_max = 'No puede ser menor que "desde".';
   }
 
+  // Gerente/supervisor: sucursal y tipo son OBLIGATORIOS y tienen que formar
+  // una de sus gerencias. No es una regla de UI: la RLS de `leads` sólo lo deja
+  // ver los leads cuyo par sucursal+tipo maneja, así que un lead sin clasificar
+  // —o clasificado en un par que no maneja— no lo puede ni crear (Postgres
+  // aborta el insert al no poder devolver la fila).
+  if (managed) {
+    const branch = String(d.branch_id ?? "");
+    const type = String(d.product_type_id ?? "");
+    if (!branch) {
+      errors.branch_id = "Elegí una de las sucursales que manejás.";
+    }
+    if (!type) {
+      errors.product_type_id = "Elegí uno de los tipos que manejás.";
+    }
+    if (
+      branch &&
+      type &&
+      !managed.some((m) => m.branchId === branch && m.productTypeId === type)
+    ) {
+      errors.product_type_id =
+        "No manejás esa combinación de sucursal y tipo de producto.";
+    }
+  }
+
   return errors;
 }
 
@@ -136,6 +179,7 @@ export function LeadForm({
   campaigns,
   redirectTo,
   lockClassification,
+  managedPairs,
 }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -152,7 +196,7 @@ export function LeadForm({
       const next = { ...d, [key]: value };
       // Si ya se intentó guardar, revalidamos en vivo para que los errores
       // desaparezcan a medida que se corrigen.
-      if (submitted) setErrors(validate(next));
+      if (submitted) setErrors(validate(next, managedPairs));
       return next;
     });
   }
@@ -161,7 +205,7 @@ export function LeadForm({
   // se muestran después del primer intento (no hay que gritarle a un formulario
   // recién abierto), pero el ESTADO del footer se calcula siempre. Antes el
   // footer decía "Listo para guardar" con los obligatorios vacíos.
-  const liveErrors = validate(data);
+  const liveErrors = validate(data, managedPairs);
   const shownErrors = submitted ? errors : {};
 
   /** Nombres de campo a listar, contando phone+email como un solo problema. */
@@ -211,7 +255,7 @@ export function LeadForm({
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitted(true);
-    const found = validate(data);
+    const found = validate(data, managedPairs);
     setErrors(found);
     if (Object.keys(found).length > 0) {
       focusFirstError(found);
@@ -224,6 +268,39 @@ export function LeadForm({
   const n = lockClassification
     ? { cliente: 1, vehiculo: 2, comercial: 0, notas: 3 }
     : { cliente: 1, vehiculo: 2, comercial: 3, notas: 4 };
+
+  // Con gerencias, el tipo depende de la sucursal elegida: el par tiene que
+  // existir en `managements`. Ofrecer los dos catálogos completos dejaba armar
+  // combinaciones que el gerente no maneja, y eso reventaba igual contra la RLS.
+  const typeOptions = managedPairs
+    ? productTypes.filter((p) =>
+        managedPairs.some(
+          (m) =>
+            m.productTypeId === p.id &&
+            (!data.branch_id || m.branchId === data.branch_id),
+        ),
+      )
+    : productTypes;
+
+  /** Al cambiar de sucursal, un tipo que ya no forma gerencia se limpia. */
+  function pickBranch(branchId: string) {
+    setData((d) => {
+      const type = String(d.product_type_id ?? "");
+      const stillValid =
+        !managedPairs ||
+        !type ||
+        managedPairs.some(
+          (m) => m.branchId === branchId && m.productTypeId === type,
+        );
+      const next = {
+        ...d,
+        branch_id: branchId,
+        product_type_id: stillValid ? d.product_type_id : "",
+      };
+      if (submitted) setErrors(validate(next, managedPairs));
+      return next;
+    });
+  }
 
   const branchLabel = branches.find((b) => b.id === data.branch_id)?.label;
   const typeLabel = productTypes.find((p) => p.id === data.product_type_id)
@@ -345,7 +422,7 @@ export function LeadForm({
 
         <Separator />
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field id="declared_payment_method" label="Forma de pago">
             <Select
               value={(data.declared_payment_method as string) || ""}
@@ -433,11 +510,16 @@ export function LeadForm({
       {/* ---------------- 3. Asignación comercial ---------------- */}
       {!lockClassification && (
         <FormBlock n={n.comercial} icon={Target} title="Asignación comercial">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field id="branch_id" label="Sucursal">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field
+              id="branch_id"
+              label="Sucursal"
+              required={Boolean(managedPairs)}
+              error={shownErrors.branch_id}
+            >
               <Select
                 value={data.branch_id ?? ""}
-                onValueChange={(v) => update("branch_id", v)}
+                onValueChange={(v) => pickBranch(v)}
               >
                 <SelectTrigger id={fieldId("branch_id")}>
                   <SelectValue placeholder="—" />
@@ -451,7 +533,12 @@ export function LeadForm({
                 </SelectContent>
               </Select>
             </Field>
-            <Field id="product_type_id" label="Tipo de producto">
+            <Field
+              id="product_type_id"
+              label="Tipo de producto"
+              required={Boolean(managedPairs)}
+              error={shownErrors.product_type_id}
+            >
               <Select
                 value={data.product_type_id ?? ""}
                 onValueChange={(v) => update("product_type_id", v)}
@@ -460,7 +547,7 @@ export function LeadForm({
                   <SelectValue placeholder="—" />
                 </SelectTrigger>
                 <SelectContent>
-                  {productTypes.map((p) => (
+                  {typeOptions.map((p) => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.label}
                     </SelectItem>
@@ -487,8 +574,9 @@ export function LeadForm({
             </Field>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Si dejás sucursal o tipo en blanco, el lead cae en “Sin clasificar” y
-            no se auto-asigna a ningún vendedor.
+            {managedPairs
+              ? "Sucursal y tipo son obligatorios: el lead tiene que quedar dentro de una de tus gerencias, si no no lo podrías ver."
+              : "Si dejás sucursal o tipo en blanco, el lead cae en “Sin clasificar” y no se auto-asigna a ningún vendedor."}
           </p>
         </FormBlock>
       )}
@@ -676,7 +764,7 @@ function Separator() {
 }
 
 function Grid2({ children }: { children: React.ReactNode }) {
-  return <div className="grid gap-3 sm:grid-cols-2">{children}</div>;
+  return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{children}</div>;
 }
 
 function Field({
