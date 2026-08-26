@@ -89,7 +89,9 @@ export default async function AyudaPage() {
         </p>
       </header>
 
-      <div className="flex h-[32rem] flex-col">
+      {/* Sin alto fijo: el chat crece con la conversación hasta su tope y ahí
+          scrollea. Ver la nota en assistant-chat.tsx. */}
+      <div className="flex flex-col">
         <AssistantChat
           variant="page"
           suggestions={suggestionsFor(profile.role)}

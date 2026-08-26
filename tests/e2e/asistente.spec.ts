@@ -116,14 +116,26 @@ test.describe("Asistente del CRM", () => {
     await expect(panel.getByText(/Sistema y reglas/i).first()).toBeVisible();
   });
 
-  test("la página de Ayuda es el asistente", async ({ page }) => {
+  test("la página de Ayuda es el asistente y manda con Enter", async ({
+    page,
+  }) => {
     await page.goto("/ayuda");
     await expect(
       page.getByRole("heading", { name: "Ayuda", level: 1 }),
     ).toBeVisible();
+
+    // No alcanza con que el campo exista: tiene que MANDAR. Enter envía y
+    // Shift+Enter hace salto de línea, que es lo que espera cualquiera que haya
+    // usado un chat.
+    const input = page.getByPlaceholder("Preguntame algo del CRM…");
+    await input.fill("¿por qué no puedo aprobar una venta?");
+    await input.press("Enter");
+
+    // Si el handler no corriera, el texto quedaría en el campo con un \n.
+    await expect(input).toHaveValue("");
     await expect(
-      page.getByPlaceholder("Preguntame algo del CRM…"),
-    ).toBeVisible();
+      page.getByText(/no, con tu rol no se puede/i).first(),
+    ).toBeVisible({ timeout: 30_000 });
   });
 
   test("la base de conocimiento tiene su pantalla", async ({ page }) => {

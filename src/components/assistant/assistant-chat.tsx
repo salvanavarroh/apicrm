@@ -185,7 +185,18 @@ export function AssistantChat({
     >
       <div
         ref={scrollRef}
-        className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4"
+        className={cn(
+          "flex flex-col gap-4 overflow-y-auto p-4",
+          // En el panel flotante el alto lo fija el contenedor, así que la lista
+          // lo llena. En la página NO puede tener alto fijo: con la conversación
+          // vacía dejaba 400px en blanco entre las sugerencias y el campo de
+          // texto, y así no se lee como un chat — la vista se iba a las tarjetas
+          // de abajo. Acá el alto lo pone el contenido y sólo scrollea al pasar
+          // el tope.
+          variant === "panel"
+            ? "min-h-0 flex-1"
+            : "max-h-[26rem] min-h-[7rem]",
+        )}
       >
         {empty && (
           <div className="flex flex-col gap-3">
