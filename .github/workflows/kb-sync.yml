@@ -57,9 +57,18 @@ jobs:
 
       - run: pnpm kb:build
 
-      - run: pnpm kb:sync
+      # Si los secrets todavía no están cargados, esto AVISA y sigue en verde en
+      # vez de romper el build. Un Action rojo permanente se vuelve ruido y deja
+      # de mirarse; una advertencia visible no. Con los secrets puestos, corre.
+      - name: Reindexar la base de conocimiento
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::warning title=Reindexado salteado::Faltan los secrets del repo (OPENAI_API_KEY, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY). La base de conocimiento NO se actualizó: corré 'pnpm kb:build && pnpm kb:sync' a mano hasta cargarlos."
+            exit 0
+          fi
+          pnpm kb:sync
