@@ -47,7 +47,7 @@ export default async function SuperAdminReportsPage({
 
       <ReportsToolbar from={from} to={to} data={data} />
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <KpiCard
           icon={Building2}
           label="Empresas"
@@ -115,7 +115,7 @@ export default async function SuperAdminReportsPage({
         )}
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 2. Salud de cuenta */}
         <Card className="p-5">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold">

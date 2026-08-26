@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import * as XLSX from "xlsx";
 
+import { DateField } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { ExecutiveReport } from "@/lib/executive-report";
 import { cn } from "@/lib/utils";
 
@@ -267,30 +267,20 @@ export function ReportToolbar({
       </div>
 
       <div className="flex flex-wrap items-end gap-3 border-t pt-3">
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground">
-            Desde
-          </span>
-          <Input
-            type="date"
-            value={from}
-            max={to || undefined}
-            onChange={(e) => setRange({ from: e.target.value })}
-            className="w-40"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-[11px] font-medium text-muted-foreground">
-            Hasta
-          </span>
-          <Input
-            type="date"
-            value={to}
-            min={from || undefined}
-            onChange={(e) => setRange({ to: e.target.value })}
-            className="w-40"
-          />
-        </label>
+        <DateField
+          label="Desde"
+          value={from}
+          max={to || undefined}
+          onChange={(v) => setRange({ from: v })}
+          className="w-[calc(50%-0.375rem)] sm:w-40"
+        />
+        <DateField
+          label="Hasta"
+          value={to}
+          min={from || undefined}
+          onChange={(v) => setRange({ to: v })}
+          className="w-[calc(50%-0.375rem)] sm:w-40"
+        />
         {hasRange && (
           <Button
             variant="ghost"

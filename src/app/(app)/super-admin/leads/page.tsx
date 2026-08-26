@@ -43,7 +43,7 @@ export default async function SuperAdminLeadsPage() {
         </p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {COMMERCIAL_LEAD_STATUSES.map((s) => (
           <Card key={s} className="flex flex-col gap-1 p-4">
             <span

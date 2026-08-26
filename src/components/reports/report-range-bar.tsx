@@ -4,7 +4,7 @@ import { CalendarDays } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
-import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
 
 // Barra de rango de los reportes del catálogo. El rango viaja por la URL para
@@ -133,24 +133,24 @@ export function ReportRangeBar({
         })}
       </div>
       <div className="ml-auto flex items-center gap-2">
-        <Input
-          type="date"
+        <DatePicker
+          size="sm"
           value={from}
           max={to}
           disabled={pending}
-          onChange={(e) => setRange({ from: e.target.value })}
-          className="h-8 w-36"
-          aria-label="Desde"
+          onChange={(v) => setRange({ from: v })}
+          className="w-36"
+          ariaLabel="Desde"
         />
         <span className="text-xs text-muted-foreground">→</span>
-        <Input
-          type="date"
+        <DatePicker
+          size="sm"
           value={to}
           min={from}
           disabled={pending}
-          onChange={(e) => setRange({ to: e.target.value })}
-          className="h-8 w-36"
-          aria-label="Hasta"
+          onChange={(v) => setRange({ to: v })}
+          className="w-36"
+          ariaLabel="Hasta"
         />
       </div>
     </div>

@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { DatePicker, TimePicker } from "@/components/ui/date-picker";
 import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -260,17 +261,19 @@ export function LeadInfoPanel({
                 className="w-full rounded-md border px-2 py-1.5 text-sm"
               />
               <div className="flex gap-2">
-                <input
-                  type="date"
+                <DatePicker
+                  size="sm"
                   value={tDate}
-                  onChange={(e) => setTDate(e.target.value)}
-                  className="flex-1 rounded-md border px-2 py-1.5 text-sm"
+                  onChange={setTDate}
+                  ariaLabel="Fecha de la tarea"
+                  className="flex-1"
                 />
-                <input
-                  type="time"
+                <TimePicker
+                  size="sm"
                   value={tTime}
-                  onChange={(e) => setTTime(e.target.value)}
-                  className="w-24 rounded-md border px-2 py-1.5 text-sm"
+                  onChange={setTTime}
+                  ariaLabel="Hora de la tarea"
+                  className="w-24"
                 />
               </div>
               <select
@@ -293,17 +296,19 @@ export function LeadInfoPanel({
           {tab === "visit" && (
             <div className="space-y-2 rounded-md border p-2">
               <div className="flex gap-2">
-                <input
-                  type="date"
+                <DatePicker
+                  size="sm"
                   value={vDate}
-                  onChange={(e) => setVDate(e.target.value)}
-                  className="flex-1 rounded-md border px-2 py-1.5 text-sm"
+                  onChange={setVDate}
+                  ariaLabel="Fecha de la visita"
+                  className="flex-1"
                 />
-                <input
-                  type="time"
+                <TimePicker
+                  size="sm"
                   value={vTime}
-                  onChange={(e) => setVTime(e.target.value)}
-                  className="w-24 rounded-md border px-2 py-1.5 text-sm"
+                  onChange={setVTime}
+                  ariaLabel="Hora de la visita"
+                  className="w-24"
                 />
               </div>
               <textarea

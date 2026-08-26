@@ -174,7 +174,7 @@ export default async function AdminUserDetailPage({
         </UserActions>
       </header>
 
-      <Card className="grid gap-4 p-5 md:grid-cols-3">
+      <Card className="grid grid-cols-1 gap-4 p-5 md:grid-cols-3">
         <ContactRow icon={Mail} label="Email" value={email} />
         <ContactRow icon={Phone} label="Teléfono" value={user.phone} />
         <ContactRow
@@ -334,7 +334,7 @@ function ManagerView({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={ShieldCheck}
           label="Vendedores"
@@ -554,7 +554,7 @@ function VendorView({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={ShieldCheck}
           label="Leads activos"
@@ -618,7 +618,7 @@ function ProviderView({
   stats: NonNullable<Awaited<ReturnType<typeof loadProviderStats>>>;
 }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
       <KpiCard
         icon={Truck}
         label="Total cargados"

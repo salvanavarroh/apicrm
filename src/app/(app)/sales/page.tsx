@@ -160,7 +160,7 @@ export default async function SalesHomePage() {
 
       <AgendaCalendar items={agendaItems} todayKey={today} />
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <Stat label="Mis leads" value={total ?? 0} />
         <Stat label="Nuevos" value={newCount ?? 0} />
         <Stat label="Presupuestados" value={quoted ?? 0} />
@@ -175,7 +175,7 @@ export default async function SalesHomePage() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold">Leads recientes</h2>

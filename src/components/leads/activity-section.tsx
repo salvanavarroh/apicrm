@@ -22,10 +22,10 @@ import {
   scheduleVisit,
   updateVisitStatus,
 } from "@/app/(app)/admin/leads/visit-actions";
+import { DatePicker, DateTimePicker, TimePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -394,7 +394,7 @@ export function ActivitySection({
 
             {mode === "task" && (
               <div className="flex flex-col gap-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Tipo de tarea">
                     <Select value={taskType} onValueChange={(v) => setTaskType(v as TaskType)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -407,17 +407,17 @@ export function ActivitySection({
                   </Field>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <Field label="Vencimiento">
-                      <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+                      <DatePicker value={dueDate} onChange={setDueDate} />
                     </Field>
                     <Field label="Horario">
-                      <Input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} disabled={!dueDate} />
+                      <TimePicker value={dueTime} onChange={setDueTime} disabled={!dueDate} />
                     </Field>
                   </div>
                 </div>
                 <Field label="Descripción (opcional)">
                   <Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} />
                 </Field>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Prioridad">
                     <Select value={priority} onValueChange={(v) => setPriority(v as TaskPriority)}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
@@ -450,9 +450,9 @@ export function ActivitySection({
 
             {mode === "visit" && (
               <div className="flex flex-col gap-3">
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Fecha y hora">
-                    <Input type="datetime-local" value={visitAt} onChange={(e) => setVisitAt(e.target.value)} />
+                    <DateTimePicker value={visitAt} onChange={setVisitAt} />
                   </Field>
                   {canAssignOthers && (
                     <Field label="Atiende">

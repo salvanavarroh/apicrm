@@ -162,7 +162,7 @@ export function FormBuilder({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_minmax(0,420px)]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(0,420px)]">
       <div className="flex flex-col gap-6">
         <Card>
           <CardHeader>
@@ -369,7 +369,7 @@ export function FormBuilder({
               return (
                 <div
                   key={k}
-                  className="grid items-center gap-3 border-t border-border pt-3 first:border-t-0 first:pt-0 md:grid-cols-[1fr_1fr_auto]"
+                  className="grid grid-cols-1 items-center gap-3 border-t border-border pt-3 first:border-t-0 first:pt-0 md:grid-cols-[1fr_1fr_auto]"
                 >
                   <Row label="Label">
                     <Input

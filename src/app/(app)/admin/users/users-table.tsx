@@ -134,7 +134,7 @@ export function UsersTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="grid items-end gap-3 p-4 md:grid-cols-[1fr_auto_auto_auto]">
+      <Card className="grid grid-cols-1 items-end gap-3 p-4 md:grid-cols-[1fr_auto_auto_auto]">
         <div className="flex flex-col gap-1">
           <Label className="text-[11px]">Buscar</Label>
           <Input

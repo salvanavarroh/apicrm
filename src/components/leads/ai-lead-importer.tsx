@@ -390,7 +390,7 @@ export function AiLeadImporter({
           <p className="text-sm font-medium">
             1. Contexto del archivo (se aplica a todos los leads)
           </p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {showClassification && (
               <>
                 <Field label="Sucursal">

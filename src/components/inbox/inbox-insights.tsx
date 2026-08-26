@@ -73,7 +73,7 @@ export function InboxInsights() {
         <Stat label="Ventana por vencer (menos de 1h)" value={data.windowClosing} tone={data.windowClosing ? "warning" : "default"} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="p-4">
           <h3 className="mb-3 text-sm font-semibold">Por vendedor</h3>
           {data.byVendor.length === 0 ? (

@@ -39,7 +39,7 @@ export default async function DataProviderHomePage() {
         </p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Mis cargas" value={total ?? 0} />
         <Stat label="En el pool" value={pool ?? 0} hint="Sin clasificar" />
         <Stat
@@ -49,7 +49,7 @@ export default async function DataProviderHomePage() {
         />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <ActionCard
           href="/data-provider/leads/new"
           icon={Plus}

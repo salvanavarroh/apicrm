@@ -253,7 +253,7 @@ export function Valuator({
       {quote && (
         <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
           {/* Los dos números, separados a propósito: el cliente los confunde. */}
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="rounded-md border bg-card p-2.5">
               <p className="text-[11px] text-muted-foreground">Vale en el mercado</p>
               <p className="text-lg font-semibold">

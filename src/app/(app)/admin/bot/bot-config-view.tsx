@@ -127,12 +127,17 @@ export function BotConfigView({
           )}
         </div>
 
+        {/* El texto va dentro de un <span>: en un contenedor flex cada <code>
+            sería un item propio y la fila no envuelve — en mobile eso empujaba
+            la pantalla 68px hacia el costado. */}
         <p className="flex items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" />
-          El bot no redacta: elige cuál de estas respuestas corresponde y la manda
-          tal cual la escribiste. Variables: <code>{"{nombre}"}</code>{" "}
-          <code>{"{sucursal}"}</code> <code>{"{horario}"}</code>{" "}
-          <code>{"{concesionaria}"}</code>
+          <span>
+            El bot no redacta: elige cuál de estas respuestas corresponde y la
+            manda tal cual la escribiste. Variables: <code>{"{nombre}"}</code>{" "}
+            <code>{"{sucursal}"}</code> <code>{"{horario}"}</code>{" "}
+            <code>{"{concesionaria}"}</code>
+          </span>
         </p>
 
         {intents.length === 0 ? (
@@ -313,7 +318,7 @@ function BranchCard({
       {c.enabled && (
         <>
           <div className="h-px bg-border" />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {/* El modo era un select chico rotulado "Modo" y no se encontraba:
                 el usuario no sabía cómo hacer que respondiera solo. Ahora son dos
                 opciones explícitas, con el nombre de lo que hacen. */}
@@ -321,7 +326,7 @@ function BranchCard({
               <Label className="text-xs font-semibold">
                 ¿Qué hace el bot cuando le escriben?
               </Label>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => patch({ mode: "draft" })}

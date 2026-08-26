@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { DateTimePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,7 +17,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -326,11 +326,7 @@ function ScheduleVisitDialog({
         <div className="grid gap-3">
           <div className="flex flex-col gap-1">
             <Label className="text-[11px]">Fecha y hora</Label>
-            <Input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-            />
+            <DateTimePicker value={scheduledAt} onChange={setScheduledAt} />
           </div>
           {canPickAssignee ? (
             <div className="flex flex-col gap-1">

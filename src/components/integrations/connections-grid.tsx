@@ -474,7 +474,7 @@ export function ConnectionsGrid({
                       <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
                     </summary>
 
-                    <div className="grid gap-3 border-t bg-muted/30 p-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 border-t bg-muted/30 p-3 sm:grid-cols-2">
                       {/* Salud (WhatsApp) o estado */}
                       <div className="rounded-lg border bg-card p-3">
                         <p className="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground/70">

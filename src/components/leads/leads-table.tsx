@@ -174,7 +174,13 @@ function fmtDateTime(iso: string | null | undefined): {
       month: "2-digit",
       year: "2-digit",
     }),
-    time: d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+    // 24 h a propósito: en 12 h el separador de "a. m." es un espacio angosto
+    // en el browser y uno común en Node, y eso rompe la hidratación.
+    time: d.toLocaleTimeString("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
   };
 }
 
@@ -488,7 +494,56 @@ export function LeadsTable({
         </div>
       )}
 
-      <div className="relative overflow-hidden rounded-xl border">
+      {/* --- Mobile: tarjetas ------------------------------------------- */}
+      {/* Once columnas no entran en 390px. Una tabla con scroll lateral en un
+          teléfono se lee mal y se toca peor: cada lead pasa a ser una tarjeta
+          con lo mismo que muestran las columnas, ordenado por importancia. */}
+      <div className="relative flex flex-col gap-2 lg:hidden">
+        {loading && rows.length > 0 && (
+          <div className="pointer-events-none absolute inset-0 z-10 bg-background/50" />
+        )}
+
+        {selectable && rows.length > 0 && (
+          <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              aria-label="Seleccionar todos"
+              checked={allSelected}
+              onChange={toggleAll}
+              className="size-4 rounded border-input"
+            />
+            Seleccionar los {rows.length} de esta página
+          </label>
+        )}
+
+        {rows.length === 0 ? (
+          <div className="rounded-xl border bg-card">
+            <EmptyState
+              loading={loading}
+              filtered={filtered}
+              archived={archived}
+              onClear={clearAll}
+            />
+          </div>
+        ) : (
+          rows.map((row) => (
+            <LeadCard
+              key={row.id}
+              row={row}
+              href={`${detailHrefPrefix}/${row.id}`}
+              showAssignee={showAssignee}
+              editableTemperature={editableTemperature}
+              selectable={selectable}
+              selected={selected.has(row.id)}
+              onToggle={() => toggleRow(row.id)}
+              onOpen={(e) => openDetail(row.id, e)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* --- Desktop: tabla --------------------------------------------- */}
+      <div className="relative hidden overflow-hidden rounded-xl border lg:block">
         {/* Velo de carga: la tabla no "salta" al refiltrar. */}
         {loading && rows.length > 0 && (
           <div className="pointer-events-none absolute inset-0 z-10 bg-background/50" />
@@ -702,7 +757,7 @@ export function LeadsTable({
       </div>
 
       {total > LEADS_TABLE_PAGE && (
-        <div className="flex items-center justify-between gap-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="text-muted-foreground">
             Mostrando {(page - 1) * LEADS_TABLE_PAGE + 1}–
             {Math.min(page * LEADS_TABLE_PAGE, total)} de{" "}
@@ -731,6 +786,166 @@ export function LeadsTable({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Un lead como tarjeta (mobile). Mismos datos que la fila de la tabla, en el
+ * orden en que se leen en un teléfono: quién es y en qué estado está arriba,
+ * los datos de contacto en el medio, cuándo entró y qué tan caliente está abajo.
+ */
+function LeadCard({
+  row,
+  href,
+  showAssignee,
+  editableTemperature,
+  selectable,
+  selected,
+  onToggle,
+  onOpen,
+}: {
+  row: LeadsTableRow;
+  href: string;
+  showAssignee: boolean;
+  editableTemperature: boolean;
+  selectable: boolean;
+  selected: boolean;
+  onToggle: () => void;
+  onOpen: (e: React.MouseEvent) => void;
+}) {
+  const router = useRouter();
+  const { date, time } = fmtDateTime(row.created_at);
+  const vehicle = [row.vehicle_model, row.vehicle_version]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={onOpen}
+      onMouseEnter={() => router.prefetch(href)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          router.push(href);
+        }
+      }}
+      data-selected={selected ? "" : undefined}
+      className="flex cursor-pointer flex-col gap-2.5 rounded-xl border bg-card p-3 transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none active:bg-accent/5 data-[selected]:border-accent/40 data-[selected]:bg-accent/10"
+    >
+      <div className="flex items-start gap-2.5">
+        {selectable && (
+          <input
+            type="checkbox"
+            aria-label={`Seleccionar ${fullName(row.first_name, row.last_name)}`}
+            checked={selected}
+            onClick={(e) => e.stopPropagation()}
+            onChange={onToggle}
+            className="mt-1 size-4 shrink-0 rounded border-input"
+          />
+        )}
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
+          {initials(row.first_name, row.last_name)}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="flex items-center gap-1.5">
+            <UrgencyDot
+              status={row.status}
+              statusChangedAt={row.status_changed_at}
+            />
+            <span className="truncate font-medium">
+              {fullName(row.first_name, row.last_name) || "Sin nombre"}
+            </span>
+          </span>
+          {row.city && (
+            <span className="truncate text-xs text-muted-foreground">
+              {row.city}
+            </span>
+          )}
+        </div>
+        <LeadStatusBadge status={row.status} />
+      </div>
+
+      {/* Los campos vacíos no se dibujan: con tres "—" seguidos la tarjeta
+          medía el doble y no decía nada más. */}
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+        <Cell label="Teléfono">
+          <span className="font-mono text-[13px] text-foreground">
+            {row.phone ?? "—"}
+          </span>
+        </Cell>
+        {row.email && (
+          <Cell label="Email">
+            <span className="truncate">{row.email}</span>
+          </Cell>
+        )}
+        {vehicle && <Cell label="Vehículo">{vehicle}</Cell>}
+        <Cell label="Sucursal / Tipo">
+          {row.branch_name ?? <PoolBadge />}
+          <span className="block truncate text-muted-foreground">
+            {row.product_type_name ?? "sin tipo"}
+          </span>
+        </Cell>
+        {showAssignee && (
+          <Cell label="Vendedor">
+            {row.assignee_name ?? (
+              <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-warning-text">
+                Sin asignar
+              </span>
+            )}
+          </Cell>
+        )}
+        {row.campaign_name && (
+          <Cell label="Campaña">
+            <span className="truncate">{row.campaign_name}</span>
+          </Cell>
+        )}
+      </dl>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2.5">
+        <span className="text-[11px] text-muted-foreground">
+          Ingresó{" "}
+          <span className="tabular-nums text-foreground">
+            {date}
+            {time ? ` ${time}` : ""}
+          </span>
+          {" · "}
+          últ. contacto {fmtRelative(row.last_contacted_at)}
+        </span>
+        <span
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {editableTemperature ? (
+            <TemperatureChanger
+              leadId={row.id}
+              current={row.temperature ?? null}
+              className="h-8 w-40"
+            />
+          ) : (
+            <TemperatureBadge temperature={row.temperature ?? null} />
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function Cell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col">
+      <dt className="text-[10px] tracking-wide text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="min-w-0 truncate">{children}</dd>
     </div>
   );
 }

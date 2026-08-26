@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import * as XLSX from "xlsx";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { CrossReports } from "@/lib/cross-reports";
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
@@ -103,11 +103,10 @@ export function ReportsToolbar({
         <label className="text-[11px] font-medium text-muted-foreground">
           Desde
         </label>
-        <Input
-          type="date"
+        <DatePicker
           value={from}
           max={to || undefined}
-          onChange={(e) => setRange({ from: e.target.value })}
+          onChange={(v) => setRange({ from: v })}
           className="w-40"
         />
       </div>
@@ -115,11 +114,10 @@ export function ReportsToolbar({
         <label className="text-[11px] font-medium text-muted-foreground">
           Hasta
         </label>
-        <Input
-          type="date"
+        <DatePicker
           value={to}
           min={from || undefined}
-          onChange={(e) => setRange({ to: e.target.value })}
+          onChange={(v) => setRange({ to: v })}
           className="w-40"
         />
       </div>

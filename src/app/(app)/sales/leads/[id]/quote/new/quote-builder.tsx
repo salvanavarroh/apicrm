@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -312,7 +313,7 @@ export function QuoteBuilder({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
       <div className="flex flex-col gap-4">
         <Tabs
           value={data.modality}
@@ -642,10 +643,9 @@ export function QuoteBuilder({
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <Field label="Válido hasta">
-              <Input
-                type="date"
+              <DatePicker
                 value={data.valid_until}
-                onChange={(e) => update("valid_until", e.target.value)}
+                onChange={(v) => update("valid_until", v)}
               />
             </Field>
             <div className="col-span-2">

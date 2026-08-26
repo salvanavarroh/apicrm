@@ -70,7 +70,10 @@ export function LeadsPageHeader({
         className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-accent to-accent/30"
       />
 
-      <div className="flex flex-col gap-4 p-5 pl-6">
+      {/* Padding y tipografía más chicos en mobile: con los 4 contadores en una
+          sola columna el encabezado se comía la pantalla entera y había que
+          scrollear un teléfono completo antes de ver el primer lead. */}
+      <div className="flex flex-col gap-4 p-4 pl-5 sm:p-5 sm:pl-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
             {Icon && (
@@ -79,7 +82,9 @@ export function LeadsPageHeader({
               </span>
             )}
             <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+              <h1 className="text-xl font-bold tracking-tight sm:text-2xl">
+                {title}
+              </h1>
               {description && (
                 <p className="max-w-2xl text-sm text-muted-foreground">
                   {description}
@@ -93,7 +98,7 @@ export function LeadsPageHeader({
         </div>
 
         {stats.length > 0 && (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
             {stats.map((s) => (
               <StatChip key={s.label} stat={s} />
             ))}
@@ -115,7 +120,7 @@ export function LeadsPageHeaderSkeleton({ stats = 4 }: { stats?: number }) {
         aria-hidden
         className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-accent to-accent/30"
       />
-      <div className="flex flex-col gap-4 p-5 pl-6">
+      <div className="flex flex-col gap-4 p-4 pl-5 sm:p-5 sm:pl-6">
         <div className="flex items-center gap-3">
           <div className="size-10 animate-pulse rounded-lg bg-muted" />
           <div className="flex flex-col gap-2">
@@ -123,7 +128,7 @@ export function LeadsPageHeaderSkeleton({ stats = 4 }: { stats?: number }) {
             <div className="h-3 w-64 animate-pulse rounded bg-muted" />
           </div>
         </div>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           {Array.from({ length: stats }).map((_, i) => (
             <div key={i} className="h-[62px] animate-pulse rounded-lg bg-muted" />
           ))}

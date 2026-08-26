@@ -25,8 +25,16 @@ function Tabs({
   )
 }
 
+// `max-w-full overflow-x-auto`: cuatro pestañas ("Kanban · Tabla · No asignados
+// · Archivados") miden 446px y no entran en un teléfono de 390. Sin esto el
+// grupo estira el contenido y toda la pantalla se va al costado al scrollear.
+// En desktop el grupo es `w-fit` y nunca desborda, así que no cambia nada.
+//
+// `justify-start` y no `justify-center`: centrando, lo que sobra se reparte a
+// los dos lados y la parte de la izquierda queda fuera del alcance del scroll
+// (la primera pestaña se ve cortada y no hay forma de llegar a ella).
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg border border-border p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none",
+  "group/tabs-list inline-flex w-fit max-w-full items-center justify-start overflow-x-auto rounded-lg border border-border p-[3px] text-muted-foreground group-data-[orientation=horizontal]/tabs:h-9 group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col data-[variant=line]:rounded-none",
   {
     variants: {
       variant: {

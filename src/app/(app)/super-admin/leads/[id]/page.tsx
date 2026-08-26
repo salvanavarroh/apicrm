@@ -83,7 +83,7 @@ export default async function SuperAdminLeadDetailPage({
         <CommercialLeadActions leadId={lead.id} currentStatus={lead.status} />
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>

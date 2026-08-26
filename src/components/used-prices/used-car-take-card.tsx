@@ -98,7 +98,7 @@ export function UsedCarTakeCard({
           </p>
         )}
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1">
             <Label className="text-xs">Se pagó</Label>
             <Input

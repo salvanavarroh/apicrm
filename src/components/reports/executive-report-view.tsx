@@ -66,7 +66,7 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
       )}
 
       {/* --- Números generales ------------------------------------------- */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={Users}
           label="Leads del período"
@@ -113,7 +113,7 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
             gestionados. 🎉
           </Card>
         ) : (
-          <ul className="grid gap-2 lg:grid-cols-2">
+          <ul className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {data.alerts.map((a) => (
               <li
                 key={a.id}
@@ -263,7 +263,10 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
       </Section>
 
       {/* --- Embudo + canales -------------------------------------------- */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* `grid-cols-1` no es decorativo: sin plantilla explícita la columna se
+          dimensiona por el min-content de la tabla de canales (~518px) y empuja
+          toda la pantalla hacia el costado en un teléfono. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Section icon={Filter} title="Embudo de conversión">
           <Card className="flex flex-col gap-3 p-5">
             {data.funnel.map((f, i) => {
@@ -361,7 +364,7 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
         title="Calificación del pipeline"
         subtitle="Temperatura asignada por los vendedores"
       >
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           {data.temperature.map((t) => (
             <Card key={t.key} className="flex flex-col gap-1 p-4">
               <span className="text-xs font-medium text-muted-foreground">

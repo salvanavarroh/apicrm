@@ -1,9 +1,17 @@
 "use client";
 
-import { Download, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
-import { useState } from "react";
+import {
+  ChevronDown,
+  Download,
+  Loader2,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { DateField } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -26,12 +34,14 @@ import { cn } from "@/lib/utils";
 // ============================================================================
 // Barra de filtros de la tabla de leads.
 //
-// Antes eran ~10 controles sueltos en una fila que envolvía, más 4 inputs de
-// fecha siempre visibles: mucho ruido y ninguna jerarquía. Ahora:
-//   1. Fila principal: búsqueda + temperatura + botón "Filtros" + export.
-//   2. Chips de estado con contadores (clickeables, hacen de filtro).
-//   3. Panel avanzado colapsado (columnas + fechas) con contador de activos.
-//   4. Chips de filtros activos, removibles de a uno.
+// Todo lo que filtra vive DENTRO del botón "Filtros": estados con contadores,
+// alertas, columnas, fechas y los chips de lo que está aplicado. Afuera quedan
+// sólo el buscador, la temperatura, el botón (con el número de filtros puestos)
+// y el conteo de resultados.
+//
+// El motivo es mobile: los chips sueltos debajo de la barra ocupaban tres
+// renglones y empujaban la lista fuera de la primera pantalla del teléfono. De
+// paso, en desktop deja de haber dos lugares distintos donde filtrar.
 // ============================================================================
 
 export type LeadsFilterState = {
@@ -82,7 +92,7 @@ const TEMPERATURE_FILTER: { value: LeadTemperature | "all"; label: string }[] = 
   })),
 ];
 
-/** Cuenta filtros activos que viven en el panel avanzado. */
+/** Filtros por columna y por fecha (los del panel avanzado de siempre). */
 function advancedCount(f: LeadsFilterState): number {
   return [
     f.branchId !== "all",
@@ -96,14 +106,14 @@ function advancedCount(f: LeadsFilterState): number {
   ].filter(Boolean).length;
 }
 
+/** Todo lo que ahora vive dentro del botón "Filtros". El buscador y la
+ *  temperatura quedan afuera, así que no cuentan para el badge. */
+function panelCount(f: LeadsFilterState): number {
+  return advancedCount(f) + (f.status !== "all" ? 1 : 0) + (f.staleOnly ? 1 : 0);
+}
+
 export function hasAnyFilter(f: LeadsFilterState): boolean {
-  return (
-    advancedCount(f) > 0 ||
-    Boolean(f.q) ||
-    f.status !== "all" ||
-    f.temperature !== "all" ||
-    f.staleOnly
-  );
+  return panelCount(f) > 0 || Boolean(f.q) || f.temperature !== "all";
 }
 
 export function LeadsFilterBar({
@@ -136,22 +146,31 @@ export function LeadsFilterBar({
   onExport?: () => void;
   exporting?: boolean;
 }) {
-  const advanced = advancedCount(value);
-  const [open, setOpen] = useState(advanced > 0);
-  const hasAdvancedPanel =
+  const applied = panelCount(value);
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Al abrir el panel en un teléfono queda a mitad de camino: lo acercamos para
+  // que no haya que scrollear a ciegas.
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [open]);
+
+  const labelFor = (opts: FilterOption[] | undefined, id: string) =>
+    opts?.find((o) => o.id === id)?.label ?? id;
+
+  const hasColumnFilters =
     Boolean(branchOptions?.length) ||
     Boolean(productTypeOptions?.length) ||
     Boolean(vendorOptions?.length) ||
     Boolean(campaignOptions?.length);
 
-  const labelFor = (opts: FilterOption[] | undefined, id: string) =>
-    opts?.find((o) => o.id === id)?.label ?? id;
-
   return (
     <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">
       {/* --- Fila principal ---------------------------------------------- */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1">
+        <div className="relative min-w-0 flex-1 basis-full sm:basis-[220px]">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar por nombre, teléfono, email, ciudad o modelo…"
@@ -177,7 +196,7 @@ export function LeadsFilterBar({
             onChange({ temperature: v as LeadTemperature | "all" })
           }
         >
-          <SelectTrigger className="w-[190px]">
+          <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-[190px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -189,26 +208,33 @@ export function LeadsFilterBar({
           </SelectContent>
         </Select>
 
-        {hasAdvancedPanel && (
-          <Button
-            variant={open ? "secondary" : "outline"}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <SlidersHorizontal className="mr-2 size-4" />
-            Filtros
-            {advanced > 0 && (
-              <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">
-                {advanced}
-              </span>
+        <Button
+          variant={open || applied > 0 ? "secondary" : "outline"}
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="w-[calc(50%-0.25rem)] justify-center sm:w-auto"
+        >
+          <SlidersHorizontal className="mr-2 size-4" />
+          Filtros
+          {applied > 0 && (
+            <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-semibold text-accent-foreground">
+              {applied}
+            </span>
+          )}
+          <ChevronDown
+            className={cn(
+              "ml-1.5 size-3.5 transition-transform",
+              open && "rotate-180",
             )}
-          </Button>
-        )}
+          />
+        </Button>
 
         {onExport && (
           <Button
             variant="outline"
             onClick={onExport}
             disabled={exporting || total === 0}
+            className="flex-1 justify-center sm:flex-none"
           >
             {exporting ? (
               <Loader2 className="mr-2 size-4 animate-spin" />
@@ -217,54 +243,6 @@ export function LeadsFilterBar({
             )}
             Exportar
           </Button>
-        )}
-      </div>
-
-      {/* --- Chips de estado con contadores ------------------------------ */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <StatusChip
-          label="Todos"
-          count={summary?.total}
-          active={value.status === "all"}
-          onClick={() => onChange({ status: "all" })}
-        />
-        {CHIP_STATUSES.map((s) => (
-          <StatusChip
-            key={s}
-            label={LEAD_STATUS_LABELS[s]}
-            count={summary?.byStatus[s]}
-            active={value.status === s}
-            onClick={() =>
-              onChange({ status: value.status === s ? "all" : s })
-            }
-          />
-        ))}
-
-        {showAlerts && (
-          <>
-            <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-
-            {/* Alertas: los dos recortes que el gerente pide primero. */}
-            <StatusChip
-              label="Sin asignar"
-              count={summary?.unassigned}
-              tone="warning"
-              active={value.vendorId === "unassigned"}
-              onClick={() =>
-                onChange({
-                  vendorId:
-                    value.vendorId === "unassigned" ? "all" : "unassigned",
-                })
-              }
-            />
-            <StatusChip
-              label="Sin gestión +7d"
-              count={summary?.stale}
-              tone="danger"
-              active={value.staleOnly}
-              onClick={() => onChange({ staleOnly: !value.staleOnly })}
-            />
-          </>
         )}
 
         <span className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
@@ -276,52 +254,102 @@ export function LeadsFilterBar({
         </span>
       </div>
 
-      {/* --- Panel avanzado --------------------------------------------- */}
-      {open && hasAdvancedPanel && (
-        <div className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-3">
-          <div className="flex flex-wrap gap-2">
-            {branchOptions && branchOptions.length > 0 && (
-              <ColumnFilter
-                label="Sucursal"
-                value={value.branchId}
-                onChange={(v) => onChange({ branchId: v })}
-                allLabel="Toda sucursal"
-                options={branchOptions}
+      {/* --- Panel de filtros -------------------------------------------- */}
+      {open && (
+        <div
+          ref={panelRef}
+          className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-3"
+        >
+          {/* Estado: los chips con contadores, ahora acá adentro. */}
+          <FilterGroup label="Estado">
+            <StatusChip
+              label="Todos"
+              count={summary?.total}
+              active={value.status === "all"}
+              onClick={() => onChange({ status: "all" })}
+            />
+            {CHIP_STATUSES.map((s) => (
+              <StatusChip
+                key={s}
+                label={LEAD_STATUS_LABELS[s]}
+                count={summary?.byStatus[s]}
+                active={value.status === s}
+                onClick={() =>
+                  onChange({ status: value.status === s ? "all" : s })
+                }
               />
-            )}
-            {productTypeOptions && productTypeOptions.length > 0 && (
-              <ColumnFilter
-                label="Tipo de producto"
-                value={value.productTypeId}
-                onChange={(v) => onChange({ productTypeId: v })}
-                allLabel="Todo tipo"
-                options={productTypeOptions}
-              />
-            )}
-            {vendorOptions && vendorOptions.length > 0 && (
-              <ColumnFilter
-                label="Vendedor"
-                value={value.vendorId}
-                onChange={(v) => onChange({ vendorId: v })}
-                allLabel="Todo vendedor"
-                options={[
-                  { id: "unassigned", label: "Sin asignar" },
-                  ...vendorOptions,
-                ]}
-              />
-            )}
-            {campaignOptions && campaignOptions.length > 0 && (
-              <ColumnFilter
-                label="Campaña"
-                value={value.campaignId}
-                onChange={(v) => onChange({ campaignId: v })}
-                allLabel="Toda campaña"
-                options={campaignOptions}
-              />
-            )}
-          </div>
+            ))}
+          </FilterGroup>
 
-          <div className="flex flex-wrap items-end gap-3">
+          {showAlerts && (
+            <FilterGroup label="Alertas">
+              <StatusChip
+                label="Sin asignar"
+                count={summary?.unassigned}
+                tone="warning"
+                active={value.vendorId === "unassigned"}
+                onClick={() =>
+                  onChange({
+                    vendorId:
+                      value.vendorId === "unassigned" ? "all" : "unassigned",
+                  })
+                }
+              />
+              <StatusChip
+                label="Sin gestión +7d"
+                count={summary?.stale}
+                tone="danger"
+                active={value.staleOnly}
+                onClick={() => onChange({ staleOnly: !value.staleOnly })}
+              />
+            </FilterGroup>
+          )}
+
+          {hasColumnFilters && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {branchOptions && branchOptions.length > 0 && (
+                <ColumnFilter
+                  label="Sucursal"
+                  value={value.branchId}
+                  onChange={(v) => onChange({ branchId: v })}
+                  allLabel="Toda sucursal"
+                  options={branchOptions}
+                />
+              )}
+              {productTypeOptions && productTypeOptions.length > 0 && (
+                <ColumnFilter
+                  label="Tipo de producto"
+                  value={value.productTypeId}
+                  onChange={(v) => onChange({ productTypeId: v })}
+                  allLabel="Todo tipo"
+                  options={productTypeOptions}
+                />
+              )}
+              {vendorOptions && vendorOptions.length > 0 && (
+                <ColumnFilter
+                  label="Vendedor"
+                  value={value.vendorId}
+                  onChange={(v) => onChange({ vendorId: v })}
+                  allLabel="Todo vendedor"
+                  options={[
+                    { id: "unassigned", label: "Sin asignar" },
+                    ...vendorOptions,
+                  ]}
+                />
+              )}
+              {campaignOptions && campaignOptions.length > 0 && (
+                <ColumnFilter
+                  label="Campaña"
+                  value={value.campaignId}
+                  onChange={(v) => onChange({ campaignId: v })}
+                  allLabel="Toda campaña"
+                  options={campaignOptions}
+                />
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <DateField
               label="Creado desde"
               value={value.createdFrom}
@@ -334,7 +362,6 @@ export function LeadsFilterBar({
               min={value.createdFrom || undefined}
               onChange={(v) => onChange({ createdTo: v })}
             />
-            <span className="mx-1 mb-2 h-8 w-px bg-border" aria-hidden />
             <DateField
               label="Últ. contacto desde"
               value={value.contactFrom}
@@ -348,89 +375,106 @@ export function LeadsFilterBar({
               onChange={(v) => onChange({ contactTo: v })}
             />
           </div>
-        </div>
-      )}
 
-      {/* --- Chips de filtros activos ----------------------------------- */}
-      {hasAnyFilter(value) && (
-        <div className="flex flex-wrap items-center gap-1.5 border-t pt-2.5">
-          <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            Filtros
-          </span>
-          {value.q && (
-            <ActiveChip
-              label={`“${value.q}”`}
-              onRemove={() => onChange({ q: "" })}
-            />
+          {/* Lo aplicado, removible de a uno — también acá adentro. */}
+          {hasAnyFilter(value) && (
+            <div className="flex flex-wrap items-center gap-1.5 border-t pt-3">
+              <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                Aplicados
+              </span>
+              {value.q && (
+                <ActiveChip
+                  label={`“${value.q}”`}
+                  onRemove={() => onChange({ q: "" })}
+                />
+              )}
+              {value.status !== "all" && (
+                <ActiveChip
+                  label={LEAD_STATUS_LABELS[value.status]}
+                  onRemove={() => onChange({ status: "all" })}
+                />
+              )}
+              {value.temperature !== "all" && (
+                <ActiveChip
+                  label={LEAD_TEMPERATURE_LABELS[value.temperature]}
+                  onRemove={() => onChange({ temperature: "all" })}
+                />
+              )}
+              {value.staleOnly && (
+                <ActiveChip
+                  label="Sin gestión +7d"
+                  onRemove={() => onChange({ staleOnly: false })}
+                />
+              )}
+              {value.branchId !== "all" && (
+                <ActiveChip
+                  label={labelFor(branchOptions, value.branchId)}
+                  onRemove={() => onChange({ branchId: "all" })}
+                />
+              )}
+              {value.productTypeId !== "all" && (
+                <ActiveChip
+                  label={labelFor(productTypeOptions, value.productTypeId)}
+                  onRemove={() => onChange({ productTypeId: "all" })}
+                />
+              )}
+              {value.vendorId !== "all" && (
+                <ActiveChip
+                  label={
+                    value.vendorId === "unassigned"
+                      ? "Sin asignar"
+                      : labelFor(vendorOptions, value.vendorId)
+                  }
+                  onRemove={() => onChange({ vendorId: "all" })}
+                />
+              )}
+              {value.campaignId !== "all" && (
+                <ActiveChip
+                  label={labelFor(campaignOptions, value.campaignId)}
+                  onRemove={() => onChange({ campaignId: "all" })}
+                />
+              )}
+              {(value.createdFrom || value.createdTo) && (
+                <ActiveChip
+                  label={`Alta ${value.createdFrom || "…"} → ${value.createdTo || "…"}`}
+                  onRemove={() => onChange({ createdFrom: "", createdTo: "" })}
+                />
+              )}
+              {(value.contactFrom || value.contactTo) && (
+                <ActiveChip
+                  label={`Contacto ${value.contactFrom || "…"} → ${value.contactTo || "…"}`}
+                  onRemove={() => onChange({ contactFrom: "", contactTo: "" })}
+                />
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={onClear}
+              >
+                Limpiar todo
+              </Button>
+            </div>
           )}
-          {value.status !== "all" && (
-            <ActiveChip
-              label={LEAD_STATUS_LABELS[value.status]}
-              onRemove={() => onChange({ status: "all" })}
-            />
-          )}
-          {value.temperature !== "all" && (
-            <ActiveChip
-              label={LEAD_TEMPERATURE_LABELS[value.temperature]}
-              onRemove={() => onChange({ temperature: "all" })}
-            />
-          )}
-          {value.staleOnly && (
-            <ActiveChip
-              label="Sin gestión +7d"
-              onRemove={() => onChange({ staleOnly: false })}
-            />
-          )}
-          {value.branchId !== "all" && (
-            <ActiveChip
-              label={labelFor(branchOptions, value.branchId)}
-              onRemove={() => onChange({ branchId: "all" })}
-            />
-          )}
-          {value.productTypeId !== "all" && (
-            <ActiveChip
-              label={labelFor(productTypeOptions, value.productTypeId)}
-              onRemove={() => onChange({ productTypeId: "all" })}
-            />
-          )}
-          {value.vendorId !== "all" && (
-            <ActiveChip
-              label={
-                value.vendorId === "unassigned"
-                  ? "Sin asignar"
-                  : labelFor(vendorOptions, value.vendorId)
-              }
-              onRemove={() => onChange({ vendorId: "all" })}
-            />
-          )}
-          {value.campaignId !== "all" && (
-            <ActiveChip
-              label={labelFor(campaignOptions, value.campaignId)}
-              onRemove={() => onChange({ campaignId: "all" })}
-            />
-          )}
-          {(value.createdFrom || value.createdTo) && (
-            <ActiveChip
-              label={`Alta ${value.createdFrom || "…"} → ${value.createdTo || "…"}`}
-              onRemove={() => onChange({ createdFrom: "", createdTo: "" })}
-            />
-          )}
-          {(value.contactFrom || value.contactTo) && (
-            <ActiveChip
-              label={`Contacto ${value.contactFrom || "…"} → ${value.contactTo || "…"}`}
-              onRemove={() => onChange({ contactFrom: "", contactTo: "" })}
-            />
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 px-2 text-xs"
-            onClick={onClear}
-          >
-            Limpiar todo
-          </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+function FilterGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
     </div>
   );
 }
@@ -456,7 +500,8 @@ function StatusChip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        // `min-h-8`: en un teléfono un chip de 26px de alto se falla al tocar.
+        "inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
         active
           ? "border-accent bg-accent text-accent-foreground"
           : tone === "danger" && !muted
@@ -517,12 +562,12 @@ function ColumnFilter({
   options: FilterOption[];
 }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex min-w-0 flex-col gap-1">
       <span className="text-[11px] font-medium text-muted-foreground">
         {label}
       </span>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-9 w-44">
+        <SelectTrigger className="h-9 w-full">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -534,36 +579,6 @@ function ColumnFilter({
           ))}
         </SelectContent>
       </Select>
-    </label>
-  );
-}
-
-function DateField({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  min?: string;
-  max?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[11px] font-medium text-muted-foreground">
-        {label}
-      </span>
-      <Input
-        type="date"
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-40"
-      />
     </label>
   );
 }

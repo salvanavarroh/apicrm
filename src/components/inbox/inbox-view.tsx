@@ -31,6 +31,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { ChannelPill } from "@/components/inbox/channel-pill";
 import { ContactAvatar } from "@/components/inbox/contact-avatar";
 import { InboxInsights } from "@/components/inbox/inbox-insights";
@@ -679,11 +680,13 @@ export function InboxView({
                 ...vendors.map((v) => ({ v: v.id, l: v.name })),
               ]} />
             )}
-            <input
-              type="date"
+            <DatePicker
+              size="sm"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="h-8 rounded-md border bg-background px-2 text-sm text-muted-foreground"
+              onChange={setDateFrom}
+              ariaLabel="Desde"
+              placeholder="Desde"
+              className="w-36"
             />
             {(search || platform || vendorId || dateFrom || scope !== "all") && (
               <button

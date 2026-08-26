@@ -5,7 +5,7 @@ export default function AppLoading() {
         <div className="h-7 w-48 animate-pulse rounded-md bg-muted" />
         <div className="h-4 w-72 animate-pulse rounded-md bg-muted/70" />
       </div>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}

@@ -242,7 +242,7 @@ export default async function ManagerHomePage() {
       </header>
 
       {/* 1. Datos generales ------------------------------------------------ */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={Inbox}
           label="Leads activos"
@@ -278,7 +278,7 @@ export default async function ManagerHomePage() {
 
       {/* 2b. Tareas pendientes: las mías y las del equipo ------------------- */}
       <Section icon={ClipboardList} title="Tareas pendientes">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <TaskListCard
             title="Mías"
             tasks={myTasks}
@@ -307,7 +307,7 @@ export default async function ManagerHomePage() {
 
       {/* 3. Lo que hay que accionar ---------------------------------------- */}
       <Section icon={AlertTriangle} title="Requiere atención">
-        <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_2fr]">
           <Card className="flex flex-col gap-3 p-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Sin asignar</h3>
@@ -408,7 +408,7 @@ export default async function ManagerHomePage() {
             </div>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <Card className="p-4">
               <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Users className="size-4 text-accent" /> Equipo

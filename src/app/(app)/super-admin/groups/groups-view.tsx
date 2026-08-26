@@ -115,7 +115,7 @@ export function GroupsView({
               </Button>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div>
                 <h3 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                   Marcas ({g.brands.length})
@@ -258,7 +258,7 @@ function CreateGroupDialog({
             marcas que se le agreguen quedan sin precio propio.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Nombre del grupo" className="sm:col-span-2">
             <Input
               value={form.name}
@@ -354,7 +354,7 @@ function InviteAdminDialog({
             {group?.name}. Cambia de marca desde el menú.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Nombre">
             <Input
               value={form.first_name}

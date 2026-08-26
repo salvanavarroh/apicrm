@@ -86,7 +86,7 @@ export function PublicLanding({
 
       {/* CONTENT GRID */}
       <main className="mx-auto w-full max-w-5xl px-6 pt-10 pb-14">
-        <div className="grid gap-6 lg:grid-cols-3 lg:gap-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
           {/* Form: 2/3 en desktop, full en mobile */}
           <div className="lg:col-span-2">
             <PublicForm {...formProps} />

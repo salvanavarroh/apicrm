@@ -113,7 +113,7 @@ export function ValuationSettingsView({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
       <div className="flex flex-col gap-4">
         <Card className="flex flex-col gap-3 p-4">
           <h2 className="text-sm font-semibold">De mercado a toma</h2>
@@ -122,7 +122,7 @@ export function ValuationSettingsView({
             ofrece. Es la diferencia entre lo que vale el auto y lo que conviene
             pagarlo.
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Num label="Reacondicionamiento %" value={f.reconPercent} onChange={(v) => setF({ ...f, reconPercent: v })} />
             <Num label="Margen %" value={f.marginPercent} onChange={(v) => setF({ ...f, marginPercent: v })} />
             <Num label="Amplitud del rango %" value={f.spreadPercent} onChange={(v) => setF({ ...f, spreadPercent: v })} />
@@ -136,7 +136,7 @@ export function ValuationSettingsView({
             premio por pocos km conviene menor que el castigo por muchos: pagar de
             más por un auto poco rodado es un riesgo, no una ganancia.
           </p>
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             <Num label="Km por año" value={f.kmPerYear} onChange={(v) => setF({ ...f, kmPerYear: v })} step={1000} />
             <Num label="Castigo por 10.000 km" value={f.kmPenaltyPer10k} onChange={(v) => setF({ ...f, kmPenaltyPer10k: v })} />
             <Num label="Premio por 10.000 km" value={f.kmBonusPer10k} onChange={(v) => setF({ ...f, kmBonusPer10k: v })} />
@@ -149,7 +149,7 @@ export function ValuationSettingsView({
           <p className="text-xs text-muted-foreground">
             Puntos porcentuales sobre el valor de guía. En negativo para castigar.
           </p>
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
             {CONDITIONS.map((c) => (
               <Num
                 key={c}
@@ -176,7 +176,7 @@ export function ValuationSettingsView({
               </>
             )}
           </p>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Num label="Pesos por dólar" value={f.usdRate} onChange={(v) => setF({ ...f, usdRate: v })} step={10} />
           </div>
         </Card>

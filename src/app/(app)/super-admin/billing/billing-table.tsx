@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +124,7 @@ function CurrentMonthView({ rows }: { rows: BillingRow[] }) {
     <div className="flex flex-col gap-4">
       <BillingKpis kpis={kpis} />
 
-      <Card className="grid items-center gap-3 p-4 md:grid-cols-[1fr_auto]">
+      <Card className="grid grid-cols-1 items-center gap-3 p-4 md:grid-cols-[1fr_auto]">
         <SearchInput value={query} onChange={setQuery} />
         <Select
           value={statusFilter}
@@ -218,27 +219,25 @@ function HistoryView({ rows }: { rows: BillingRow[] }) {
     <div className="flex flex-col gap-4">
       <BillingKpis kpis={kpis} />
 
-      <Card className="grid items-end gap-3 p-4 md:grid-cols-[1fr_auto_auto_auto_auto]">
+      <Card className="grid grid-cols-1 items-end gap-3 p-4 md:grid-cols-[1fr_auto_auto_auto_auto]">
         <div className="flex flex-col gap-1">
           <Label className="text-[11px]">Buscar</Label>
           <SearchInput value={query} onChange={(v) => { setQuery(v); setPage(1); }} />
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-[11px]">Desde</Label>
-          <Input
-            type="date"
+          <DatePicker
             value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-            className="h-9 w-40"
+            onChange={(v) => { setDateFrom(v); setPage(1); }}
+            className="w-40"
           />
         </div>
         <div className="flex flex-col gap-1">
           <Label className="text-[11px]">Hasta</Label>
-          <Input
-            type="date"
+          <DatePicker
             value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-            className="h-9 w-40"
+            onChange={(v) => { setDateTo(v); setPage(1); }}
+            className="w-40"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -367,7 +366,7 @@ function BillingKpis({ kpis }: { kpis: Kpis }) {
   const pct =
     kpis.billed === 0 ? 0 : Math.round((kpis.collected / kpis.billed) * 100);
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <KpiTile
         label="Facturado"
         value={kpis.billed}

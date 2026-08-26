@@ -230,7 +230,7 @@ export default async function AdminCompanyPage() {
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           icon={Store}
           label="Sucursales"
@@ -323,17 +323,22 @@ export default async function AdminCompanyPage() {
                         <Phone className="size-3.5" /> {b.phone}
                       </p>
                     )}
+                    {/* Los dos <span> van dentro de uno solo: en un contenedor
+                        flex cada uno sería un item propio, la fila no envuelve
+                        y un nombre largo se sale de la pantalla. */}
                     <p className="flex items-center gap-1.5 text-sm">
-                      <Users className="size-3.5 text-muted-foreground" />
-                      <span className="text-muted-foreground">Admin:</span>{" "}
-                      <span className="font-medium">{adminFullName}</span>
+                      <Users className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 truncate">
+                        <span className="text-muted-foreground">Admin:</span>{" "}
+                        <span className="font-medium">{adminFullName}</span>
+                      </span>
                     </p>
                   </Link>
 
                   <BranchCardActions branch={b} />
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
                   <BranchStat
                     icon={UserPlus}
                     label="Proveedores de datos"
@@ -395,7 +400,7 @@ export default async function AdminCompanyPage() {
 
       <Card className="flex h-fit flex-col gap-2 p-5">
         <h3 className="text-lg font-semibold">Datos legales</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Razón social" value={company.legal_name} />
           <Field label="CUIT" value={company.cuit} />
           <Field label="Plan" value={planLabel(company.plan)} />

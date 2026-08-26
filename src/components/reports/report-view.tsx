@@ -122,7 +122,7 @@ export function ReportView({
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {data.kpis.map((k) => (
           <Kpi key={k.label} kpi={k} />
         ))}

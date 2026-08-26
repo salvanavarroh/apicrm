@@ -25,6 +25,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -417,26 +418,26 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
             </button>
           ))}
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-sm">
-          <input
-            type="date"
+        <div className="inline-flex items-center gap-1.5 text-sm">
+          <DatePicker
+            size="sm"
             value={from}
             max={to}
-            onChange={(e) => onFrom(e.target.value)}
+            onChange={onFrom}
             disabled={pending}
-            className="bg-transparent tabular-nums outline-none"
-            aria-label="Desde"
+            ariaLabel="Desde"
+            className="w-32"
           />
           <span className="text-muted-foreground">→</span>
-          <input
-            type="date"
+          <DatePicker
+            size="sm"
             value={to}
             min={from}
             max={today}
-            onChange={(e) => onTo(e.target.value)}
+            onChange={onTo}
             disabled={pending}
-            className="bg-transparent tabular-nums outline-none"
-            aria-label="Hasta"
+            ariaLabel="Hasta"
+            className="w-32"
           />
         </div>
         <span className="ml-auto text-xs text-muted-foreground" title="La inversión del período incluye lo que gastaron las campañas que hoy están pausadas: descontarla rompería el costo por lead.">
@@ -473,7 +474,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
       )}
 
       {/* KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Kpi label="Inversión" value={money(t.spend)} delta={delta(t.spend, p.spend)} mood="neutral" />
         <Kpi
           label="Leads"
@@ -512,7 +513,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
       </div>
 
       {/* Gráficos */}
-      <div className="grid gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <ChartCard
           title={`Leads y ventas por día${platformName ? ` · ${platformName}` : ""}`}
           className="lg:col-span-2"
@@ -557,7 +558,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
       </div>
 
       {/* Embudo real + heatmap de horarios */}
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <ChartCard title={`Embudo real${platformName ? ` · ${platformName}` : ""}`}>
           <Funnel funnel={view.funnel} />
           <AttributionCoverage a={view.attribution} platform={platformName} />
@@ -571,7 +572,7 @@ export function AdsPerformanceView({ initial }: { initial: AdsPerformance }) {
 
       {/* Insights accionables — justo antes de la tabla */}
       {insights.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {insights.map((it, i) => (
             <InsightCard key={i} {...it} />
           ))}

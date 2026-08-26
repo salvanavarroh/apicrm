@@ -288,7 +288,7 @@ function SourceForm({
         {existing ? "Editar planilla" : "Conectar una planilla"}
       </p>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs font-semibold">Nombre</Label>
           <Input
@@ -339,7 +339,7 @@ function SourceForm({
             <Label className="text-xs font-semibold">
               Mapeo de columnas — al menos Teléfono o Email
             </Label>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {MAPPABLE_FIELDS.map((f) => (
                 <div key={f} className="flex items-center gap-2">
                   <span className="w-28 shrink-0 text-xs text-muted-foreground">
@@ -388,7 +388,7 @@ function SourceForm({
         <Label className="text-xs font-semibold">
           Con qué datos entran los leads
         </Label>
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <PickOne
             label="Sucursal"
             value={branchId}

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -200,12 +201,10 @@ export function EditCompanyAsSuperAdminDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ec-start">Fecha de alta</Label>
-              <Input
+              <DatePicker
                 id="ec-start"
-                type="date"
                 value={startsAt}
-                onChange={(e) => {
-                  const start = e.target.value;
+                onChange={(start) => {
                   setStartsAt(start);
                   if (start) setEndsAt(plusDaysIso(start, 30));
                 }}
@@ -213,12 +212,7 @@ export function EditCompanyAsSuperAdminDialog({
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ec-end">Fecha de vencimiento</Label>
-              <Input
-                id="ec-end"
-                type="date"
-                value={endsAt}
-                onChange={(e) => setEndsAt(e.target.value)}
-              />
+              <DatePicker id="ec-end" value={endsAt} onChange={setEndsAt} />
             </div>
           </div>
 

@@ -81,7 +81,7 @@ export default async function ManagerTeamPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Equipo</h1>
           <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">

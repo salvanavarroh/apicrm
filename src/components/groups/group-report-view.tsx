@@ -67,7 +67,7 @@ export function GroupReportView({ report }: { report: GroupReport }) {
   return (
     <div className="flex flex-col gap-4">
       {/* Totales del grupo */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Leads" value={int(report.totals.leads)} caption={`${report.brands.length} marcas`} />
         <Kpi label="Ventas" value={int(report.totals.sales)} caption={`${report.totals.conversion.toFixed(1)}% de conversión`} />
         <Kpi label="Facturación" value={money(report.totals.revenue)} caption="Ventas aceptadas" />

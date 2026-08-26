@@ -153,8 +153,10 @@ export default async function CompaniesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-2">
+      {/* `flex-wrap` + `min-w-0`: el botón es `shrink-0` y mide 193px; junto al
+          título no entra en 390px y empujaba la pantalla al costado. */}
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Concesionarias</h1>
           <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
             Visualizá y gestioná todas las concesionarias, sus equipos y
@@ -164,7 +166,7 @@ export default async function CompaniesPage({
         <CreateCompanyDialog trigger={cta} defaultOpen={nueva === "1"} />
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           icon={Building2}
           label="Concesionarias"

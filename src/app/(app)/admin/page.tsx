@@ -217,7 +217,7 @@ export default async function AdminHomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Inicio</h1>
           <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
@@ -243,7 +243,7 @@ export default async function AdminHomePage() {
       </header>
 
       {/* 1. Datos generales ------------------------------------------------ */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={Inbox}
           label="Leads activos"
@@ -277,7 +277,7 @@ export default async function AdminHomePage() {
 
       {/* 3. Estado del pipeline ------------------------------------------- */}
       <Section icon={Inbox} title="Estado del pipeline">
-        <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
           <Card className="p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="text-sm font-semibold">Semáforo de gestión</h3>
@@ -288,7 +288,7 @@ export default async function AdminHomePage() {
                 Ver todos →
               </Link>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <SemaphoreCard
                 tone="green"
                 label="Al día"
@@ -404,7 +404,7 @@ export default async function AdminHomePage() {
 
       {/* 6. Configuración: informativo, va al final ----------------------- */}
       <Section icon={Settings2} title="Configuración de la cuenta">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard
             icon={Store}
             label="Sucursales"

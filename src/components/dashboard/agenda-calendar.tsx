@@ -322,9 +322,14 @@ function buildMonthGrid(
 function formatTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
+  // `hour12: false` no es un gusto: en 12 horas el separador de "a. m." sale
+  // como espacio angosto en Chrome y como espacio común en Node, y React tira
+  // un error de hidratación que rehace todo el árbol en el cliente. Además en
+  // Argentina la hora se escribe en 24.
   return d.toLocaleTimeString("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 

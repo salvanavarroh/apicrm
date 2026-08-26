@@ -118,7 +118,7 @@ export default async function AyudaPage() {
 
       <div>
         <h2 className="mb-3 text-sm font-semibold">Referencia rápida</h2>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {TOPICS.map((t) => (
             <Card key={t.title} className="flex flex-col gap-2 p-4">
               <p className="flex items-center gap-2 text-sm font-semibold">

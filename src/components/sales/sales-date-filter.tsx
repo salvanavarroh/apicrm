@@ -3,8 +3,8 @@
 import { CalendarDays, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 // ============================================================================
@@ -128,22 +128,22 @@ export function SalesDateFilter({
           </button>
         ))}
       </div>
-      <Input
-        type="date"
+      <DatePicker
+        size="sm"
         value={filter.from}
         max={filter.to || undefined}
-        onChange={(e) => filter.setFrom(e.target.value)}
-        className="h-8 w-36"
-        aria-label="Desde"
+        onChange={filter.setFrom}
+        className="w-36"
+        ariaLabel="Desde"
       />
       <span className="text-xs text-muted-foreground">→</span>
-      <Input
-        type="date"
+      <DatePicker
+        size="sm"
         value={filter.to}
         min={filter.from || undefined}
-        onChange={(e) => filter.setTo(e.target.value)}
-        className="h-8 w-36"
-        aria-label="Hasta"
+        onChange={filter.setTo}
+        className="w-36"
+        ariaLabel="Hasta"
       />
       {filter.hasRange && (
         <>

@@ -140,7 +140,7 @@ export function ContactForm() {
   return (
     <div className="border border-[#1f242c] bg-[#0d1015]/60 p-6 md:p-8">
       <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <FormField label="Nombre y apellido" required>
             <FormInput
               placeholder="Juan Pérez"

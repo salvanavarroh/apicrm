@@ -100,7 +100,7 @@ export function SaleDetailView({
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>

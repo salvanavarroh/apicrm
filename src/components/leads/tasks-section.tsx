@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { DatePicker, TimePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -208,7 +208,7 @@ export function TasksSection({
       <CardContent className="flex flex-col gap-3">
         {!readonly && (
           <div className="grid gap-3 rounded-md border bg-card p-3">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <Label className="text-[11px]">Tipo de tarea</Label>
                 <Select
@@ -230,18 +230,13 @@ export function TasksSection({
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div className="flex flex-col gap-1">
                   <Label className="text-[11px]">Vencimiento</Label>
-                  <Input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                  />
+                  <DatePicker value={dueDate} onChange={setDueDate} />
                 </div>
                 <div className="flex flex-col gap-1">
                   <Label className="text-[11px]">Horario</Label>
-                  <Input
-                    type="time"
+                  <TimePicker
                     value={dueTime}
-                    onChange={(e) => setDueTime(e.target.value)}
+                    onChange={setDueTime}
                     disabled={!dueDate}
                   />
                 </div>
@@ -256,7 +251,7 @@ export function TasksSection({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1">
                 <Label className="text-[11px]">Prioridad</Label>
                 <Select

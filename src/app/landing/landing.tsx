@@ -82,7 +82,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 function Hero() {
   return (
     <section className="relative overflow-hidden">
-      <div className="mx-auto grid w-full max-w-7xl items-start gap-12 px-6 pt-16 pb-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <div className="mx-auto grid grid-cols-1 w-full max-w-7xl items-start gap-12 px-6 pt-16 pb-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         <div className="flex flex-col gap-6">
           <Eyebrow>CRM para concesionarias</Eyebrow>
 
@@ -299,7 +299,7 @@ function MiniStat({
 function Diagnostico() {
   return (
     <section id="producto" className="border-y border-[#1f242c]/60 bg-[#07090c]">
-      <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1fr_1.4fr]">
+      <div className="mx-auto grid grid-cols-1 w-full max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1fr_1.4fr]">
         <div className="flex flex-col gap-6">
           <Eyebrow>Diagnóstico</Eyebrow>
           <h2 className="text-4xl font-bold leading-tight tracking-tight md:text-[40px]">
@@ -312,7 +312,7 @@ function Diagnostico() {
         </div>
 
         <div className="border border-[#1f242c] bg-[#0d1015]/60">
-          <div className="grid gap-px bg-[#1f242c] sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-px bg-[#1f242c] sm:grid-cols-2">
             <NumberedItem
               num="01"
               title="Leads que se enfrían"
@@ -369,7 +369,7 @@ function Solucion() {
   return (
     <section id="como-funciona" className="bg-[#0a0c10]">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-20">
-        <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-end">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_1fr] lg:items-end">
           <div className="flex flex-col gap-6">
             <Eyebrow>La plataforma</Eyebrow>
             <h2 className="text-4xl font-bold leading-tight tracking-tight md:text-[42px]">
@@ -395,7 +395,7 @@ function Solucion() {
         </div>
 
         <div className="border border-[#1f242c] bg-[#0d1015]/60">
-          <div className="grid gap-px bg-[#1f242c] sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-px bg-[#1f242c] sm:grid-cols-2 lg:grid-cols-3">
             <NumberedItem
               num="01"
               title="Asignación automática"
@@ -442,7 +442,7 @@ function Kpis() {
     <section className="bg-[#07090c]">
       <div className="mx-auto w-full max-w-7xl px-6 py-16">
         <div className="border border-[#1f242c]">
-          <div className="grid gap-px bg-[#1f242c] sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-px bg-[#1f242c] sm:grid-cols-2 lg:grid-cols-4">
             <Kpi value="-42%" label="Tiempo de respuesta al lead" />
             <Kpi value="+28%" label="Mejora en tasa de conversión" />
             <Kpi value="100%" label="Leads asignados sin pérdida" />
@@ -474,7 +474,7 @@ function Kpi({ value, label }: { value: string; label: string }) {
 function Contacto() {
   return (
     <section id="contacto" className="bg-[#0a0c10]">
-      <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1fr_1.2fr]">
+      <div className="mx-auto grid grid-cols-1 w-full max-w-7xl gap-12 px-6 py-20 lg:grid-cols-[1fr_1.2fr]">
         <div className="flex flex-col gap-6">
           <Eyebrow>Contacto comercial</Eyebrow>
           <h2 className="text-4xl font-bold leading-tight tracking-tight md:text-[42px]">
@@ -515,7 +515,7 @@ function Footer() {
   return (
     <footer className="bg-[#07090c]">
       <div className="mx-auto w-full max-w-7xl px-6 py-16">
-        <div className="grid gap-12 lg:grid-cols-[1.2fr_repeat(3,_1fr)]">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.2fr_repeat(3,_1fr)]">
           <div className="flex flex-col gap-4">
             <Logo size={32} />
             <p className="max-w-xs text-[13px] leading-relaxed text-white/45">

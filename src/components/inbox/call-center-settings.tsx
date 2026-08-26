@@ -4,6 +4,7 @@ import { Headphones } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
+import { TimePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -102,18 +103,20 @@ export function CallCenterSettingsCard({ initial }: { initial: CallCenterSetting
         {hoursEnabled && (
           <div className="flex flex-col gap-2 pl-6">
             <div className="flex items-center gap-2 text-sm">
-              <input
-                type="time"
+              <TimePicker
+                size="sm"
                 value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className="rounded-md border bg-background px-2 py-1.5"
+                onChange={setStart}
+                ariaLabel="Desde"
+                className="w-28"
               />
               <span className="text-muted-foreground">a</span>
-              <input
-                type="time"
+              <TimePicker
+                size="sm"
                 value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                className="rounded-md border bg-background px-2 py-1.5"
+                onChange={setEnd}
+                ariaLabel="Hasta"
+                className="w-28"
               />
             </div>
             <div className="flex flex-wrap gap-1">

@@ -14,7 +14,7 @@ export default function Loading() {
         <div className="h-7 w-64 rounded bg-muted" />
         <div className="h-4 w-96 rounded bg-muted" />
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i} className="h-24 bg-muted/40" />
         ))}

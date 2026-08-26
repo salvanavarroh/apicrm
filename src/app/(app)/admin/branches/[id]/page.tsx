@@ -176,7 +176,7 @@ export default async function AdminBranchDetailPage({
       </header>
 
       {/* KPIs */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <KpiCard
           icon={Inbox}
           label="Leads activos"

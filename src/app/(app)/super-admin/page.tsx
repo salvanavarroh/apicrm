@@ -154,7 +154,7 @@ export default async function SuperAdminHomePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-start justify-between gap-4">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">Inicio</h1>
           <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
@@ -170,7 +170,7 @@ export default async function SuperAdminHomePage() {
         </Button>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <KpiCard
           icon={Building2}
           label="Empresas"
@@ -197,7 +197,7 @@ export default async function SuperAdminHomePage() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="flex flex-col gap-3 p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Building2 className="size-4 text-accent" />
@@ -251,7 +251,7 @@ export default async function SuperAdminHomePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card className="flex flex-col gap-1 p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Building2 className="size-4 text-accent" />

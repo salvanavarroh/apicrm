@@ -6,6 +6,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { DatePicker } from "@/components/ui/date-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -355,11 +356,9 @@ function BillingStep({
           label="Fecha de alta"
           error={errors.subscription_starts_at}
         >
-          <Input
-            type="date"
+          <DatePicker
             value={data.subscription_starts_at ?? ""}
-            onChange={(e) => {
-              const start = e.target.value;
+            onChange={(start) => {
               setData({
                 ...data,
                 subscription_starts_at: start,
@@ -374,12 +373,9 @@ function BillingStep({
           label="Fecha de vencimiento"
           error={errors.subscription_ends_at}
         >
-          <Input
-            type="date"
+          <DatePicker
             value={data.subscription_ends_at ?? ""}
-            onChange={(e) =>
-              setData({ ...data, subscription_ends_at: e.target.value })
-            }
+            onChange={(v) => setData({ ...data, subscription_ends_at: v })}
           />
         </Field>
       </div>
