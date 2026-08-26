@@ -94,7 +94,7 @@ export const ROUTER_RULES: Rule[] = [
   {
     name: "incidencia",
     route: "soporte",
-    test: /\b(no (anda|funciona|carga|abre|responde)|esta (roto|caido)|se (me |le |nos )?(rompio|rompe|colgo|cuelga|cae|cayo|traba|trabo)|da error|tira error|error \d|pantalla en blanco|no me llega el mail|no llego el mail|se cerro solo)\b/,
+    test: /\b(no (anda|funciona|carga|abre|responde|se ve|aparece nada)|esta (roto|caido)|se (me |le |nos )?(rompio|rompe|colgo|cuelga|cae|cayo|traba|trabo)|da error|tira error|error \d|(sale|salio|queda|quedo|aparece|esta) en blanco|pantalla en blanco|no me llega el mail|no llego el mail|se cerro solo)\b/,
   },
 
   // 5. Datos en vivo. Cada regla nombra la herramienta que la resuelve.

@@ -15,7 +15,7 @@
 //    gerente diga "esto está mal" señalando algo concreto.
 // ============================================================================
 
-import { ArrowUp, Loader2, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ArrowUp, Bug, Loader2, RotateCcw, ThumbsDown, ThumbsUp } from "lucide-react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -38,6 +38,8 @@ type Msg = {
   serverId?: string | null;
   feedback?: 1 | -1 | null;
   streaming?: boolean;
+  /** Ruta que eligió el ruteador. Si es "soporte", se ofrece reportar. */
+  route?: string | null;
 };
 
 export type Suggestion = { label: string; question: string };
@@ -46,10 +48,16 @@ export function AssistantChat({
   suggestions,
   variant = "panel",
   greeting,
+  onReport,
 }: {
   suggestions: Suggestion[];
   variant?: "panel" | "page";
   greeting: string;
+  /**
+   * Abre el formulario de reporte. Se le pasa el hilo y lo último que preguntó
+   * el usuario, para que no tenga que volver a escribirlo.
+   */
+  onReport?: (ctx: { threadId: string | null; question: string }) => void;
 }) {
   const pathname = usePathname();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -132,6 +140,7 @@ export function AssistantChat({
               sources: (ev.sources as Source[]) ?? [],
               links: (ev.links as ToolLink[]) ?? [],
               cached: Boolean(ev.cached),
+              route: typeof ev.route === "string" ? ev.route : null,
             });
           }
           if (ev.type === "delta" && typeof ev.text === "string") {
@@ -212,6 +221,15 @@ export function AssistantChat({
                   {s.label}
                 </button>
               ))}
+              {onReport && (
+                <button
+                  type="button"
+                  onClick={() => onReport({ threadId, question: "" })}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-accent hover:text-accent"
+                >
+                  <Bug className="size-3.5" /> Reportar un problema
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -247,6 +265,23 @@ export function AssistantChat({
                     </Link>
                   ))}
                 </div>
+              )}
+
+              {m.route === "soporte" && onReport && !m.streaming && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onReport({
+                      threadId,
+                      question:
+                        [...messages].reverse().find((x) => x.role === "user")
+                          ?.text ?? "",
+                    })
+                  }
+                  className="inline-flex w-fit items-center gap-1.5 rounded-md border border-accent/40 px-2.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/10"
+                >
+                  <Bug className="size-3.5" /> Reportar este problema
+                </button>
               )}
 
               {(m.sources?.length ?? 0) > 0 && (

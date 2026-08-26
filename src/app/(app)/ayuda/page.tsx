@@ -1,7 +1,7 @@
 import { Bot, Calculator, HelpCircle, Inbox, LifeBuoy, Megaphone, Users } from "lucide-react";
 import Link from "next/link";
 
-import { AssistantChat } from "@/components/assistant/assistant-chat";
+import { AyudaPanel } from "@/components/assistant/ayuda-panel";
 import { Card } from "@/components/ui/card";
 import { requireProfile } from "@/lib/auth";
 import { greetingFor, suggestionsFor } from "@/lib/assistant/suggestions";
@@ -92,8 +92,7 @@ export default async function AyudaPage() {
       {/* Sin alto fijo: el chat crece con la conversación hasta su tope y ahí
           scrollea. Ver la nota en assistant-chat.tsx. */}
       <div className="flex flex-col">
-        <AssistantChat
-          variant="page"
+        <AyudaPanel
           suggestions={suggestionsFor(profile.role)}
           greeting={greetingFor(profile.first_name)}
         />

@@ -4,6 +4,8 @@ import { Menu } from "lucide-react";
 import { useState } from "react";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { AssistantRail } from "@/components/assistant/assistant-rail";
+import type { Suggestion } from "@/components/assistant/assistant-chat";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import type { Profile } from "@/lib/auth";
@@ -23,11 +25,14 @@ export function AppShell({
   profile,
   badges,
   groupContext,
+  assistant,
   children,
 }: {
   profile: Profile;
   badges: Record<string, number>;
   groupContext: GroupContext | null;
+  /** Saludo y sugerencias del asistente, ya resueltos por rol en el server. */
+  assistant: { suggestions: Suggestion[]; greeting: string };
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -75,6 +80,13 @@ export function AppShell({
 
         {children}
       </div>
+
+      {/* El riel del asistente va acá, hermano del contenido y no adentro: es lo
+          que hace que al abrirlo el panel EMPUJE la pantalla en vez de taparla. */}
+      <AssistantRail
+        suggestions={assistant.suggestions}
+        greeting={assistant.greeting}
+      />
     </div>
   );
 }

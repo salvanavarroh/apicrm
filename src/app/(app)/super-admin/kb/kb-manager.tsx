@@ -8,7 +8,7 @@
 // pendiente. El listado de artículos es referencia.
 // ============================================================================
 
-import { Loader2, Plus, Trash2, X } from "lucide-react";
+import { Bug, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -72,12 +72,25 @@ const SOURCE_META: Record<
   },
 };
 
+export type ReportRow = {
+  id: string;
+  what_happened: string;
+  expected: string | null;
+  route: string | null;
+  role: string | null;
+  status: string;
+  created_at: string;
+  company_id: string | null;
+};
+
 export function KbManager({
   gaps,
   articles,
+  reports,
 }: {
   gaps: GapRow[];
   articles: ArticleRow[];
+  reports: ReportRow[];
 }) {
   const [editing, setEditing] = useState<{
     slug?: string;
@@ -134,6 +147,54 @@ export function KbManager({
 
   return (
     <div className="flex flex-col gap-8">
+      {/* ---------------------------------------------------- reportes -- */}
+      <section className="flex flex-col gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <Bug className="size-4 text-accent" /> Problemas reportados
+            {reports.length > 0 && (
+              <Badge variant="outline" className="text-[10px]">
+                {reports.length}
+              </Badge>
+            )}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Lo que la gente marcó como roto desde el asistente. No es lo mismo que
+            una pregunta sin respuesta: acá algo no funciona. Vienen con la
+            pantalla y el rol ya adjuntos.
+          </p>
+        </div>
+
+        {reports.length === 0 ? (
+          <Card className="p-4 text-sm text-muted-foreground">
+            No hay problemas abiertos.
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {reports.map((r) => (
+              <Card key={r.id} className="flex flex-col gap-1.5 p-3">
+                <p className="text-sm font-medium">{r.what_happened}</p>
+                {r.expected && (
+                  <p className="text-xs text-muted-foreground">
+                    Esperaba: {r.expected}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  {r.route ? (
+                    <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                      {r.route}
+                    </code>
+                  ) : (
+                    "sin pantalla"
+                  )}
+                  {r.role ? ` · ${r.role}` : ""} · {r.created_at.slice(0, 16).replace("T", " ")}
+                </p>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* ------------------------------------------------------- huecos -- */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">

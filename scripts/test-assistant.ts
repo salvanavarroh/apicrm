@@ -99,6 +99,11 @@ const ROUTES: [string, string, string | undefined][] = [
   ["el PDF no anda", "soporte", undefined],
   ["se me cuelga la pantalla de leads", "soporte", undefined],
   ["me da error al guardar", "soporte", undefined],
+  // El PDF que "sale en blanco" es el reporte de bug más común del CRM y la
+  // regla no lo agarraba: caía en producto y no ofrecía reportarlo.
+  ["el PDF del presupuesto sale en blanco", "soporte", undefined],
+  ["el listado quedó en blanco", "soporte", undefined],
+  ["no se ve el logo en el presupuesto", "soporte", undefined],
 ];
 
 for (const [q, route, tool] of ROUTES) {

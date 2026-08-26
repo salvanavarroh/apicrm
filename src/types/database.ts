@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -162,6 +162,76 @@ export type Database = {
             columns: ["thread_id"]
             isOneToOne: false
             referencedRelation: "assistant_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_reports: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          expected: string | null
+          id: string
+          resolution_note: string | null
+          role: Database["public"]["Enums"]["user_role"] | null
+          route: string | null
+          status: Database["public"]["Enums"]["assistant_report_status"]
+          thread_id: string | null
+          updated_at: string
+          user_agent: string | null
+          user_id: string | null
+          what_happened: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          expected?: string | null
+          id?: string
+          resolution_note?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          route?: string | null
+          status?: Database["public"]["Enums"]["assistant_report_status"]
+          thread_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
+          what_happened: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          expected?: string | null
+          id?: string
+          resolution_note?: string | null
+          role?: Database["public"]["Enums"]["user_role"] | null
+          route?: string | null
+          status?: Database["public"]["Enums"]["assistant_report_status"]
+          thread_id?: string | null
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string | null
+          what_happened?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_reports_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_reports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3880,6 +3950,11 @@ export type Database = {
     }
     Enums: {
       assistant_gap_status: "abierto" | "respondido" | "descartado"
+      assistant_report_status:
+        | "abierto"
+        | "en_curso"
+        | "resuelto"
+        | "descartado"
       bot_mode: "draft" | "auto"
       branch_request_status: "pending" | "approved" | "rejected" | "canceled"
       branch_status: "active" | "inactive"
@@ -4104,6 +4179,12 @@ export const Constants = {
   public: {
     Enums: {
       assistant_gap_status: ["abierto", "respondido", "descartado"],
+      assistant_report_status: [
+        "abierto",
+        "en_curso",
+        "resuelto",
+        "descartado",
+      ],
       bot_mode: ["draft", "auto"],
       branch_request_status: ["pending", "approved", "rejected", "canceled"],
       branch_status: ["active", "inactive"],

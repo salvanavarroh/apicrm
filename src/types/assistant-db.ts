@@ -20,6 +20,11 @@ import type { Database } from "@/types/database";
 
 export type AssistantDatabase = Database;
 
+export type AssistantReportStatus =
+  Database["public"]["Enums"]["assistant_report_status"];
+export type AssistantReportRow =
+  Database["public"]["Tables"]["assistant_reports"]["Row"];
+
 export type UserRoleEnum = Database["public"]["Enums"]["user_role"];
 export type CompanyPlanEnum = Database["public"]["Enums"]["company_plan"];
 export type KbSource = Database["public"]["Enums"]["kb_source"];

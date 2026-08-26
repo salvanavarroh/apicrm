@@ -26,7 +26,9 @@ test.describe("Asistente del CRM", () => {
     await page.waitForURL("**/super-admin", { timeout: 20_000 });
   });
 
-  test("el widget está en todas las pantallas y abre", async ({ page }) => {
+  test("el riel está en todas las pantallas y despliega el panel", async ({
+    page,
+  }) => {
     const launcher = page.getByRole("button", { name: "Abrir el asistente" });
     await expect(launcher).toBeVisible();
     await launcher.click();
@@ -38,6 +40,12 @@ test.describe("Asistente del CRM", () => {
       panel.getByRole("button", { name: /doy de alta una cuenta/i }),
     ).toBeVisible();
 
+    // UN solo chat montado. Con dos (uno mobile y otro desktop) serían dos
+    // conversaciones distintas y al cambiar de tamaño se perdía el hilo.
+    expect(
+      await page.getByPlaceholder("Preguntame algo del CRM…").count(),
+    ).toBe(1);
+
     // Escape cierra.
     await page.keyboard.press("Escape");
     await expect(panel).toBeHidden();
@@ -47,6 +55,31 @@ test.describe("Asistente del CRM", () => {
     await expect(
       page.getByRole("button", { name: "Abrir el asistente" }),
     ).toBeVisible();
+  });
+
+  test("una incidencia ofrece reportarla, con el texto ya cargado", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    const panel = page.getByRole("dialog", { name: "Asistente del CRM" });
+
+    const input = panel.getByPlaceholder("Preguntame algo del CRM…");
+    await input.fill("el PDF del presupuesto sale en blanco");
+    await input.press("Enter");
+
+    const reportar = panel.getByRole("button", {
+      name: /Reportar este problema/i,
+    });
+    await expect(reportar).toBeVisible({ timeout: 30_000 });
+    await reportar.click();
+
+    // El formulario arranca con lo que ya escribió: contarlo dos veces es la
+    // forma más segura de que no lo cuente nadie.
+    await expect(panel.getByLabel("¿Qué pasó?")).toHaveValue(
+      "el PDF del presupuesto sale en blanco",
+    );
+    // Y el contexto se manda solo.
+    await expect(panel.getByText(/Se manda solo/i)).toBeVisible();
   });
 
   test("navegación: contesta con la ruta y sin llamar al modelo", async ({

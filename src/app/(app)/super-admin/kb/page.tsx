@@ -2,13 +2,13 @@ import { requireRole } from "@/lib/auth";
 import { createTypedClient } from "@/lib/supabase/server";
 import type { AssistantDatabase } from "@/types/assistant-db";
 
-import { KbManager, type ArticleRow, type GapRow } from "./kb-manager";
+import { KbManager, type ArticleRow, type GapRow, type ReportRow } from "./kb-manager";
 
 export default async function SuperAdminKbPage() {
   await requireRole(["super_admin"]);
   const supabase = await createTypedClient<AssistantDatabase>();
 
-  const [gaps, articles, chunkCounts] = await Promise.all([
+  const [gaps, articles, chunkCounts, reports] = await Promise.all([
     supabase
       .from("assistant_gaps")
       .select("id, question, role, hits, created_at")
@@ -24,6 +24,14 @@ export default async function SuperAdminKbPage() {
       .order("source", { ascending: true })
       .order("title", { ascending: true }),
     supabase.from("kb_chunks").select("article_id"),
+    supabase
+      .from("assistant_reports")
+      .select(
+        "id, what_happened, expected, route, role, status, created_at, company_id",
+      )
+      .in("status", ["abierto", "en_curso"])
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
 
   const counts = new Map<string, number>();
@@ -62,7 +70,11 @@ export default async function SuperAdminKbPage() {
         </div>
       )}
 
-      <KbManager gaps={(gaps.data ?? []) as GapRow[]} articles={rows} />
+      <KbManager
+        gaps={(gaps.data ?? []) as GapRow[]}
+        articles={rows}
+        reports={(reports.data ?? []) as ReportRow[]}
+      />
     </div>
   );
 }

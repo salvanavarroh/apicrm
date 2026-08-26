@@ -685,7 +685,13 @@ src/lib/assistant/tools/      las 8 herramientas del catálogo cerrado
 
 src/app/api/assistant/chat/route.ts       POST, SSE
 src/app/api/assistant/feedback/route.ts   👍/👎 → huecos
-src/components/assistant/                 widget, chat y render de texto
+src/lib/assistant/report-actions.ts       reportar un problema (+ mail a soporte)
+src/components/assistant/
+  assistant-rail.tsx    el riel lateral y el panel acoplado
+  assistant-chat.tsx    el hilo, las citas y el 👍/👎
+  report-form.tsx       el reporte de problemas
+  ayuda-panel.tsx       la variante de la página de Ayuda
+  rich-text.tsx         render de la respuesta
 src/app/(app)/super-admin/kb/             curaduría: huecos + artículos
 src/app/(app)/ayuda/                      el asistente a pantalla completa
 
@@ -697,6 +703,45 @@ scripts/test-permissions.ts   52 casos de la matriz
 tests/e2e/asistente.spec.ts   7 casos de punta a punta
 .github/workflows/kb-sync.yml reindexado enganchado al merge a main
 ```
+
+### La interfaz: riel lateral, no globo flotante
+
+La primera versión era un botón redondo flotante con un panel superpuesto. Se
+cambió por un **riel angosto y permanente pegado al borde derecho** que al
+tocarlo despliega un panel acoplado. Tres razones, y la tercera es la que
+importa:
+
+1. El globo tapaba contenido y competía con los botones de cada pantalla.
+2. El riel se ve siempre, así que el asistente se descubre sin buscarlo.
+3. **El panel EMPUJA el contenido en vez de superponerse.** Cuando el asistente
+   te dice "entrá a Leads y filtrá por sucursal", necesitás ver Leads al mismo
+   tiempo. Un panel que tapa la pantalla te obliga a cerrarlo para usar la
+   respuesta.
+
+El riel y el panel son hermanos del contenido dentro del flex del shell
+(`app-shell.tsx`), así que el empuje lo hace el layout solo, sin JS. En mobile no
+hay lugar para una franja permanente: ahí queda un botón chico y el panel ocupa
+la pantalla completa — pero es **el mismo panel**, no otro. La primera versión
+tenía dos (uno `lg:hidden` y otro `hidden lg:flex`) y eso son dos instancias del
+chat: dos conversaciones distintas, y al cambiar el tamaño de la ventana se
+perdía el hilo. Lo encontró un test que cuenta cuántos campos de texto hay.
+
+### Reportar un problema
+
+El asistente ya derivaba las incidencias a soporte con un mail. Eso pone la carga
+en el usuario: abrir el correo, acordarse de en qué pantalla estaba, describirlo
+otra vez. La mitad de los reportes se pierde ahí.
+
+Ahora, cuando una respuesta cae en la ruta `soporte`, aparece **"Reportar este
+problema"**: abre un formulario de dos campos —uno solo obligatorio— **ya cargado
+con lo que la persona escribió**. La pantalla, el rol, la concesionaria, el
+navegador y el hilo de la conversación los adjunta el servidor. Se guarda en
+`assistant_reports` y recién después se intenta el mail: si Resend falla, el
+reporte ya está a salvo.
+
+Los reportes aparecen en `/super-admin/kb`, arriba de los huecos. Son dos cosas
+distintas a propósito: un hueco es documentación que falta, un reporte es algo
+roto. Se resuelven distinto y los mira gente distinta.
 
 ### Cuatro desviaciones del plan, y por qué
 
