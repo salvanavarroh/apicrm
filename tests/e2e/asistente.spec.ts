@@ -149,6 +149,48 @@ test.describe("Asistente del CRM", () => {
     await expect(panel.getByText(/Sistema y reglas/i).first()).toBeVisible();
   });
 
+  test("la conversación sobrevive al cierre, al refresh y al cambio de pantalla", async ({
+    page,
+  }) => {
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    const input = panel.getByPlaceholder("Preguntame algo del CRM…");
+    await input.fill("¿qué es una gerencia?");
+    await input.press("Enter");
+    // Que la respuesta llegue ENTERA importa: el bug que motivó este test era
+    // que la restauración pisaba la respuesta mientras se estaba escribiendo.
+    await expect(panel.getByText("SEGÚN")).toBeVisible({ timeout: 45_000 });
+
+    await panel.getByRole("button", { name: "Cerrar el asistente" }).click();
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    await expect(panel.getByText("¿qué es una gerencia?")).toBeVisible();
+
+    await page.reload();
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    await expect(panel.getByText("¿qué es una gerencia?")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await page.goto("/super-admin/companies");
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    await expect(panel.getByText("¿qué es una gerencia?")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    // El historial la marca como abierta.
+    await panel.getByRole("button", { name: "Conversaciones anteriores" }).click();
+    await expect(panel.getByText("· abierta")).toBeVisible();
+    await panel.getByRole("button", { name: "Volver" }).click();
+
+    // Y "Nuevo" arranca en blanco, también después de refrescar.
+    await panel.getByRole("button", { name: "Nuevo" }).click();
+    await expect(panel.getByText("¿qué es una gerencia?")).toBeHidden();
+    await page.reload();
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    await page.waitForTimeout(1500);
+    await expect(panel.getByText("¿qué es una gerencia?")).toBeHidden();
+  });
+
   test("el botón Ayuda del menú abre el chat, no una página", async ({
     page,
   }) => {

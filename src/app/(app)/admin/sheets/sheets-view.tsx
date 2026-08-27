@@ -62,6 +62,26 @@ export function SheetsView({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* La acción principal va en la cabecera, alineada a la derecha del título,
+          como en Campañas, Tipos de producto y Usuarios. Antes estaba suelta al
+          FINAL de la lista: con dos o tres planillas cargadas había que scrollear
+          hasta abajo para encontrar el botón de agregar otra. */}
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+            <Sheet className="size-6 text-accent" /> Leads desde Google Sheets
+          </h1>
+          <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
+            Para las plataformas que escriben en una planilla en vez de darnos una
+            API — el caso típico es TikTok Lead Gen. Revisamos la hoja cada tantos
+            minutos y creamos los leads nuevos.
+          </p>
+        </div>
+        <Button onClick={() => setCreating(true)} disabled={creating}>
+          <Plus className="mr-2 size-4" /> Conectar una planilla
+        </Button>
+      </header>
+
       <Card className="gap-2 border-accent/30 bg-accent/5 p-4">
         <p className="flex items-center gap-2 text-sm font-semibold">
           <Info className="size-4 text-accent" />
@@ -94,17 +114,13 @@ export function SheetsView({
         />
       ))}
 
-      {creating ? (
+      {creating && (
         <SourceForm
           branches={branches}
           productTypes={productTypes}
           campaigns={campaigns}
           onDone={() => setCreating(false)}
         />
-      ) : (
-        <Button variant="outline" onClick={() => setCreating(true)}>
-          <Plus className="mr-2 size-4" /> Conectar una planilla
-        </Button>
       )}
     </div>
   );

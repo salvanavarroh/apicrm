@@ -44,15 +44,37 @@ type Msg = {
 
 export type Suggestion = { label: string; question: string };
 
+/** Clave del hilo activo en el navegador. Sólo el id: el contenido va en la base. */
+export const THREAD_KEY = "api-crm.assistant.thread";
+
+type StoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  route: string | null;
+  feedback: number | null;
+};
+
 export function AssistantChat({
   suggestions,
   variant = "panel",
   greeting,
   onReport,
+  initialThreadId,
+  onThreadChange,
 }: {
   suggestions: Suggestion[];
   variant?: "panel" | "page";
   greeting: string;
+  /**
+   * Qué conversación abrir:
+   *   `undefined` → la última que se estaba usando (se recuerda en el navegador)
+   *   `null`      → una nueva, en blanco
+   *   un id       → esa
+   */
+  initialThreadId?: string | null;
+  /** Avisa qué conversación quedó abierta, para que el panel la pueda marcar. */
+  onThreadChange?: (id: string | null) => void;
   /**
    * Abre el formulario de reporte. Se le pasa el hilo y lo último que preguntó
    * el usuario, para que no tenga que volver a escribirlo.
@@ -63,8 +85,17 @@ export function AssistantChat({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(
+    initialThreadId ?? null,
+  );
+  const [restoring, setRestoring] = useState(initialThreadId !== null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // En una ref para que el efecto de restauración no dependa de la identidad de
+  // la función: si dependiera, cada render del padre volvería a pedir el hilo.
+  const onThreadChangeRef = useRef(onThreadChange);
+  onThreadChangeRef.current = onThreadChange;
+  const mensajesRef = useRef<Msg[]>([]);
+  mensajesRef.current = messages;
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -73,6 +104,93 @@ export function AssistantChat({
       behavior: "smooth",
     });
   }, [messages]);
+
+  // -------------------------------------------------------------------------
+  // Restaurar la conversación.
+  //
+  // Los mensajes siempre se guardaron en la base; lo que faltaba era volver a
+  // leerlos. El id del hilo activo se recuerda en `localStorage` —es una
+  // preferencia de este navegador, no un dato— y el contenido sale de Postgres,
+  // que es donde tiene que estar: así la charla sobrevive al refresh, a cerrar
+  // el panel y a cambiar de pantalla.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    let cancelado = false;
+
+    async function restaurar() {
+      let id = initialThreadId ?? null;
+      if (initialThreadId === undefined) {
+        try {
+          id = window.localStorage.getItem(THREAD_KEY);
+        } catch {
+          id = null; // modo incógnito o storage bloqueado: arranca en blanco
+        }
+      }
+      if (!id) {
+        setRestoring(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/assistant/threads?id=${encodeURIComponent(id)}`);
+        if (!res.ok) {
+          // El hilo ya no existe: se olvida en vez de dejar una referencia rota.
+          forgetThread();
+          return;
+        }
+        const data = (await res.json()) as { messages: StoredMessage[] };
+        if (cancelado) return;
+        // Si mientras se restauraba el usuario ya empezó a hablar, no se pisa:
+        // lo que está en pantalla es más nuevo que lo que trajo la consulta.
+        if (mensajesRef.current.length > 0) {
+          setRestoring(false);
+          return;
+        }
+        setThreadId(id);
+        onThreadChangeRef.current?.(id);
+        setMessages(
+          data.messages.map((m, i) => ({
+            id: `r${i}`,
+            role: m.role,
+            text: m.content,
+            route: m.route,
+            serverId: m.role === "assistant" ? m.id : null,
+            feedback: m.feedback === 1 || m.feedback === -1 ? m.feedback : null,
+          })),
+        );
+      } catch {
+        // Sin conexión: mejor un chat vacío que un error en la cara.
+      } finally {
+        if (!cancelado) setRestoring(false);
+      }
+    }
+
+    void restaurar();
+    return () => {
+      cancelado = true;
+    };
+  }, [initialThreadId]);
+
+  /** Recuerda el hilo activo para el próximo refresh. */
+  function rememberThread(id: string) {
+    setThreadId(id);
+    onThreadChangeRef.current?.(id);
+    try {
+      window.localStorage.setItem(THREAD_KEY, id);
+    } catch {
+      /* storage bloqueado: la conversación sigue en la base igual */
+    }
+  }
+
+  function forgetThread() {
+    setThreadId(null);
+    setRestoring(false);
+    try {
+      window.localStorage.removeItem(THREAD_KEY);
+    } catch {
+      /* idem */
+    }
+  }
 
   async function ask(question: string) {
     const q = question.trim();
@@ -131,7 +249,9 @@ export function AssistantChat({
             continue;
           }
 
-          if (ev.type === "thread" && typeof ev.id === "string") setThreadId(ev.id);
+          if (ev.type === "thread" && typeof ev.id === "string") {
+            rememberThread(ev.id);
+          }
           if (ev.type === "message" && typeof ev.id === "string") {
             patch(botId, { serverId: ev.id });
           }
@@ -183,7 +303,7 @@ export function AssistantChat({
     }).catch(() => undefined);
   }
 
-  const empty = messages.length === 0;
+  const empty = messages.length === 0 && !restoring;
 
   return (
     <div

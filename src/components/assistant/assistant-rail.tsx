@@ -15,7 +15,7 @@
 // pantalla completa.
 // ============================================================================
 
-import { Bug, PanelRightClose, Plus, X } from "lucide-react";
+import { Bug, History, PanelRightClose, Plus, X } from "lucide-react";
 
 import { Logo } from "@/components/logo";
 import { useEffect, useState } from "react";
@@ -25,9 +25,14 @@ import {
   type Suggestion,
 } from "@/components/assistant/assistant-chat";
 import { ReportForm } from "@/components/assistant/report-form";
+import { THREAD_KEY } from "@/components/assistant/assistant-chat";
+import { ThreadList } from "@/components/assistant/thread-list";
 import { cn } from "@/lib/utils";
 
-type Mode = { kind: "chat" } | { kind: "report"; threadId: string | null; text: string };
+type Mode =
+  | { kind: "chat" }
+  | { kind: "report"; threadId: string | null; text: string }
+  | { kind: "history" };
 
 export function AssistantRail({
   suggestions,
@@ -47,6 +52,40 @@ export function AssistantRail({
   const [mode, setMode] = useState<Mode>({ kind: "chat" });
   // Cambiar esta clave remonta el chat: es el "conversación nueva".
   const [chatKey, setChatKey] = useState(0);
+  // DOS estados distintos a propósito.
+  //
+  // `openThread` es "qué conversación abrir" y sólo cambia cuando el usuario
+  // elige (Nuevo, o una del historial), siempre junto con `chatKey`, que remonta
+  // el chat. `currentThread` es "cuál quedó abierta", lo reporta el chat y sólo
+  // se usa para marcarla en el historial.
+  //
+  // Tenerlos juntos era un bug: el chat reportaba el id apenas empezaba la
+  // respuesta, eso volvía como `initialThreadId`, el efecto de restauración se
+  // disparaba de nuevo y pisaba los mensajes con lo que había en la base en ese
+  // instante — la pregunta sin la respuesta, que todavía se estaba escribiendo.
+  const [openThread, setOpenThread] = useState<string | null | undefined>(
+    undefined,
+  );
+  const [currentThread, setCurrentThread] = useState<string | null>(null);
+
+  function nuevaConversacion() {
+    try {
+      window.localStorage.removeItem(THREAD_KEY);
+    } catch {
+      /* storage bloqueado */
+    }
+    setOpenThread(null);
+    setCurrentThread(null);
+    setMode({ kind: "chat" });
+    setChatKey((k) => k + 1);
+  }
+
+  function abrirConversacion(id: string) {
+    setOpenThread(id);
+    setCurrentThread(id);
+    setMode({ kind: "chat" });
+    setChatKey((k) => k + 1);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -71,12 +110,20 @@ export function AssistantRail({
         initialText={mode.text}
         onBack={() => setMode({ kind: "chat" })}
       />
+    ) : mode.kind === "history" ? (
+      <ThreadList
+        activeId={currentThread}
+        onPick={abrirConversacion}
+        onBack={() => setMode({ kind: "chat" })}
+      />
     ) : (
       <AssistantChat
         key={chatKey}
         suggestions={suggestions}
         greeting={greeting}
         onReport={openReport}
+        initialThreadId={openThread}
+        onThreadChange={setCurrentThread}
       />
     );
 
@@ -161,10 +208,16 @@ export function AssistantRail({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setMode({ kind: "chat" });
-                  setChatKey((k) => k + 1);
-                }}
+                onClick={() => setMode({ kind: "history" })}
+                aria-label="Conversaciones anteriores"
+                title="Conversaciones anteriores"
+                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <History className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={nuevaConversacion}
                 className="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors hover:border-accent hover:text-accent"
               >
                 <Plus className="size-3.5" /> Nuevo

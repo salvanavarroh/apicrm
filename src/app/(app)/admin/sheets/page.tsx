@@ -1,5 +1,3 @@
-import { Sheet } from "lucide-react";
-
 import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -34,17 +32,8 @@ export default async function SheetsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Sheet className="size-6 text-accent" /> Leads desde Google Sheets
-        </h1>
-        <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
-          Para las plataformas que escriben en una planilla en vez de darnos una
-          API — el caso típico es TikTok Lead Gen. Revisamos la hoja cada tantos
-          minutos y creamos los leads nuevos.
-        </p>
-      </header>
-
+      {/* La cabecera la dibuja SheetsView: el botón de "Conectar una planilla"
+          va ahí y necesita el estado del formulario, que es del cliente. */}
       <SheetsView
         sources={sources}
         branches={(branches.data ?? []).map((b) => ({ id: b.id, label: b.name }))}
