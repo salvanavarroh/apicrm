@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import type { LeadStatus } from "@/lib/leads";
 import { cn } from "@/lib/utils";
 import {
   NOTE_ACTIVITIES,
@@ -57,6 +58,7 @@ import {
   type VisitStatus,
 } from "@/lib/tasks";
 
+import { NextStepDialog } from "./next-step-dialog";
 import type { LeadNote } from "./notes-section";
 import type { LeadTask } from "./tasks-section";
 import type { LeadVisit } from "./visits-section";
@@ -65,6 +67,9 @@ type AssigneeOption = { id: string; name: string };
 
 type Props = {
   leadId: string;
+  /** Para el diálogo del próximo paso: sólo se exige en leads vivos. */
+  leadStatus?: LeadStatus;
+  leadName?: string;
   notes: LeadNote[];
   tasks: LeadTask[];
   visits: LeadVisit[];
@@ -106,6 +111,8 @@ function dayTs(iso: string | null | undefined) {
 
 export function ActivitySection({
   leadId,
+  leadStatus,
+  leadName,
   notes,
   tasks,
   visits,
@@ -133,6 +140,9 @@ export function ActivitySection({
 
   const [mode, setMode] = useState<Mode>("note");
   const canAssignOthers = currentRole !== "sales" && assigneeOptions.length > 0;
+
+  // Diálogo "¿y ahora qué?": se dispara al completar la ÚLTIMA acción abierta.
+  const [nextStepFor, setNextStepFor] = useState<string | null>(null);
 
   // -------- Composer: Actividad / Nota --------
   const [activity, setActivity] = useState<string>(NONE);
@@ -216,7 +226,30 @@ export function ActivitySection({
     });
   }
 
+  /** ¿El lead se queda sin nada agendado si completo esta tarea? */
+  function wouldBeLeftWithoutNextStep(taskId: string): boolean {
+    // En un lead cerrado (vendido, no interesado) no hay próximo paso que pedir.
+    const alive =
+      leadStatus === undefined ||
+      ["new", "contacted", "interested", "quoted", "evaluating"].includes(
+        leadStatus,
+      );
+    if (!alive || readonly) return false;
+    const otherOpenTasks = taskItems.some(
+      (t) => t.id !== taskId && !t.completed_at,
+    );
+    const upcomingVisits = visitItems.some((v) => v.status === "scheduled");
+    return !otherOpenTasks && !upcomingVisits;
+  }
+
   function toggleTask(taskId: string, done: boolean) {
+    const leaves = done && wouldBeLeftWithoutNextStep(taskId);
+    const label = done
+      ? (() => {
+          const t = taskItems.find((x) => x.id === taskId);
+          return t ? (t.title || TASK_TYPE_LABEL[t.task_type]) : "la acción";
+        })()
+      : "";
     setTaskItems((p) =>
       p.map((t) =>
         t.id === taskId ? { ...t, completed_at: done ? new Date().toISOString() : null } : t,
@@ -232,6 +265,7 @@ export function ActivitySection({
           ),
         );
       } else {
+        if (leaves) setNextStepFor(label);
         router.refresh();
       }
     });
@@ -551,6 +585,19 @@ export function ActivitySection({
           )}
         </div>
       </CardContent>
+
+      {nextStepFor !== null && (
+        <NextStepDialog
+          open
+          leadId={leadId}
+          leadName={leadName ?? "este lead"}
+          completedLabel={nextStepFor}
+          onDone={() => {
+            setNextStepFor(null);
+            router.refresh();
+          }}
+        />
+      )}
     </Card>
   );
 }

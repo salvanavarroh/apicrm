@@ -166,6 +166,7 @@ export default async function AdminLeadDetailPage({
       temperature: lead.temperature,
       created_at: lead.created_at,
       status_changed_at: lead.status_changed_at,
+      last_managed_at: lead.last_managed_at,
       last_contacted_at: lead.last_contacted_at,
       assigned_user_id: lead.assigned_user_id,
     },
@@ -210,7 +211,7 @@ export default async function AdminLeadDetailPage({
         status={lead.status}
         temperature={lead.temperature}
         createdAt={lead.created_at}
-        statusChangedAt={lead.status_changed_at}
+        lastManagedAt={lead.last_managed_at}
         lastContactedAt={lead.last_contacted_at}
         phone={lead.phone}
         email={lead.email}
@@ -264,6 +265,8 @@ export default async function AdminLeadDetailPage({
           <LeadConversationCard conversations={conversations} />
           <ActivitySection
             leadId={lead.id}
+            leadStatus={lead.status}
+            leadName={fullName(lead.first_name, lead.last_name) || "este lead"}
             notes={noteRows}
             tasks={taskRows}
             visits={visitRows}
