@@ -14,13 +14,15 @@ import { getAssignableSalesUsers } from "@/lib/team";
 export default async function AdminLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string; form?: string }>;
+  searchParams: Promise<{ archived?: string; form?: string; stale?: string }>;
 }) {
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
   const sp = await searchParams;
   const archived = sp.archived === "1";
   const formId = sp.form?.trim() || undefined;
+  // `?stale=1` llega del contador del encabezado: entra a la tabla ya filtrada.
+  const staleOnly = sp.stale === "1";
 
   // Si venís de Lead Ads con ?form=, filtramos por ese formulario y mostramos su
   // nombre en el aviso.
@@ -47,7 +49,11 @@ export default async function AdminLeadsPage({
       .eq("company_id", profile.company_id!)
       .is("archived_at", null)
       .or("branch_id.is.null,product_type_id.is.null"),
-    fetchLeadsTable({ archived }, { form_id: formId }, 1),
+    fetchLeadsTable(
+      { archived },
+      { form_id: formId, ...(staleOnly ? { staleOnly: true } : {}) },
+      1,
+    ),
     // Los contadores del banner respetan el filtro por formulario, si vino.
     fetchLeadsSummary({ archived }, { form_id: formId }),
   ]);
@@ -88,6 +94,7 @@ export default async function AdminLeadsPage({
                   label: "Sin gestión +7d",
                   value: summary.stale,
                   tone: summary.stale > 0 ? "danger" : "success",
+                  href: summary.stale > 0 ? "/admin/leads?stale=1" : undefined,
                   hint: summary.stale > 0 ? "Requieren contacto" : "Todo al día",
                 },
                 {
@@ -131,6 +138,7 @@ export default async function AdminLeadsPage({
         detailHrefPrefix="/admin/leads"
         initialRows={initial.rows}
         initialTotal={initial.total}
+        initialFilters={staleOnly ? { staleOnly: true } : undefined}
         assignableUsers={assignableUsers}
         canExport
         branchOptions={filterOptions.branches}

@@ -23,7 +23,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const STATUSES = Object.keys(LEAD_STATUS_LABELS) as LeadStatus[];
 
-type Search = { tab?: string };
+type Search = { tab?: string; stale?: string };
 
 export default async function SalesLeadsPage({
   searchParams,
@@ -32,8 +32,12 @@ export default async function SalesLeadsPage({
 }) {
   const profile = await requireRole(["sales"]);
   const supabase = await createClient();
-  const { tab } = await searchParams;
-  const activeTab = tab === "table" ? "table" : "kanban";
+  const { tab, stale } = await searchParams;
+  // `?stale=1` llega del contador "Sin gestión +7d" del encabezado: abre la
+  // tabla ya filtrada. Antes el número te decía que tenías 3 atrasados y no
+  // había ningún lugar donde verlos.
+  const staleOnly = stale === "1";
+  const activeTab = staleOnly || tab === "table" ? "table" : "kanban";
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,7 +67,7 @@ export default async function SalesLeadsPage({
         {activeTab === "kanban" ? (
           <SalesKanban supabase={supabase} />
         ) : (
-          <SalesTable companyId={profile.company_id!} />
+          <SalesTable companyId={profile.company_id!} staleOnly={staleOnly} />
         )}
       </Suspense>
     </div>
@@ -91,6 +95,7 @@ async function SalesLeadsHeader({ firstName }: { firstName: string | null }) {
           label: "Sin gestión +7d",
           value: summary.stale,
           tone: summary.stale > 0 ? "danger" : "success",
+          href: summary.stale > 0 ? "/sales/leads?stale=1" : undefined,
           hint: summary.stale > 0 ? "Contactalos hoy" : "Todo al día",
         },
         {
@@ -111,10 +116,18 @@ async function SalesLeadsHeader({ firstName }: { firstName: string | null }) {
   );
 }
 
-async function SalesTable({ companyId }: { companyId: string }) {
+async function SalesTable({
+  companyId,
+  staleOnly,
+}: {
+  companyId: string;
+  staleOnly?: boolean;
+}) {
   const supabase = await createClient();
+  // El SSR tiene que traer la primera página CON el filtro: el cliente sólo
+  // vuelve a pedir cuando el usuario interactúa.
   const [initial, options] = await Promise.all([
-    fetchLeadsTable({}, {}, 1),
+    fetchLeadsTable({}, staleOnly ? { staleOnly: true } : {}, 1),
     loadLeadFilterOptions(supabase, companyId),
   ]);
   return (
@@ -123,6 +136,7 @@ async function SalesTable({ companyId }: { companyId: string }) {
       detailHrefPrefix="/sales/leads"
       initialRows={initial.rows}
       initialTotal={initial.total}
+      initialFilters={staleOnly ? { staleOnly: true } : undefined}
       showAssignee={false}
       branchOptions={options.branches}
       productTypeOptions={options.productTypes}

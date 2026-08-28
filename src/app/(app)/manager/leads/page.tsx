@@ -34,7 +34,7 @@ import { getAssignableSalesUsers } from "@/lib/team";
 
 const STATUSES = Object.keys(LEAD_STATUS_LABELS) as LeadStatus[];
 
-type Search = { tab?: string };
+type Search = { tab?: string; stale?: string };
 
 export default async function ManagerLeadsPage({
   searchParams,
@@ -44,9 +44,12 @@ export default async function ManagerLeadsPage({
   const profile = await requireRole(["manager", "supervisor"]);
   const supabase = await createClient();
   const cid = profile.company_id!;
-  const { tab } = await searchParams;
-  const activeTab =
-    tab === "table" || tab === "unassigned" || tab === "archived"
+  const { tab, stale } = await searchParams;
+  // `?stale=1` llega del contador del encabezado: entra a la tabla ya filtrada.
+  const staleOnly = stale === "1";
+  const activeTab = staleOnly
+    ? "table"
+    : tab === "table" || tab === "unassigned" || tab === "archived"
       ? tab
       : "kanban";
 
@@ -96,6 +99,7 @@ export default async function ManagerLeadsPage({
             cid={cid}
             canExport={profile.can_export_leads}
             managerId={actingManagerId(profile)}
+            staleOnly={staleOnly}
           />
         )}
         {activeTab === "archived" && (
@@ -144,6 +148,7 @@ async function ManagerLeadsHeader() {
           label: "Sin gestión +7d",
           value: summary.stale,
           tone: summary.stale > 0 ? "danger" : "success",
+          href: summary.stale > 0 ? "/manager/leads?stale=1" : undefined,
           hint: summary.stale > 0 ? "Requieren contacto" : "Todo al día",
         },
         {
@@ -231,16 +236,19 @@ async function ManagerTable({
   canExport,
   managerId,
   archived = false,
+  staleOnly = false,
 }: {
   cid: string;
   canExport: boolean;
   managerId: string;
   archived?: boolean;
+  staleOnly?: boolean;
 }) {
   const supabase = await createClient();
+  // El SSR trae la primera página con el mismo filtro que arranca en el cliente.
   const [team, initial, options] = await Promise.all([
     getAssignableSalesUsers({ companyId: cid, managerId }),
-    fetchLeadsTable({ archived }, {}, 1),
+    fetchLeadsTable({ archived }, staleOnly ? { staleOnly: true } : {}, 1),
     loadLeadFilterOptions(supabase, cid, managerId),
   ]);
   return (
@@ -249,6 +257,7 @@ async function ManagerTable({
       detailHrefPrefix="/manager/leads"
       initialRows={initial.rows}
       initialTotal={initial.total}
+      initialFilters={staleOnly ? { staleOnly: true } : undefined}
       assignableUsers={team}
       canExport={canExport}
       branchOptions={options.branches}
