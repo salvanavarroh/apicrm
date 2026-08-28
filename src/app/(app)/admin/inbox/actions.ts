@@ -537,26 +537,41 @@ function mediaKind(mime: string): MediaKind {
 
 const MAX_ATTACH_BYTES = 25 * 1024 * 1024; // 25MB (límite del bucket)
 
-/**
- * Envía un adjunto (imagen/audio/video/archivo) por el inbox. Sube el archivo al
- * bucket público `inbox-outbound`, se lo pasa a Zernio por URL (que lo reenvía a
- * WhatsApp/Meta) y guarda el mensaje con el adjunto. El caption es opcional.
- */
-export async function sendAttachment(
-  conversationId: string,
-  formData: FormData,
-): Promise<Result<{ messageId: string }>> {
-  const profile = await requireRole([...ROLES]);
-  const admin = createAdminClient();
+// Formatos que aceptan a la vez WhatsApp e Instagram (el audio ya llega como m4a).
+const ALLOWED_ATTACH_MIME = new Set([
+  "image/png",
+  "image/jpeg",
+  "video/mp4",
+  "application/pdf",
+  "audio/mp4",
+  "audio/aac",
+  "audio/x-m4a",
+  "audio/m4a",
+]);
 
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, message: "Archivo vacío" };
+/**
+ * Autorización compartida por los dos pasos del envío de un adjunto. Devuelve el
+ * mensaje de error o los datos que hacen falta para seguir.
+ */
+type AttachmentAuth =
+  | { ok: false; message: string }
+  | {
+      ok: true;
+      profile: Awaited<ReturnType<typeof requireRole>>;
+      conv: NonNullable<Awaited<ReturnType<typeof loadConversationForSend>>>;
+      accountId: string;
+      base: string;
+    };
+
+async function authorizeAttachment(
+  conversationId: string,
+  mime: string,
+): Promise<AttachmentAuth> {
+  const profile = await requireRole([...ROLES]);
+  const base = mime.split(";")[0].trim();
+  if (!ALLOWED_ATTACH_MIME.has(base)) {
+    return { ok: false, message: "Formato de archivo no soportado" };
   }
-  if (file.size > MAX_ATTACH_BYTES) {
-    return { ok: false, message: "El archivo supera los 25MB" };
-  }
-  const caption = ((formData.get("caption") as string | null) ?? "").trim() || null;
 
   const conv = await loadConversationForSend(conversationId, profile.company_id!);
   if (!conv) return { ok: false, message: "Conversación no encontrada" };
@@ -577,38 +592,93 @@ export async function sendAttachment(
     ?.zernio_account_id;
   if (!accountId) return { ok: false, message: "Canal sin cuenta" };
 
-  const mime = file.type || "application/octet-stream";
-  const base = mime.split(";")[0].trim();
-  // Formatos que aceptan a la vez WhatsApp e Instagram (audio ya viene como m4a).
-  const ALLOWED = new Set([
-    "image/png",
-    "image/jpeg",
-    "video/mp4",
-    "application/pdf",
-    "audio/mp4",
-    "audio/aac",
-    "audio/x-m4a",
-    "audio/m4a",
-  ]);
-  if (!ALLOWED.has(base)) {
-    return { ok: false, message: "Formato de archivo no soportado" };
-  }
-  const kind = mediaKind(mime);
+  return { ok: true, profile, conv, accountId, base };
+}
+
+/**
+ * Paso 1 de 2: devuelve una URL firmada para que el NAVEGADOR suba el archivo
+ * directo al bucket.
+ *
+ * Por qué no se sube por el server action: el body de un server action está
+ * topeado en 1MB por default en Next, y en Vercel el request de una función
+ * serverless topea en 4.5MB. Mandar el archivo por acá hacía que cualquier foto
+ * de teléfono o PDF de más de 1MB muriera con "Body exceeded 1 MB limit" antes
+ * de entrar a la función — o sea, ni siquiera podíamos devolver un mensaje de
+ * error, saltaba el error boundary con "Algo no anduvo". El bucket acepta 25MB y
+ * los valida él mismo, así que el archivo va derecho ahí.
+ *
+ * El `path` lo arma el SERVER (empresa/conversación/uuid): el cliente no elige
+ * dónde escribe.
+ */
+export async function createAttachmentUpload(
+  conversationId: string,
+  fileName: string,
+  mime: string,
+): Promise<Result<{ path: string; token: string }>> {
+  const auth = await authorizeAttachment(conversationId, mime);
+  if (!auth.ok) return auth;
+
   const ext =
-    (file.name.includes(".") ? file.name.split(".").pop() : mime.split("/")[1]) ||
+    (fileName.includes(".") ? fileName.split(".").pop() : auth.base.split("/")[1]) ||
     "bin";
-  const path = `${profile.company_id}/${conversationId}/${crypto.randomUUID()}.${ext}`;
+  const safeExt = ext.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8) || "bin";
+  const path = `${auth.profile.company_id}/${conversationId}/${crypto.randomUUID()}.${safeExt}`;
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage
+    .from("inbox-outbound")
+    .createSignedUploadUrl(path);
+  if (error || !data) {
+    return {
+      ok: false,
+      message: error?.message ?? "No se pudo preparar la subida",
+    };
+  }
+  return { ok: true, path: data.path, token: data.token };
+}
+
+/**
+ * Paso 2 de 2: el archivo ya está en el bucket. Se lo pasa a Zernio por URL (que
+ * lo reenvía a WhatsApp/Meta) y se guarda el mensaje. El caption es opcional.
+ */
+export async function sendUploadedAttachment(
+  conversationId: string,
+  input: { path: string; mime: string; fileName: string; caption?: string },
+): Promise<Result<{ messageId: string }>> {
+  const auth = await authorizeAttachment(conversationId, input.mime);
+  if (!auth.ok) return auth;
+  const { profile, conv, accountId } = auth;
+
+  // El path lo generó `createAttachmentUpload`, pero llega por el cliente: se
+  // verifica el prefijo para que nadie pueda apuntar al archivo de otra empresa.
+  const expectedPrefix = `${profile.company_id}/${conversationId}/`;
+  if (!input.path.startsWith(expectedPrefix) || input.path.includes("..")) {
+    return { ok: false, message: "Archivo inválido" };
+  }
+
+  const admin = createAdminClient();
+  const mime = auth.base;
+  const kind = mediaKind(mime);
 
   try {
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const up = await admin.storage
+    // Que el objeto exista de verdad y respete el tope del bucket.
+    const dir = input.path.slice(0, input.path.lastIndexOf("/"));
+    const name = input.path.slice(input.path.lastIndexOf("/") + 1);
+    const { data: found } = await admin.storage
       .from("inbox-outbound")
-      .upload(path, bytes, { contentType: mime, upsert: false });
-    if (up.error) {
-      return { ok: false, message: `No se pudo subir el archivo: ${up.error.message}` };
+      .list(dir, { search: name, limit: 1 });
+    const obj = found?.[0];
+    if (!obj) return { ok: false, message: "El archivo no terminó de subirse" };
+    const size = (obj.metadata as { size?: number } | null)?.size ?? 0;
+    if (size > MAX_ATTACH_BYTES) {
+      return { ok: false, message: "El archivo supera los 25MB" };
     }
-    const publicUrl = admin.storage.from("inbox-outbound").getPublicUrl(path)
-      .data.publicUrl;
+
+    const publicUrl = admin.storage
+      .from("inbox-outbound")
+      .getPublicUrl(input.path).data.publicUrl;
+
+    const caption = (input.caption ?? "").trim() || null;
 
     // Envío por Zernio (los canales mock no pegan a la API).
     let zMsgId: string | null = null;
@@ -620,7 +690,7 @@ export async function sendAttachment(
         message: caption ?? undefined,
         attachmentUrl: publicUrl,
         attachmentType: kind,
-        attachmentName: file.name,
+        attachmentName: input.fileName,
       });
       zMsgId = res.data?.messageId ?? null;
     }
@@ -636,7 +706,9 @@ export async function sendAttachment(
         sent_by_user_id: profile.id,
         message_type: kind,
         body: caption,
-        attachments: [{ url: publicUrl, type: kind, payload: { mimeType: mime } }] as never,
+        attachments: [
+          { url: publicUrl, type: kind, payload: { mimeType: mime } },
+        ] as never,
         delivery_status: accountId.startsWith("mock_") ? "delivered" : "sent",
       })
       .select("id")
@@ -644,7 +716,9 @@ export async function sendAttachment(
 
     const preview =
       caption ??
-      { image: "📷 Imagen", audio: "🎤 Audio", video: "🎬 Video", file: "📎 Archivo" }[kind];
+      { image: "📷 Imagen", audio: "🎤 Audio", video: "🎬 Video", file: "📎 Archivo" }[
+        kind
+      ];
     await admin
       .from("conversations")
       .update({
@@ -663,7 +737,10 @@ export async function sendAttachment(
     revalidatePath("/admin/inbox");
     return { ok: true, messageId: msg!.id };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : "Error enviando adjunto" };
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : "Error enviando adjunto",
+    };
   }
 }
 

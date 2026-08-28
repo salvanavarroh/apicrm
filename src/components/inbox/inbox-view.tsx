@@ -51,7 +51,8 @@ import {
   claimConversation,
   getMessages,
   reassignConversation,
-  sendAttachment,
+  createAttachmentUpload,
+  sendUploadedAttachment,
   dismissBotSuggestion,
   getBotSuggestion,
   sendMessage,
@@ -1103,10 +1104,43 @@ function Thread({
         }
         toast.dismiss(tid);
       }
-      const fd = new FormData();
-      fd.append("file", toSend);
-      if (caption) fd.append("caption", caption);
-      const res = await sendAttachment(conversation.id, fd);
+      // El archivo NO va por el server action: el body está topeado en 1MB y
+      // cualquier foto de teléfono lo pasaba, muriendo con un 500 antes de
+      // entrar a la función. Se pide una URL firmada, el navegador sube directo
+      // al bucket (que valida los 25MB) y recién después se manda el mensaje.
+      const prep = await createAttachmentUpload(
+        conversation.id,
+        toSend.name || "archivo",
+        toSend.type || mime,
+      );
+      if (!prep.ok) {
+        toast.error(prep.message);
+        revert();
+        return;
+      }
+
+      const supabase = createClient();
+      const up = await supabase.storage
+        .from("inbox-outbound")
+        .uploadToSignedUrl(prep.path, prep.token, toSend, {
+          contentType: toSend.type || mime,
+        });
+      if (up.error) {
+        toast.error(
+          /exceeded the maximum allowed size/i.test(up.error.message)
+            ? "El archivo supera los 25MB"
+            : `No se pudo subir el archivo: ${up.error.message}`,
+        );
+        revert();
+        return;
+      }
+
+      const res = await sendUploadedAttachment(conversation.id, {
+        path: prep.path,
+        mime: toSend.type || mime,
+        fileName: toSend.name || "archivo",
+        caption: caption || undefined,
+      });
       if (res.ok) {
         refreshMessages();
         URL.revokeObjectURL(localUrl);
