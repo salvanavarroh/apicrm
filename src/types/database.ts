@@ -2031,6 +2031,7 @@ export type Database = {
           initial_notes: string | null
           landing_url: string | null
           last_contacted_at: string | null
+          last_managed_at: string
           last_name: string | null
           locality: string | null
           merged_into_id: string | null
@@ -2084,6 +2085,7 @@ export type Database = {
           initial_notes?: string | null
           landing_url?: string | null
           last_contacted_at?: string | null
+          last_managed_at?: string
           last_name?: string | null
           locality?: string | null
           merged_into_id?: string | null
@@ -2137,6 +2139,7 @@ export type Database = {
           initial_notes?: string | null
           landing_url?: string | null
           last_contacted_at?: string | null
+          last_managed_at?: string
           last_name?: string | null
           locality?: string | null
           merged_into_id?: string | null

@@ -26,6 +26,7 @@ const KANBAN_SELECT = `
   status,
   temperature,
   status_changed_at,
+  last_managed_at,
   assigned_user_id,
   branches:branch_id (name),
   product_types:product_type_id (name),
@@ -44,6 +45,7 @@ type KanbanRow = {
   status: LeadStatus;
   temperature: KanbanLead["temperature"];
   status_changed_at: string | null;
+  last_managed_at: string | null;
   branches: { name: string } | null;
   product_types: { name: string } | null;
   assignee: { first_name: string | null; last_name: string | null } | null;
@@ -60,6 +62,7 @@ function toKanbanLead(l: KanbanRow): KanbanLead {
     status: l.status,
     temperature: l.temperature,
     status_changed_at: l.status_changed_at,
+    last_managed_at: l.last_managed_at,
     branch_name: l.branches?.name ?? null,
     product_type_name: l.product_types?.name ?? null,
     assignee_name: l.assignee

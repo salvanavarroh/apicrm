@@ -27,6 +27,7 @@ function lead(over: {
   temperature?: LeadTemperature | null;
   created_at?: string;
   status_changed_at?: string;
+  last_managed_at?: string;
   last_contacted_at?: string | null;
   assigned_user_id?: string | null;
 }): NbaInput["lead"] {
@@ -36,6 +37,10 @@ function lead(over: {
     temperature: over.temperature === undefined ? "warm" : over.temperature,
     created_at: over.created_at ?? daysAgo(1),
     status_changed_at: over.status_changed_at ?? hoursAgo(1),
+    // Por default la gestión acompaña al cambio de estado: los casos que miden
+    // "hace cuánto que nadie lo toca" lo pisan explícitamente.
+    last_managed_at:
+      over.last_managed_at ?? over.status_changed_at ?? hoursAgo(1),
     last_contacted_at: over.last_contacted_at ?? hoursAgo(1),
     assigned_user_id:
       over.assigned_user_id === undefined ? "vendor-1" : over.assigned_user_id,

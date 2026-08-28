@@ -42,6 +42,7 @@ const TABLE_SELECT = `
   vehicle_version,
   created_at,
   status_changed_at,
+  last_managed_at,
   last_contacted_at,
   branches:branch_id (name),
   product_types:product_type_id (name),
@@ -59,8 +60,10 @@ const ACTIVE_STATUSES: LeadStatus[] = [
   "quoted",
 ];
 
-// Días sin cambio de estado a partir de los cuales un lead activo se considera
-// "sin gestión" (rojo del semáforo).
+// Días SIN GESTIÓN a partir de los cuales un lead activo se pone en rojo. Se
+// mide con `last_managed_at`, no con `status_changed_at`: un lead presupuestado
+// que se trabaja todas las semanas no cambia de estado, y con la cuenta vieja
+// quedaba marcado como abandonado para siempre.
 const STALE_DAYS = 7;
 
 export type LeadsTableScope = { archived?: boolean };
@@ -78,7 +81,7 @@ export type LeadsTableFilters = {
   campaign_id?: string;
   assigned_user_id?: string; // uuid | "unassigned"
   form_id?: string; // metadata->>formId — leads de un formulario de Lead Ads
-  /** Sólo leads activos sin cambio de estado hace +STALE_DAYS días. */
+  /** Sólo leads activos sin gestión hace +STALE_DAYS días. */
   staleOnly?: boolean;
 };
 
@@ -88,7 +91,7 @@ export type LeadsSummary = {
   active: number;
   byStatus: Partial<Record<LeadStatus, number>>;
   unassigned: number;
-  /** Leads activos sin cambio de estado en los últimos 7 días. */
+  /** Leads activos sin gestión en los últimos 7 días. */
   stale: number;
   /** Leads activos a los que nadie les puso temperatura. */
   noTemperature: number;
@@ -107,6 +110,7 @@ type TableRow = {
   vehicle_version: string | null;
   created_at: string;
   status_changed_at: string;
+  last_managed_at: string;
   last_contacted_at: string | null;
   branches: { name: string } | null;
   product_types: { name: string } | null;
@@ -134,6 +138,7 @@ function toRow(l: TableRow): LeadsTableRow {
       : null,
     created_at: l.created_at,
     status_changed_at: l.status_changed_at,
+    last_managed_at: l.last_managed_at,
     last_contacted_at: l.last_contacted_at,
   };
 }
@@ -192,7 +197,7 @@ function applyFilters(query: Query, f: LeadsTableFilters): Query {
     const cut = new Date(
       Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000,
     ).toISOString();
-    q = q.in("status", ACTIVE_STATUSES).lt("status_changed_at", cut);
+    q = q.in("status", ACTIVE_STATUSES).lt("last_managed_at", cut);
   }
   return q;
 }
@@ -273,7 +278,7 @@ export async function fetchLeadsSummary(
       count((q) => q),
       count((q) => q.is("assigned_user_id", null)),
       count((q) =>
-        q.in("status", ACTIVE_STATUSES).lt("status_changed_at", staleCut),
+        q.in("status", ACTIVE_STATUSES).lt("last_managed_at", staleCut),
       ),
       count((q) => q.in("status", ACTIVE_STATUSES).is("temperature", null)),
       ...statuses.map((s) => count((q) => q.eq("status", s))),

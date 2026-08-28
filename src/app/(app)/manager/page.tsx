@@ -113,7 +113,7 @@ export default async function ManagerHomePage() {
     baseCount().is("assigned_user_id", null),
     baseCount()
       .in("status", ACTIVE_STATUSES)
-      .lt("status_changed_at", inactiveCutoff),
+      .lt("last_managed_at", inactiveCutoff),
   ]);
 
   const teamIds = (team ?? []).map((t) => t.id);
@@ -147,15 +147,15 @@ export default async function ManagerHomePage() {
     ? await supabase
         .from("leads")
         .select(
-          `id, first_name, last_name, status, status_changed_at,
+          `id, first_name, last_name, status, last_managed_at,
            assignee:profiles!assigned_user_id (first_name, last_name)`,
         )
         .eq("company_id", cid!)
         .is("archived_at", null)
         .in("assigned_user_id", teamIds)
         .in("status", ACTIVE_STATUSES)
-        .lt("status_changed_at", inactiveCutoff)
-        .order("status_changed_at", { ascending: true })
+        .lt("last_managed_at", inactiveCutoff)
+        .order("last_managed_at", { ascending: true })
         .limit(6)
     : { data: [] };
 
@@ -380,7 +380,7 @@ export default async function ManagerHomePage() {
                               )
                             : "Sin asignar"}
                           {" · "}
-                          {daysAgoLabel(l.status_changed_at)}
+                          {daysAgoLabel(l.last_managed_at)}
                         </span>
                       </span>
                       <LeadStatusBadge status={l.status} />

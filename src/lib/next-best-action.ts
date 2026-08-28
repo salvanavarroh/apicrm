@@ -57,6 +57,7 @@ export type NbaLead = {
   created_at: string;
   status_changed_at: string;
   last_contacted_at: string | null;
+  last_managed_at: string;
   assigned_user_id: string | null;
 };
 
@@ -321,7 +322,10 @@ export function nextBestAction(
   }
 
   // --- 7. Contactado pero frenado ---------------------------------------
-  const lastTouch = lead.last_contacted_at ?? lead.status_changed_at;
+  // `last_managed_at` y no `status_changed_at`: si el vendedor completó una
+  // tarea y agendó la siguiente, el lead está gestionado aunque no haya
+  // cambiado de estado. Antes la ficha seguía gritando "volvé a contactarlo".
+  const lastTouch = lead.last_contacted_at ?? lead.last_managed_at;
   const daysQuiet = daysSince(lastTouch, now);
   if (daysQuiet >= FOLLOW_UP_DAYS) {
     const hot = lead.temperature === "hot";

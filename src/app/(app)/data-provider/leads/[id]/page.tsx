@@ -65,7 +65,7 @@ export default async function ProviderLeadDetailPage({
         status={lead.status}
         temperature={lead.temperature}
         createdAt={lead.created_at}
-        statusChangedAt={lead.status_changed_at}
+        lastManagedAt={lead.last_managed_at}
         lastContactedAt={lead.last_contacted_at}
         phone={lead.phone}
         email={lead.email}

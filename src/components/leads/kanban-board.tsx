@@ -43,6 +43,8 @@ export type KanbanLead = {
   product_type_name: string | null;
   assignee_name: string | null;
   status_changed_at: string | null;
+  /** Última gestión real: es lo que mide el reloj y el punto de la tarjeta. */
+  last_managed_at: string | null;
   // Mensajes sin responder (WhatsApp/IG/FB) del lead. >0 → badge en la tarjeta.
   unread: number;
 };
@@ -378,7 +380,7 @@ function Card({
               Asignar vendedor
             </Link>
             <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <ClockIcon /> {timeAgo(lead.status_changed_at)}
+              <ClockIcon /> {timeAgo(lead.last_managed_at)}
             </span>
           </div>
         ) : (
@@ -387,7 +389,7 @@ function Card({
               {lead.assignee_name ?? "Sin asignar"}
             </span>
             <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
-              <ClockIcon /> {timeAgo(lead.status_changed_at)}
+              <ClockIcon /> {timeAgo(lead.last_managed_at)}
             </span>
           </div>
         )}
@@ -409,14 +411,14 @@ function Card({
 
 /**
  * Punto de gestión en la tarjeta: mismo criterio que la tabla y que el semáforo
- * del dashboard (verde <3 días, ámbar 3-7, rojo +7 desde el último cambio de
- * estado). Sólo en estados activos.
+ * del dashboard (verde <3 días, ámbar 3-7, rojo +7 desde la última gestión).
+ * Sólo en estados activos.
  */
 function StaleDot({ lead }: { lead: KanbanLead }) {
-  if (!KANBAN_ACTIVE.includes(lead.status) || !lead.status_changed_at) {
+  if (!KANBAN_ACTIVE.includes(lead.status) || !lead.last_managed_at) {
     return null;
   }
-  const days = daysSince(lead.status_changed_at);
+  const days = daysSince(lead.last_managed_at);
   if (days < 3) return null; // Al día: no agregamos ruido visual.
   return (
     <span

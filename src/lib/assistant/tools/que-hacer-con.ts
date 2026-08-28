@@ -39,7 +39,7 @@ export const queHacerCon: Tool = {
       supabase
         .from("leads")
         .select(
-          "id, first_name, last_name, status, temperature, created_at, status_changed_at, last_contacted_at, assigned_user_id",
+          "id, first_name, last_name, status, temperature, created_at, status_changed_at, last_managed_at, last_contacted_at, assigned_user_id",
         )
         .eq("id", leadId)
         .maybeSingle(),

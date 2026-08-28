@@ -72,6 +72,8 @@ export type LeadsTableRow = {
   assignee_name: string | null;
   created_at: string;
   status_changed_at?: string | null;
+  /** Última gestión real (nota, tarea, visita, mensaje o cambio de estado). */
+  last_managed_at?: string | null;
   last_contacted_at?: string | null;
   vehicle_model?: string | null;
   vehicle_version?: string | null;
@@ -99,6 +101,11 @@ type Props = {
   // Filtro fijo por formulario de Lead Ads (llega vía ?form=). Se aplica siempre
   // y muestra un aviso con "Ver todos" para limpiarlo.
   formFilter?: { id: string; label: string };
+  // Filtros con los que ARRANCA la tabla, para entrar ya filtrado desde un link
+  // (ej. el contador "Sin gestión +7d" del encabezado). Quien los pasa tiene que
+  // pedirle al server la primera página con los mismos filtros, si no el SSR
+  // mostraría todo hasta la primera interacción.
+  initialFilters?: Partial<LeadsFilterState>;
 };
 
 const ACTIVE_STATUSES: LeadStatus[] = [
@@ -205,6 +212,7 @@ export function LeadsTable({
   vendorOptions,
   campaignOptions,
   formFilter,
+  initialFilters,
 }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<LeadsTableRow[]>(initialRows);
@@ -216,7 +224,10 @@ export function LeadsTable({
 
   // Un solo objeto de estado para todos los filtros: la barra manda parches y
   // el efecto de carga observa una única clave serializada.
-  const [f, setF] = useState<LeadsFilterState>(EMPTY_FILTERS);
+  const [f, setF] = useState<LeadsFilterState>({
+    ...EMPTY_FILTERS,
+    ...initialFilters,
+  });
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -647,7 +658,7 @@ export function LeadsTable({
                   <div className="flex items-center gap-2.5">
                     <UrgencyDot
                       status={row.status}
-                      statusChangedAt={row.status_changed_at}
+                      lastManagedAt={row.last_managed_at}
                     />
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold text-accent">
                       {initials(row.first_name, row.last_name)}
@@ -853,7 +864,7 @@ function LeadCard({
           <span className="flex items-center gap-1.5">
             <UrgencyDot
               status={row.status}
-              statusChangedAt={row.status_changed_at}
+              lastManagedAt={row.last_managed_at}
             />
             <span className="truncate font-medium">
               {fullName(row.first_name, row.last_name) || "Sin nombre"}
@@ -957,15 +968,17 @@ function Cell({
  */
 function UrgencyDot({
   status,
-  statusChangedAt,
+  lastManagedAt,
 }: {
   status: LeadStatus;
-  statusChangedAt?: string | null;
+  /** Se mide la GESTIÓN, no el tiempo en la etapa: un lead presupuestado que se
+   *  trabaja cada semana no cambia de estado y quedaba siempre en rojo. */
+  lastManagedAt?: string | null;
 }) {
-  if (!ACTIVE_STATUSES.includes(status) || !statusChangedAt) {
+  if (!ACTIVE_STATUSES.includes(status) || !lastManagedAt) {
     return <span aria-hidden className="size-1.5 shrink-0" />;
   }
-  const d = daysSince(statusChangedAt) ?? 0;
+  const d = daysSince(lastManagedAt) ?? 0;
   const tone = d >= 7 ? "danger" : d >= 3 ? "warning" : "ok";
   const label =
     tone === "danger"

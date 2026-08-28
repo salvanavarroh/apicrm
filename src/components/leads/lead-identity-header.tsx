@@ -54,7 +54,7 @@ export function LeadIdentityHeader({
   status,
   temperature,
   createdAt,
-  statusChangedAt,
+  lastManagedAt,
   lastContactedAt,
   phone,
   email,
@@ -70,7 +70,9 @@ export function LeadIdentityHeader({
   status: LeadStatus;
   temperature: LeadTemperature | null;
   createdAt: string;
-  statusChangedAt?: string | null;
+  /** Última gestión real: nota, tarea, visita, mensaje o cambio de estado. Es lo
+   *  que mide "sin gestión" — NO el tiempo en la etapa del pipeline. */
+  lastManagedAt?: string | null;
   lastContactedAt?: string | null;
   phone: string | null;
   email: string | null;
@@ -93,7 +95,7 @@ export function LeadIdentityHeader({
 }) {
   const age = daysSince(createdAt);
   const stale = ACTIVE_STATUSES.includes(status)
-    ? daysSince(statusChangedAt)
+    ? daysSince(lastManagedAt)
     : null;
   const contacted = daysSince(lastContactedAt);
   const name = fullName(firstName, lastName) || "Sin nombre";

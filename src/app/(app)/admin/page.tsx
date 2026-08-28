@@ -55,7 +55,9 @@ export default async function AdminHomePage() {
     companyId: profile.company_id,
   });
 
-  // Semáforo de leads activos por antigüedad de gestión (status_changed_at).
+  // Semáforo de leads activos por antigüedad de GESTIÓN (`last_managed_at`):
+  // nota, tarea, visita, mensaje o cambio de estado. Con `status_changed_at` un
+  // lead trabajado todas las semanas figuraba abandonado por no cambiar de etapa.
   const now = new Date();
   const cut3 = new Date(now.getTime() - 3 * 86_400_000).toISOString();
   const cut7 = new Date(now.getTime() - 7 * 86_400_000).toISOString();
@@ -123,16 +125,16 @@ export default async function AdminHomePage() {
       .eq("company_id", cid)
       .gte("created_at", monthStart.toISOString()),
     leadCount((q) =>
-      q.in("status", ACTIVE_LEAD_STATUSES).gte("status_changed_at", cut3),
+      q.in("status", ACTIVE_LEAD_STATUSES).gte("last_managed_at", cut3),
     ),
     leadCount((q) =>
       q
         .in("status", ACTIVE_LEAD_STATUSES)
-        .lt("status_changed_at", cut3)
-        .gte("status_changed_at", cut7),
+        .lt("last_managed_at", cut3)
+        .gte("last_managed_at", cut7),
     ),
     leadCount((q) =>
-      q.in("status", ACTIVE_LEAD_STATUSES).lt("status_changed_at", cut7),
+      q.in("status", ACTIVE_LEAD_STATUSES).lt("last_managed_at", cut7),
     ),
   ]);
 

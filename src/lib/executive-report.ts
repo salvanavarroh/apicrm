@@ -157,6 +157,7 @@ type ReportLead = {
   created_at: string;
   status_changed_at: string;
   last_contacted_at: string | null;
+  last_managed_at: string;
 };
 
 type ReportNote = { lead_id: string; created_at: string };
@@ -291,7 +292,7 @@ export async function loadExecutiveReport(
       .from("leads")
       .select(
         `id, status, temperature, assigned_user_id, assigned_at, campaign_id,
-         created_at, status_changed_at, last_contacted_at`,
+         created_at, status_changed_at, last_managed_at, last_contacted_at`,
         withCount ? { count: "exact" } : {},
       )
       .eq("company_id", companyId)
@@ -330,7 +331,7 @@ export async function loadExecutiveReport(
   // --- Totales -------------------------------------------------------------
   const isActive = (l: ReportLead) => ACTIVE_STATUSES.includes(l.status);
   const isStale = (l: ReportLead) =>
-    isActive(l) && new Date(l.status_changed_at).getTime() < staleCut;
+    isActive(l) && new Date(l.last_managed_at).getTime() < staleCut;
 
   const totalLeads = leads.length;
   const revenue = acceptedSales.reduce((a, s) => a + Number(s.final_price), 0);
