@@ -53,36 +53,73 @@ Tres reglas que conviene tener presentes:
 
 ## Dónde vive cada cosa
 
-Acá está el detalle que nos costó encontrar: **el mismo dato tiene dos
-ortografías distintas** según de dónde lo saques, y Zernio lo hizo a propósito
-para no romper integraciones existentes.
+El webhook **manda todo**. No hay nada que Zernio se guarde: `message.received`
+trae el referral de Meta reenviado verbatim en `metadata.referral`, con las 16
+claves, **en el primer mensaje entrante después del clic**. En los siguientes
+mensajes de esa misma conversación ya no viene.
 
-| Fuente | Qué trae | Nombres |
-|---|---|---|
-| Webhook `message.received` → `metadata.referral` | El referral pegado al primer mensaje entrante | **Verbatim de Meta**: `ad_id`, `source`, `type` |
-| Webhook `referral.received` | Alguien reabre un hilo de IG/Messenger por link `ig.me`/`m.me`, o un clic de anuncio de Messenger de vuelta | Objeto referral de Meta |
-| `GET /v1/inbox/conversations` → `data[].metadata` | El registro guardado de la conversación. **Es el único que devuelve `ctwa_*`** | Prefijados |
-| `GET /v1/inbox/conversations/{id}` | Sólo la familia `meta_ad_*` (IG y Messenger) | Prefijados |
+Estas son las claves del webhook, y cuáles se llenan según por dónde entró:
 
-Lo importante operativamente: para **WhatsApp**, el dato llega por el webhook de
-mensaje y se puede repescar del **listado** de conversaciones. El endpoint de
-conversación individual no sirve para CTWA.
+| Clave en `metadata.referral` | WhatsApp (CTWA) | Instagram / Messenger |
+|---|:--:|:--:|
+| `ctwa_clid` — el click id, llave para devolver conversiones | ✅ | — |
+| `source_id` — **el ID del anuncio** | ✅ | — |
+| `ad_id` — el ID del anuncio | — | ✅ |
+| `source_type` | ✅ | — |
+| `source_url` — a dónde apuntaba el anuncio | ✅ | — |
+| `headline` — el título que leyó el cliente | ✅ | — |
+| `body` — el texto del anuncio | ✅ | — |
+| `media_type`, `image_url`, `video_url`, `thumbnail_url` — la creatividad | ✅ | — |
+| `ref`, `source`, `type`, `referer_uri`, `ads_context_data` | — | ✅ |
 
-## Qué guardamos hoy
+Un detalle que confunde: **el mismo valor tiene dos nombres** según de dónde lo
+saques. El ID del anuncio de WhatsApp es `source_id` en el webhook y
+`ctwa_source_id` en el registro guardado de la conversación. Zernio mantiene las
+dos ortografías a propósito para no romper integraciones existentes.
+
+El registro guardado sirve como **repesca**, no como fuente primaria:
+
+| Fuente | Cuándo usarla |
+|---|---|
+| Webhook `message.received` → `metadata.referral` | **La fuente.** Llega sola, en el momento |
+| `GET /v1/inbox/conversations` → `data[].metadata` | Repesca. Es el único que devuelve los `ctwa_*` |
+| `GET /v1/inbox/conversations/{id}` | Sólo `meta_ad_*`. No sirve para WhatsApp |
+| Webhook `referral.received` | Un clic que abre un hilo existente **sin mandar mensaje**. Sólo Instagram y Messenger |
+
+Dos límites que conviene anotar: la ventana de atribución de CTWA es de **7 días
+desde el clic**, y Meta no manda campaña ni conjunto de anuncios en ningún caso.
+
+## Qué guardamos hoy: 2 de 16
 
 `conversations.attribution` (jsonb) se llena en
-`src/lib/messaging/handlers.ts` con `extractAttribution()`, que hoy conserva
-**sólo dos claves**:
+`src/lib/messaging/handlers.ts` con `extractAttribution()`:
 
 ```ts
-ctwa_clid  ← metadata.ctwa_clid  |  referral.ctwa_clid
-ad_id      ← referral.source_id  |  referral.ad_id
+function extractAttribution(message: Json): Json {
+  const md = (message.metadata as Json) ?? {};
+  const referral = (md.referral as Json) ?? (message.referral as Json) ?? {};
+  const out: Json = {};
+  const clid = str(md.ctwa_clid) ?? str(referral.ctwa_clid);
+  if (clid) out.ctwa_clid = clid;
+  const adId = str(referral.source_id) ?? str(referral.ad_id);
+  if (adId) out.ad_id = adId;
+  return out;                       // ← todo lo demás se descarta
+}
 ```
 
-El `ad_id` además se copia a `leads.metadata.adId` al crear el lead, que es lo
-que después habilita el reporte por anuncio.
+Lee el lugar correcto y elige bien las dos claves más importantes. El problema es
+que **descarta las otras catorce**, y esas no se pueden recuperar después:
 
-Está leyendo el lugar correcto. El problema es lo que descarta.
+- `source_url`, `headline`, `body`, `media_type`, `image_url`, `video_url`,
+  `thumbnail_url` — **la creatividad completa**: qué anuncio vio el cliente antes
+  de escribirnos. Es lo que le sirve al vendedor para arrancar la conversación
+  sabiendo de qué le están hablando, y a marketing para saber qué creatividad
+  trae gente que compra y no sólo gente que escribe.
+- `source_type`, `ref`, `source`, `type`, `referer_uri`, `ads_context_data` — el
+  contexto del clic en Instagram y Messenger.
+
+El `ad_id` además se copia a `leads.metadata.adId` al crear el lead, que es lo
+que hoy habilita el reporte por anuncio.
 
 ## Qué hay que guardar desde ahora
 
@@ -191,9 +228,11 @@ hoy sólo tenemos para Lead Ads.
    mensaje— pero en Instagram y Messenger perdemos los casos de alguien que
    reabre un hilo por un link `ig.me`/`m.me` o vuelve por un clic de anuncio.
 
-2. **`extractAttribution()` descarta casi todo.** Guarda 2 claves de las 17
-   documentadas. Entre las que tira están `ctwa_source_url` y `ctwa_headline`
-   (qué anuncio vio) y todos los `meta_ad_*` salvo el id.
+2. **`extractAttribution()` descarta casi todo.** El webhook manda 16 claves y
+   guardamos 2. Se pierde la creatividad entera —título, texto, imagen, video,
+   URL del anuncio— que es justamente lo que hace accionable la atribución.
+   Es el hueco más caro de los tres: el dato pasa por nuestro server y lo
+   tiramos.
 
 3. **No hay repesca.** Nunca leemos el `metadata` del listado de conversaciones,
    así que si se pierde un webhook —una caída, un reintento fallido— el dato se
