@@ -78,6 +78,7 @@ const DOCS: DocMeta[] = [
   { path: "docs/bot-inbox-respuesta-automatica.md", audienceRoles: SOLO_SOPORTE, feature: "bot", routePrefix: null },
   { path: "docs/mensajeria-zernio-arquitectura.md", audienceRoles: SOLO_SOPORTE, feature: "inbox", routePrefix: null },
   { path: "docs/mensajeria-zernio-plan.md", audienceRoles: SOLO_SOPORTE, feature: "inbox", routePrefix: null },
+  { path: "docs/atribucion-de-anuncios.md", audienceRoles: SOLO_SOPORTE, feature: "inbox", routePrefix: null },
   { path: "docs/carga-leads-ia.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/roadmap-posventa.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/asistente-ia.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
