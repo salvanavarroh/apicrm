@@ -43,7 +43,11 @@ export type InboxPresenceStats = {
   open: number;
   /** Mías con mensajes del cliente sin responder. */
   unanswered: number;
-  /** Sin asignar en toda la empresa: las que esperan que alguien se active. */
+  /**
+   * Conversaciones esperando que alguien las atienda, DENTRO del alcance del
+   * vendedor: sin asignar, con la ventana de 24h todavía abierta, y de su
+   * sucursal o de un número general.
+   */
   pool: number;
   /** Mías con la ventana de 24h de WhatsApp por cerrarse en menos de 4h. */
   closingWindow: number;
@@ -64,6 +68,14 @@ export async function loadInboxPresenceStats(
   companyId: string,
 ): Promise<InboxPresenceStats> {
   const admin = createAdminClient();
+  // La sucursal del vendedor: el contador del pool tiene que respetar el mismo
+  // alcance que la RLS del inbox (ver 20260731120000_inbox_branch_scoping).
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("branch_id")
+    .eq("id", userId)
+    .maybeSingle();
+  const branchId = profile?.branch_id ?? null;
   const staleIso = new Date(Date.now() - STALE_MS).toISOString();
   const closingIso = new Date(Date.now() + CLOSING_WINDOW_MS).toISOString();
   const nowIso = new Date().toISOString();
@@ -98,12 +110,26 @@ export async function loadInboxPresenceStats(
       .gt("inbox_available_at", staleIso),
     mine().eq("status", "open"),
     mine().eq("status", "open").gt("unread_count", 0),
-    admin
-      .from("conversations")
-      .select("id", { count: "exact", head: true })
-      .eq("company_id", companyId)
-      .eq("status", "open")
-      .is("assigned_user_id", null),
+    // Pool: lo que el vendedor podría tomar AHORA. Tres recortes, y los tres
+    // hacen falta:
+    //   · sin asignar y abierta — la definición de pool;
+    //   · con la ventana de 24h viva — si venció, activarse no sirve de nada:
+    //     hay que reabrir con plantilla aprobada, no es "atender la cola";
+    //   · de su sucursal o de un número general — el mismo alcance que ya
+    //     aplica la RLS del inbox. Sin esto un vendedor de Lanús veía las 37
+    //     de Quilmes, que no puede tocar.
+    (() => {
+      let q = admin
+        .from("conversations")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "open")
+        .is("assigned_user_id", null)
+        .gt("window_expires_at", nowIso);
+      if (branchId) q = q.or(`branch_id.is.null,branch_id.eq.${branchId}`);
+      else q = q.is("branch_id", null);
+      return q;
+    })(),
     mine()
       .eq("status", "open")
       .gt("window_expires_at", nowIso)

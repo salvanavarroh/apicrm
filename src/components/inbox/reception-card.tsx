@@ -59,7 +59,7 @@ export function ReceptionCard({
                       : " Sos el único activo ahora."
                   }`
                 : pool > 0
-                  ? `Hay ${pool} conversación(es) esperando en el pool. Activate para que te lleguen.`
+                  ? `Hay ${pool} conversación(es) esperando ser atendidas. Activate para que te lleguen.`
                   : "Activate para entrar en el reparto automático del inbox."}
             </p>
           </div>
@@ -99,9 +99,9 @@ export function ReceptionCard({
         />
         <Kpi
           icon={Inbox}
-          label="En el pool"
+          label="Esperando ser atendidas"
           value={pool}
-          hint="Sin dueño en la empresa"
+          hint="Podés tomarlas ahora"
           tone={pool > 0 && !available ? "warning" : "muted"}
           href={inboxHref}
         />
