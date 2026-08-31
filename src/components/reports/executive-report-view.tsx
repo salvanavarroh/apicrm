@@ -89,17 +89,30 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
               : "Sin ventas en el período"
           }
         />
+        {/* Mediana y no promedio, y con la muestra a la vista: "481 h" sin el
+            "sobre 7 de 3.953" hacía pensar que toda la concesionaria tardaba
+            veinte días en atender. */}
         <KpiCard
           icon={Clock}
           label="Primer contacto"
           value={
-            totals.avgFirstResponseHours !== null
-              ? `${totals.avgFirstResponseHours} h`
+            totals.firstResponseHours !== null
+              ? `${totals.firstResponseHours} h`
               : "s/d"
           }
-          caption="Promedio desde la asignación"
+          caption={
+            totals.firstResponseSample > 0
+              ? `Mediana en horas hábiles · sobre ${totals.firstResponseSample} de ${totals.leads.toLocaleString("es-AR")} leads`
+              : "Todavía no hay ningún primer contacto registrado"
+          }
         />
       </div>
+
+      <p className="-mt-3 text-[11px] text-muted-foreground">
+        El primer contacto se mide en <b>horas hábiles</b> ({data.businessHours}):
+        un lead que entra un domingo empieza a contar el lunes a la apertura. Se
+        configura en Mi empresa → Call center.
+      </p>
 
       {/* --- Alertas ----------------------------------------------------- */}
       <Section
@@ -232,9 +245,16 @@ export function ExecutiveReportView({ data }: { data: ExecutiveReport }) {
                         {v.revenue > 0 ? formatARS(v.revenue) : "—"}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono tabular-nums text-muted-foreground">
-                        {v.avgFirstResponseHours !== null
-                          ? `${v.avgFirstResponseHours} h`
-                          : "—"}
+                        {v.firstResponseHours !== null ? (
+                          <>
+                            {v.firstResponseHours} h
+                            <span className="block text-[10px] font-normal">
+                              sobre {v.firstResponseSample}
+                            </span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <span

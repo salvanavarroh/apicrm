@@ -23,6 +23,12 @@ import {
 } from "@/lib/campaign-origins";
 import { fetchPaged } from "@/lib/leads-fetch";
 import { fullName, type LeadStatus, type LeadTemperature } from "@/lib/leads";
+import {
+  businessHoursBetween,
+  businessHoursLabel,
+  businessHoursOf,
+  type BusinessHours,
+} from "@/lib/business-hours";
 import { createClient } from "@/lib/supabase/server";
 
 export type ReportRange = { from?: string | null; to?: string | null };
@@ -68,8 +74,13 @@ export type VendorPerformance = {
   stale: number;
   /** Asignados hace +48h que nunca registraron contacto. */
   neverContacted: number;
-  /** Horas promedio entre la asignación y el primer contacto registrado. */
-  avgFirstResponseHours: number | null;
+  /**
+   * Horas HÁBILES (mediana) entre la asignación y el primer contacto. Mediana y
+   * no promedio: un caso de 300 h no puede mover la métrica del equipo entero.
+   */
+  firstResponseHours: number | null;
+  /** Sobre cuántos leads se calculó. Sin esto el número engaña. */
+  firstResponseSample: number;
 };
 
 export type FunnelStep = {
@@ -133,8 +144,11 @@ export type ExecutiveReport = {
     stale: number;
     unassigned: number;
     noTemperature: number;
-    avgFirstResponseHours: number | null;
+    firstResponseHours: number | null;
+    firstResponseSample: number;
   };
+  /** Horario de atención con el que se midió el primer contacto. */
+  businessHours: string;
   vendors: VendorPerformance[];
   funnel: FunnelStep[];
   channels: ChannelPerformance[];
@@ -268,6 +282,7 @@ export async function loadExecutiveReport(
     { data: campaignRows },
     { data: salesRows },
     spendByChannel,
+    { data: companyRow },
   ] = await Promise.all([
       vendorQuery,
       supabase
@@ -284,6 +299,15 @@ export async function loadExecutiveReport(
         return q;
       })(),
       loadSpendByChannel(range),
+      // El horario de atención: el primer contacto se mide en horas hábiles, no
+      // de reloj. Es el mismo horario que usa el reparto del call center.
+      supabase
+        .from("companies")
+        .select(
+          "inbox_hours_enabled, inbox_hours_days, inbox_hours_start, inbox_hours_end, inbox_tz",
+        )
+        .eq("id", companyId)
+        .maybeSingle(),
     ]);
 
   // Leads del período, en tandas (PostgREST corta en 1000).
@@ -328,6 +352,8 @@ export async function loadExecutiveReport(
     (campaignRows ?? []).map((c) => [c.id, c.origin]),
   );
 
+  const bh: BusinessHours = businessHoursOf(companyRow ?? {});
+
   // --- Totales -------------------------------------------------------------
   const isActive = (l: ReportLead) => ACTIVE_STATUSES.includes(l.status);
   const isStale = (l: ReportLead) =>
@@ -337,19 +363,32 @@ export async function loadExecutiveReport(
   const revenue = acceptedSales.reduce((a, s) => a + Number(s.final_price), 0);
 
   /** Horas entre asignación (o alta) y primer contacto registrado. */
+  // Horas HÁBILES entre la asignación (o el alta) y el primer contacto: un lead
+  // que entra el domingo empieza a contar el lunes a la hora de apertura.
   const responseHours = (l: ReportLead): number | null => {
     const first = firstNoteAt.get(l.id);
     if (!first) return null;
-    const start = new Date(l.assigned_at ?? l.created_at).getTime();
-    const diff = (first - start) / HOUR_MS;
-    return diff >= 0 ? diff : null;
+    const startIso = l.assigned_at ?? l.created_at;
+    if (new Date(first).getTime() < new Date(startIso).getTime()) return null;
+    return (
+      Math.round(
+        businessHoursBetween(startIso, new Date(first).toISOString(), bh) * 10,
+      ) / 10
+    );
   };
 
-  const avgOf = (values: number[]): number | null =>
-    values.length === 0
-      ? null
-      : Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) /
-        10;
+  /**
+   * Mediana, no promedio. Con muestras chicas —siete leads contactados sobre
+   * cuatro mil— tres casos de 300 h mandan sobre el número de toda la
+   * concesionaria y el dato deja de significar nada.
+   */
+  const medianOf = (values: number[]): number | null => {
+    if (values.length === 0) return null;
+    const v = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(v.length / 2);
+    const med = v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+    return Math.round(med * 10) / 10;
+  };
 
   const allResponses = leads
     .map(responseHours)
@@ -368,7 +407,8 @@ export async function loadExecutiveReport(
     stale: leads.filter(isStale).length,
     unassigned: leads.filter((l) => !l.assigned_user_id).length,
     noTemperature: leads.filter((l) => isActive(l) && !l.temperature).length,
-    avgFirstResponseHours: avgOf(allResponses),
+    firstResponseHours: medianOf(allResponses),
+    firstResponseSample: allResponses.length,
   };
 
   // --- Desempeño por vendedor ---------------------------------------------
@@ -405,7 +445,8 @@ export async function loadExecutiveReport(
             new Date(l.assigned_at ?? l.created_at).getTime() <
               now - NEVER_CONTACTED_HOURS * HOUR_MS,
         ).length,
-        avgFirstResponseHours: avgOf(responses),
+        firstResponseHours: medianOf(responses),
+        firstResponseSample: responses.length,
       } satisfies VendorPerformance;
     })
     .sort((a, b) => b.salesAccepted - a.salesAccepted || b.leads - a.leads);
@@ -575,6 +616,7 @@ export async function loadExecutiveReport(
   return {
     range,
     capped,
+    businessHours: businessHoursLabel(bh),
     totals,
     vendors: vendorPerf,
     funnel,
@@ -638,18 +680,21 @@ function buildRecommendations({
   }
 
   // 3. Tiempo de primera respuesta muy por encima del promedio del equipo.
-  if (totals.avgFirstResponseHours !== null) {
+  if (totals.firstResponseHours !== null) {
     const slow = activeVendors.filter(
       (v) =>
-        v.avgFirstResponseHours !== null &&
+        v.firstResponseHours !== null &&
+        // Además de tener leads, tiene que tener MUESTRA: con un solo lead
+        // contactado no se puede decir que alguien "tarda".
         v.leads >= 5 &&
-        v.avgFirstResponseHours > totals.avgFirstResponseHours! * 2,
+        v.firstResponseSample >= 3 &&
+        v.firstResponseHours > totals.firstResponseHours! * 2,
     );
     for (const v of slow) {
       recs.push({
         id: `slow-${v.id}`,
         impact: "medium",
-        title: `${v.name} tarda ${v.avgFirstResponseHours} h en el primer contacto (equipo: ${totals.avgFirstResponseHours} h)`,
+        title: `${v.name} tarda ${v.firstResponseHours} h hábiles en el primer contacto (equipo: ${totals.firstResponseHours} h)`,
         detail:
           "El primer contacto rápido es lo que más mueve la conversión. Cargale una tarea automática al asignarle un lead nuevo.",
       });

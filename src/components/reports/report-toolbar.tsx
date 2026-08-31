@@ -132,9 +132,14 @@ export function ReportToolbar({
       { Métrica: "Ticket promedio", Valor: Math.round(data.totals.avgTicket) },
       { Métrica: "Conversión", Valor: pct(data.totals.conversion) },
       {
-        Métrica: "Primer contacto (h promedio)",
-        Valor: data.totals.avgFirstResponseHours ?? "s/d",
+        Métrica: "Primer contacto (mediana en horas hábiles)",
+        Valor: data.totals.firstResponseHours ?? "s/d",
       },
+      {
+        Métrica: "Primer contacto — leads con contacto registrado",
+        Valor: data.totals.firstResponseSample,
+      },
+      { Métrica: "Horario de atención usado", Valor: data.businessHours },
       { Métrica: "Sin gestión +7 días", Valor: data.totals.stale },
       { Métrica: "Sin asignar", Valor: data.totals.unassigned },
       { Métrica: "Activos sin calificar", Valor: data.totals.noTemperature },
@@ -156,7 +161,8 @@ export function ReportToolbar({
       Conversión: pct(v.conversion),
       "Sin gestión +7d": v.stale,
       "Nunca contactados": v.neverContacted,
-      "Primer contacto (h)": v.avgFirstResponseHours ?? "s/d",
+      "Primer contacto (h hábiles, mediana)": v.firstResponseHours ?? "s/d",
+      "Primer contacto (leads medidos)": v.firstResponseSample,
     }));
     XLSX.utils.book_append_sheet(
       wb,
