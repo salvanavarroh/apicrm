@@ -6,6 +6,7 @@ import {
   Check,
   CircleDashed,
   FileText,
+  Sparkles,
   Target,
   User,
   type LucideIcon,
@@ -15,6 +16,10 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { CatalogCombobox } from "@/components/leads/catalog-combobox";
+import {
+  PendingInterests,
+  type PendingInterest,
+} from "@/components/leads/pending-interests";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +45,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { LEAD_PAYMENT_OPTIONS, fullName, type LeadInput } from "@/lib/leads";
 import { cn } from "@/lib/utils";
 
+import { addLeadInterest } from "@/lib/lead-interests-actions";
 import {
   createLead,
   type DuplicateInfo,
@@ -184,6 +190,9 @@ export function LeadForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [data, setData] = useState<LeadInput>({ ...EMPTY, ...initial });
+  // "Para romper el hielo" en el alta: se junta acá y se graba después de crear
+  // el lead, porque los intereses necesitan un leadId que todavía no existe.
+  const [interests, setInterests] = useState<PendingInterest[]>([]);
   const [duplicate, setDuplicate] = useState<DuplicateInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -246,6 +255,22 @@ export function LeadForm({
         toast.error(result.message);
         return;
       }
+      // Los intereses se graban recién ahora, con el lead ya creado. Si alguno
+      // falla no se tira atrás el lead: se avisa y el vendedor lo recarga desde
+      // la ficha. Perder el lead por un dato de color sería peor.
+      const newLeadId = "leadId" in result ? result.leadId : undefined;
+      if (newLeadId && interests.length > 0) {
+        const fallidos: string[] = [];
+        for (const i of interests) {
+          const r = await addLeadInterest({ leadId: newLeadId, ...i });
+          if (!r.ok) fallidos.push(i.value);
+        }
+        if (fallidos.length > 0) {
+          toast.warning(
+            `El lead se creó, pero no pude guardar: ${fallidos.join(", ")}`,
+          );
+        }
+      }
       toast.success(mode === "edit" ? "Lead actualizado" : "Lead creado");
       router.push(redirectTo);
       router.refresh();
@@ -265,9 +290,12 @@ export function LeadForm({
   }
 
   // Numeración de los bloques: el de asignación comercial no siempre se muestra.
+  // El bloque "Para romper el hielo" sólo existe en el alta: en la edición los
+  // intereses ya se manejan desde la ficha, con su propia sección.
+  const showInterests = mode === "create";
   const n = lockClassification
-    ? { cliente: 1, vehiculo: 2, comercial: 0, notas: 3 }
-    : { cliente: 1, vehiculo: 2, comercial: 3, notas: 4 };
+    ? { cliente: 1, vehiculo: 2, comercial: 0, hielo: showInterests ? 3 : 0, notas: showInterests ? 4 : 3 }
+    : { cliente: 1, vehiculo: 2, comercial: 3, hielo: showInterests ? 4 : 0, notas: showInterests ? 5 : 4 };
 
   // Con gerencias, el tipo depende de la sucursal elegida: el par tiene que
   // existir en `managements`. Ofrecer los dos catálogos completos dejaba armar
@@ -581,7 +609,14 @@ export function LeadForm({
         </FormBlock>
       )}
 
-      {/* ---------------- 4. Notas ---------------- */}
+      {/* ---------------- Para romper el hielo ---------------- */}
+      {showInterests && (
+        <FormBlock n={n.hielo} icon={Sparkles} title="Para romper el hielo">
+          <PendingInterests value={interests} onChange={setInterests} />
+        </FormBlock>
+      )}
+
+      {/* ---------------- Notas ---------------- */}
       <FormBlock n={n.notas} icon={FileText} title="Notas iniciales">
         <Field id="initial_notes" label="Qué dijo el cliente">
           <Textarea
