@@ -906,8 +906,8 @@ function AttributionCoverage({
       </div>
       <p className="mt-1.5">
         {platform
-          ? `El resto son leads de otros canales o sin atribución (click-to-WhatsApp, que Zernio no reenvía con el anuncio).`
-          : "El resto entra por click-to-WhatsApp, que Zernio no reenvía con atribución."}
+          ? `El resto son leads de otros canales o que no vinieron de un clic en un anuncio.`
+          : "El resto no vino de un clic en un anuncio: entró por WhatsApp directo, mostrador u otro canal."}
       </p>
     </div>
   );
@@ -918,12 +918,13 @@ function Heatmap({ grid }: { grid: number[][] }) {
   const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
   const buckets = [6, 8, 10, 12, 14, 16, 18, 20, 22];
   const val = (d: number, h: number) => (grid[d]?.[h] ?? 0) + (grid[d]?.[h + 1] ?? 0);
-  let max = 1;
+
   const peak = { d: 0, h: 6, v: -1 };
+  const nonZero: number[] = [];
   for (let d = 0; d < 7; d++) {
     for (const h of buckets) {
       const v = val(d, h);
-      if (v > max) max = v;
+      if (v > 0) nonZero.push(v);
       if (v > peak.v) {
         peak.d = d;
         peak.h = h;
@@ -931,6 +932,24 @@ function Heatmap({ grid }: { grid: number[][] }) {
       }
     }
   }
+
+  // La escala es por RANGO, no por proporción al máximo.
+  //
+  // El cuadro no mostraba nada y no era un problema de datos: una importación
+  // de CSV mete miles de leads en la misma hora, así que con `v / max` una celda
+  // de 2 leads sobre un máximo de 2.589 quedaba en opacidad 0,1007 contra 0,1 de
+  // una celda vacía. Treinta y cinco celdas con datos reales se veían idénticas
+  // a las vacías y sólo el pico tenía color.
+  //
+  // Ordenando los valores y pintando por posición, cada celda con datos se
+  // distingue de una vacía y entre sí, sin que un outlier aplaste al resto.
+  const sorted = [...new Set(nonZero)].sort((a, b) => a - b);
+  const shade = (v: number): number => {
+    if (v === 0) return 0;
+    if (sorted.length <= 1) return 1;
+    return (sorted.indexOf(v) + 1) / sorted.length;
+  };
+
   return (
     <div className="py-1">
       <div className="grid gap-[3px]" style={{ gridTemplateColumns: `34px repeat(${buckets.length}, 1fr)` }}>
@@ -946,11 +965,13 @@ function Heatmap({ grid }: { grid: number[][] }) {
               return (
                 <div
                   key={h}
-                  className="rounded-sm"
+                  className={cn("rounded-sm", v === 0 && "border border-border")}
                   style={{
                     aspectRatio: "1.7 / 1",
-                    background: "var(--color-accent)",
-                    opacity: 0.1 + (v / max) * 0.9,
+                    background: v === 0 ? "transparent" : "var(--color-accent)",
+                    // Piso de 0.22: una celda con un solo lead tiene que
+                    // distinguirse de una vacía.
+                    opacity: v === 0 ? 1 : 0.22 + shade(v) * 0.78,
                   }}
                   title={`${dl} ${h}–${h + 2}h · ${v} lead${v === 1 ? "" : "s"}`}
                 />
@@ -959,10 +980,32 @@ function Heatmap({ grid }: { grid: number[][] }) {
           </Fragment>
         ))}
       </div>
-      {peak.v > 0 && (
+      {peak.v > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[11.5px] text-muted-foreground">
+            Pico:{" "}
+            <b className="text-foreground">
+              {days[peak.d]} {peak.h}–{peak.h + 2}h
+            </b>{" "}
+            ({peak.v} lead{peak.v === 1 ? "" : "s"}) · útil para programar pauta y
+            turnos de vendedores.
+          </p>
+          {/* Sin leyenda no se puede distinguir "poco" de "nada". */}
+          <span className="flex shrink-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+            menos
+            {[0.22, 0.45, 0.68, 1].map((o) => (
+              <span
+                key={o}
+                className="size-2.5 rounded-sm"
+                style={{ background: "var(--color-accent)", opacity: o }}
+              />
+            ))}
+            más
+          </span>
+        </div>
+      ) : (
         <p className="mt-3 text-[11.5px] text-muted-foreground">
-          Pico: <b className="text-foreground">{days[peak.d]} {peak.h}–{peak.h + 2}h</b> · útil para
-          programar pauta y turnos de vendedores.
+          No entraron leads en el período.
         </p>
       )}
     </div>
