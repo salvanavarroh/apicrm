@@ -1,5 +1,33 @@
 // Helpers de formato para el inbox.
 
+// ---------------------------------------------------------------------------
+// Mensajes que Meta no nos puede mostrar.
+//
+// Cuando el cliente manda algo que la Cloud API de WhatsApp no modela —un
+// sticker de los nuevos, una encuesta, un mensaje de ver-una-vez— Meta no manda
+// el contenido: manda un error (código 131051, "Message type unknown"). Zernio
+// lo traduce a un texto fijo, `[Unsupported message]`, y nosotros lo guardábamos
+// y lo mostrábamos tal cual, en inglés, como si fuera lo que escribió el cliente.
+//
+// El vendedor veía una burbuja que no le decía ni qué pasó ni qué hacer. No es
+// un bug nuestro ni de Zernio: el contenido nunca sale de Meta. Lo único que se
+// puede arreglar es cómo se cuenta.
+// ---------------------------------------------------------------------------
+
+const UNSUPPORTED_BODY = "[Unsupported message]";
+
+/** ¿Es uno de esos mensajes que Meta no reenvía? */
+export function isUnsupportedBody(body: string | null | undefined): boolean {
+  return (body ?? "").trim() === UNSUPPORTED_BODY;
+}
+
+/** Qué mostrar en la burbuja del chat. */
+export const UNSUPPORTED_TEXT =
+  "WhatsApp no nos deja ver este mensaje (un sticker, una encuesta o algo que su API no soporta). Abrilo desde el celular para leerlo.";
+
+/** Versión corta, para el listado de conversaciones. */
+export const UNSUPPORTED_PREVIEW = "Mensaje que no podemos mostrar";
+
 export function msgTime(iso: string | null): string {
   if (!iso) return "";
   try {

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   Calculator,
   ChevronLeft,
   Sparkles,
@@ -44,7 +45,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { needsAudioTranscode, toSendableAudio } from "@/lib/audio-transcode";
-import { dayLabel, listTime, msgTime, windowRemaining } from "@/lib/inbox-format";
+import {
+  UNSUPPORTED_PREVIEW,
+  UNSUPPORTED_TEXT,
+  dayLabel,
+  isUnsupportedBody,
+  listTime,
+  msgTime,
+  windowRemaining,
+} from "@/lib/inbox-format";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
@@ -886,7 +895,9 @@ function ConversationRow({
           )}
         </div>
         <p className="mt-1 truncate text-xs text-muted-foreground">
-          {c.last_message_preview ?? ""}
+          {isUnsupportedBody(c.last_message_preview)
+            ? UNSUPPORTED_PREVIEW
+            : (c.last_message_preview ?? "")}
         </p>
         <div className="mt-1 flex flex-wrap items-center gap-1">
           {isPool && (
@@ -1305,9 +1316,17 @@ function Thread({
                           "bg-destructive/10 text-destructive ring-1 ring-destructive/25",
                       )}
                     >
-                      {m.body && (
-                        <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                      )}
+                      {m.body &&
+                        (isUnsupportedBody(m.body) ? (
+                          <div className="flex items-start gap-1.5 text-muted-foreground italic">
+                            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                            <span className="break-words">{UNSUPPORTED_TEXT}</span>
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap break-words">
+                            {m.body}
+                          </div>
+                        ))}
                       <MessageAttachments
                         messageId={m.id}
                         attachments={m.attachments}

@@ -4,6 +4,10 @@ import Link from "next/link";
 import { BrandIcon } from "@/components/integrations/brand-icon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  UNSUPPORTED_PREVIEW,
+  isUnsupportedBody,
+} from "@/lib/inbox-format";
 import { cn } from "@/lib/utils";
 import type { LeadConversation } from "@/lib/lead-conversations";
 
@@ -80,7 +84,11 @@ export function LeadConversationCard({
                               : "border bg-card text-foreground",
                           )}
                         >
-                          {m.body ? m.body : `[${m.message_type}]`}
+                          {isUnsupportedBody(m.body)
+                            ? UNSUPPORTED_PREVIEW
+                            : m.body
+                              ? m.body
+                              : `[${m.message_type}]`}
                         </div>
                       </div>
                     );
