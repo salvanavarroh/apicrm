@@ -28,8 +28,13 @@ import {
 } from "@/lib/assistant/capsule";
 import {
   dontKnowAnswer,
+  smallTalkAnswer,
   validateAssistantAnswer,
 } from "@/lib/assistant/output";
+import {
+  billingDeflection,
+  incidentDeflection,
+} from "@/lib/assistant/prompt";
 import { mentionedEntity, routeQuestion } from "@/lib/assistant/router";
 import { dondeEsta } from "@/lib/assistant/tools/donde-esta";
 import { porQueNoVeo } from "@/lib/assistant/tools/por-que-no-veo";
@@ -121,6 +126,78 @@ check(
 check(
   "«cuánto sale el plan de ahorro» tampoco",
   routeQuestion("cuánto sale un plan de ahorro").route,
+  "producto",
+);
+
+// ===========================================================================
+console.log("\n— Charla: lo que NO es una pregunta —");
+
+// El caso que motivó todo esto: el usuario dijo "gracias" y el asistente le
+// contestó "no tengo información sobre eso, escribí a soporte".
+const CHARLA: [string, string][] = [
+  ["gracias", "cortesia"],
+  ["muchas gracias", "cortesia"],
+  ["dale, gracias", "cortesia"],
+  ["ok", "cortesia"],
+  ["perfecto", "cortesia"],
+  ["listo", "cortesia"],
+  ["genial, gracias", "cortesia"],
+  ["hola", "cortesia"],
+  ["buen día", "cortesia"],
+  ["chau", "cortesia"],
+  ["¿quién sos?", "capacidades"],
+  ["¿qué podés hacer?", "capacidades"],
+  ["¿en qué me podés ayudar?", "capacidades"],
+  ["esto no sirve", "frustracion"],
+  ["no me servís", "frustracion"],
+  ["sí", "confirmacion"],
+  ["no era eso", "confirmacion"],
+];
+for (const [q, reason] of CHARLA) {
+  const d = routeQuestion(q);
+  check(`"${q}" → charla/${reason}`, [d.route, d.reason], ["charla", reason]);
+}
+
+// Y lo que NO tiene que confundirse con cortesía: la cortesía es un mensaje
+// corto y solo. Con una pregunta pegada, manda la pregunta.
+const NO_ES_CHARLA: [string, string][] = [
+  ["gracias, ¿y cómo cargo un lead?", "producto"],
+  ["hola, ¿cuántos leads sin contactar tengo?", "datos"],
+  ["ok pero ¿dónde está el cotizador?", "navegacion"],
+  ["listo el presupuesto, ¿por qué no puedo aprobar la venta?", "permisos"],
+  ["no me deja editar el lead", "permisos"],
+  ["no anda el PDF", "soporte"],
+  ["ok gracias pero no anda", "soporte"],
+  ["dale, ¿y cómo genero un presupuesto?", "producto"],
+  ["buenas, necesito ayuda con los permisos", "producto"],
+];
+for (const [q, route] of NO_ES_CHARLA) {
+  check(`"${q}" NO es charla → ${route}`, routeQuestion(q).route, route);
+}
+
+// ===========================================================================
+console.log("\n— Repreguntas cortas —");
+
+const prevDatos = { route: "datos" as const, tool: "misTareas" as const };
+check(
+  '"¿y mañana?" después de una consulta de tareas reusa la herramienta',
+  routeQuestion("¿y mañana?", prevDatos),
+  { route: "datos", tool: "misTareas", reason: "repregunta" },
+);
+check(
+  '"¿y la semana que viene?" también',
+  routeQuestion("¿y la semana que viene?", prevDatos).tool,
+  "misTareas",
+);
+check(
+  "sin turno anterior, la misma repregunta cae en producto",
+  routeQuestion("¿y mañana?").route,
+  "producto",
+);
+check(
+  "una pregunta larga no es repregunta aunque empiece con «y»",
+  routeQuestion("y cómo hago para generar un presupuesto con descuento", prevDatos)
+    .route,
   "producto",
 );
 
@@ -228,8 +305,25 @@ for (const [t, why] of MUST_FAIL) {
   ok(`bloquea (${why})`, !validateAssistantAnswer(t).ok, t.slice(0, 60));
 }
 
-ok("el «no sé» deriva a soporte", dontKnowAnswer().includes("hello@cambalache.studio"));
+// El usuario pidió explícitamente que no se muestre el mail: el camino es el
+// botón de reporte, que ya manda la pantalla y el rol.
+ok("el «no sé» NO da el mail", !dontKnowAnswer().includes("@"));
+ok("el «no sé» apunta al botón de reporte", /bot[oó]n/i.test(dontKnowAnswer()));
 ok("el «no sé» pasa la validación", validateAssistantAnswer(dontKnowAnswer()).ok);
+for (const r of ["cortesia", "capacidades", "frustracion", "confirmacion"]) {
+  const t = smallTalkAnswer(r, { firstName: "Lucas" });
+  ok(`la respuesta de charla (${r}) no menciona un mail`, !t.includes("@"));
+  ok(`la respuesta de charla (${r}) pasa la validación`, validateAssistantAnswer(t).ok);
+}
+ok(
+  "la derivación por incidencia manda al botón, no al mail",
+  !incidentDeflection("/admin/leads").includes("@") &&
+    /bot[oó]n/i.test(incidentDeflection("/admin/leads")),
+);
+ok(
+  "la derivación por facturación tampoco da el mail",
+  !billingDeflection().includes("@"),
+);
 
 // ===========================================================================
 console.log("\n— Helpers de herramientas —");
@@ -282,6 +376,7 @@ function fakeCtx(over: Partial<AssistantContext> = {}): AssistantContext {
     managerName: "Laura Gómez",
     features: ["inbox", "cotizador"],
     route: null,
+    timezone: "America/Argentina/Buenos_Aires",
     ...over,
   };
   return { ...base, capsule: renderCapsule(base, null), scopeKey: scopeKeyOf(base) };
@@ -336,6 +431,13 @@ async function capsuleTests() {
   console.log("\n— La cápsula de contexto —");
 
   const ctx = fakeCtx({ route: "/sales/leads/abc" });
+  // Sin la fecha, el modelo no puede resolver "mañana" ni "esta semana": lo que
+  // hace en su lugar es inventar una.
+  ok(
+    "empieza diciendo qué día es hoy",
+    /^Hoy es \w+/.test(ctx.capsule),
+    ctx.capsule.split("\n")[0],
+  );
   ok("nombra al usuario y su rol", ctx.capsule.includes("Martín Sosa · Vendedor"));
   ok("nombra la empresa y el plan", ctx.capsule.includes("Salvador Concesionarios"));
   ok("nombra la sucursal", ctx.capsule.includes("Quilmes"));

@@ -24,7 +24,6 @@ import {
   type Capability,
 } from "@/lib/permissions";
 import { intendedCapability, mentionedEntity } from "@/lib/assistant/router";
-import { SUPPORT_EMAIL } from "@/lib/assistant/output";
 import { type Tool, type ToolResult } from "@/lib/assistant/tools/types";
 
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
@@ -70,7 +69,7 @@ export const porQueNoVeo: Tool = {
         alcance
           ? `Si aun así no lo ves, es por el alcance: ${alcance}. Lo que queda afuera de eso no aparece en tus listados aunque exista.`
           : "",
-        `Si estás seguro de que debería estar ahí, escribinos a ${SUPPORT_EMAIL} contándonos en qué pantalla estabas.`,
+        "Si estás seguro de que debería estar ahí, reportalo con el botón 🐞 de acá arriba.",
       ]
         .filter(Boolean)
         .join(" "),

@@ -12,6 +12,7 @@ import type { AssistantContext } from "@/lib/assistant/context";
 import { fullName, LEAD_STATUS_LABELS, type LeadStatus } from "@/lib/leads";
 import { scopeOf } from "@/lib/permissions";
 import {
+  dateIn,
   searchTermOf,
   type Tool,
   type ToolLink,
@@ -105,7 +106,7 @@ export const buscarLead: Tool = {
         (auto ? ` · ${auto}` : "") +
         (l.phone ? ` · tel ${l.phone}` : "") +
         (l.last_contacted_at
-          ? ` · último contacto ${l.last_contacted_at.slice(0, 10)}`
+          ? ` · último contacto ${dateIn(l.last_contacted_at, ctx.timezone)}`
           : " · nunca contactado") +
         ` · ficha: ${base}/${l.id}`
       );

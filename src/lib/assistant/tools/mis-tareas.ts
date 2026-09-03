@@ -7,8 +7,9 @@ import type { AssistantContext } from "@/lib/assistant/context";
 import { fullName } from "@/lib/leads";
 import { TASK_PRIORITY_LABEL, TASK_TYPE_LABEL } from "@/lib/tasks";
 import {
-  addDaysIso,
-  todayIso,
+  addDaysIn,
+  dateTimeIn,
+  todayIn,
   type Tool,
   type ToolResult,
 } from "@/lib/assistant/tools/types";
@@ -44,8 +45,8 @@ export const misTareas: Tool = {
   description: "Tareas pendientes y visitas agendadas en los próximos días.",
   async run(_question: string, ctx: AssistantContext): Promise<ToolResult> {
     const supabase = await createClient();
-    const today = todayIso();
-    const horizon = addDaysIso(7);
+    const today = todayIn(ctx.timezone);
+    const horizon = addDaysIn(7, ctx.timezone);
 
     const [tasks, visits] = await Promise.all([
       supabase
@@ -96,7 +97,9 @@ export const misTareas: Tool = {
       lines.push("", `Visitas agendadas (${visitRows.length}):`);
       for (const v of visitRows) {
         const quien = fullName(v.leads?.first_name ?? null, v.leads?.last_name ?? null);
-        lines.push(`- ${v.scheduled_at.slice(0, 16).replace("T", " ")} · ${quien}`);
+        // `scheduled_at` es timestamptz: cortarlo en crudo daba la hora UTC.
+        // Una visita de las 10:00 en Buenos Aires se contaba como las 13:00.
+        lines.push(`- ${dateTimeIn(v.scheduled_at, ctx.timezone)} · ${quien}`);
       }
     }
 

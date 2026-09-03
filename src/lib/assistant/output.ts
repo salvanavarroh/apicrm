@@ -89,8 +89,38 @@ export function validateAssistantAnswer(
 export function dontKnowAnswer(topic?: string): string {
   return [
     topic
-      ? `No tengo información sobre ${topic} en la documentación del CRM.`
-      : "No tengo información sobre eso en la documentación del CRM.",
-    `Prefiero decírtelo antes que inventarte una respuesta. Escribinos a ${SUPPORT_EMAIL} contándonos en qué pantalla estabas y qué esperabas que pasara — con eso lo resolvemos rápido, y de paso queda cargado para la próxima.`,
+      ? `No encontré nada sobre ${topic} en la documentación del CRM,`
+      : "Eso no lo encontré en la documentación del CRM,",
+    "y prefiero decírtelo antes que inventarte una respuesta.",
+    "Probá preguntármelo de otra forma. Si es algo que debería estar,",
+    "reportalo con el botón 🐞 de acá arriba y queda cargado para la próxima.",
   ].join(" ");
+}
+
+/** Cortesía y charla. No es una falla: no hay nada que buscar ni que reportar. */
+export function smallTalkAnswer(
+  reason: string,
+  opts: { firstName?: string | null } = {},
+): string {
+  const nombre = opts.firstName?.trim().split(" ")[0];
+  switch (reason) {
+    case "capacidades":
+      return [
+        "Soy el asistente del CRM. Te puedo contestar tres cosas:",
+        "- **Cómo se hace algo** — cargar leads, cotizar, configurar el bot.",
+        "- **Por qué no ves algo** — te digo el motivo y quién sí puede.",
+        "- **Tus números** — leads sin contactar, tareas de hoy, ventas del mes.",
+        "También te llevo a la pantalla que buscás. Preguntame como se te ocurra.",
+      ].join("\n");
+    case "frustracion":
+      return [
+        "Perdón, no te sirvió. Si me decís con otras palabras qué necesitás,",
+        "lo intento de nuevo. Y si algo del CRM está roto, reportalo con el",
+        "botón 🐞 de acá arriba: se manda con la pantalla en la que estás.",
+      ].join(" ");
+    case "confirmacion":
+      return "Contame un poco más y te ayudo.";
+    default:
+      return nombre ? `De nada, ${nombre}. Cualquier cosa, acá estoy.` : "De nada. Cualquier cosa, acá estoy.";
+  }
 }

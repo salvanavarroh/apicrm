@@ -16,8 +16,8 @@
 import { createClient } from "@/lib/supabase/server";
 import type { AssistantContext } from "@/lib/assistant/context";
 import {
-  monthStartIso,
-  todayIso,
+  monthStartIn,
+  todayIn,
   type Tool,
   type ToolLink,
   type ToolResult,
@@ -38,8 +38,10 @@ export const misNumeros: Tool = {
     }
 
     const supabase = await createClient();
-    const monthStart = monthStartIso();
-    const today = todayIso();
+    // En la zona de la concesionaria, no en la del servidor: Vercel corre en
+    // UTC y entre las 21:00 y la medianoche de Argentina "hoy" era mañana.
+    const monthStart = monthStartIn(ctx.timezone);
+    const today = todayIn(ctx.timezone);
 
     const [
       activos,

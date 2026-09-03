@@ -41,22 +41,17 @@ export type Tool = {
   run: (question: string, ctx: AssistantContext) => Promise<ToolResult>;
 };
 
-/** Primer día del mes en curso, en ISO. */
-export function monthStartIso(now = new Date()): string {
-  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-}
-
-/** Fecha de hoy como YYYY-MM-DD (las tareas usan `date`, no `timestamptz`). */
-export function todayIso(now = new Date()): string {
-  const tz = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - tz).toISOString().slice(0, 10);
-}
-
-export function addDaysIso(days: number, now = new Date()): string {
-  const d = new Date(now);
-  d.setDate(d.getDate() + days);
-  return todayIso(d);
-}
+// Las fechas viven en `lib/assistant/fechas.ts` y SIEMPRE llevan la zona de la
+// concesionaria. Calcularlas con la del servidor daba el día equivocado entre
+// las 21:00 y la medianoche de Argentina, porque Vercel corre en UTC.
+export {
+  addDaysIn,
+  dateIn,
+  dateTimeIn,
+  monthStartIn,
+  timeIn,
+  todayIn,
+} from "@/lib/assistant/fechas";
 
 /** Saca de la pregunta el término de búsqueda, quitando las palabras gatillo. */
 export function searchTermOf(question: string): string {

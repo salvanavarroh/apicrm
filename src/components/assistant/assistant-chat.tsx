@@ -40,6 +40,8 @@ type Msg = {
   streaming?: boolean;
   /** Ruta que eligió el ruteador. Si es "soporte", se ofrece reportar. */
   route?: string | null;
+  /** Herramienta que se usó, si hubo. Habilita la repregunta corta. */
+  tool?: string | null;
 };
 
 export type Suggestion = { label: string; question: string };
@@ -206,13 +208,30 @@ export function AssistantChat({
     setInput("");
     setBusy(true);
 
-    const history = messages.slice(-4).map((m) => ({ role: m.role, content: m.text }));
+    const history = messages
+      .slice(-4)
+      .map((m) => ({ role: m.role, content: m.text, route: m.route ?? null }));
 
     try {
       const res = await fetch("/api/assistant/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q, route: pathname, threadId, history }),
+        body: JSON.stringify({
+          question: q,
+          route: pathname,
+          threadId,
+          history,
+          // Cómo se resolvió el turno anterior: habilita las repreguntas cortas
+          // tipo "¿y mañana?", que no dicen de qué hablan.
+          previous: (() => {
+            const last = [...messages]
+              .reverse()
+              .find((m) => m.role === "assistant");
+            return last?.route
+              ? { route: last.route, tool: last.tool ?? undefined }
+              : null;
+          })(),
+        }),
       });
 
       if (!res.ok || !res.body) {
@@ -261,6 +280,7 @@ export function AssistantChat({
               links: (ev.links as ToolLink[]) ?? [],
               cached: Boolean(ev.cached),
               route: typeof ev.route === "string" ? ev.route : null,
+              tool: typeof ev.tool === "string" ? ev.tool : null,
             });
           }
           if (ev.type === "delta" && typeof ev.text === "string") {

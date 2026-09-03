@@ -9,6 +9,7 @@
 // ============================================================================
 
 import type { Profile, UserRole } from "@/lib/auth";
+import { describeToday, DEFAULT_TZ } from "@/lib/assistant/fechas";
 import { ROLE_LABELS } from "@/lib/nav";
 import { describePermissions } from "@/lib/permissions";
 import { planLabel } from "@/lib/plans";
@@ -45,6 +46,8 @@ export type AssistantContext = {
   features: FeatureKey[];
   /** Pantalla donde está parado el usuario cuando pregunta. */
   route: string | null;
+  /** Zona horaria de la concesionaria (`companies.inbox_tz`). */
+  timezone: string;
   /** El texto que va al prompt. */
   capsule: string;
   /** Clave de caché: dos usuarios con distinto alcance no comparten respuesta. */
@@ -67,6 +70,9 @@ export function renderCapsule(
   const perms = describePermissions(ctx.profile);
   const lines: string[] = [];
 
+  // El modelo no tiene reloj. Sin la fecha de hoy no puede resolver "mañana",
+  // "esta semana" ni "el mes pasado", y lo que hace en su lugar es inventarla.
+  lines.push(`Hoy es ${describeToday(ctx.timezone ?? DEFAULT_TZ)}.`);
   lines.push(`Usuario: ${ctx.displayName} · ${ROLE_LABELS[ctx.role]}`);
 
   if (ctx.companyName) {

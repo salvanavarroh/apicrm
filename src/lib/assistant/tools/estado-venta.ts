@@ -5,7 +5,7 @@
 import { createClient } from "@/lib/supabase/server";
 import type { AssistantContext } from "@/lib/assistant/context";
 import { fullName } from "@/lib/leads";
-import { type Tool, type ToolResult } from "@/lib/assistant/tools/types";
+import { dateIn, type Tool, type ToolResult } from "@/lib/assistant/tools/types";
 
 type SaleRow = {
   id: string;
@@ -70,7 +70,7 @@ export const estadoDeVenta: Tool = {
           : "";
       return (
         `- ${quien || "Lead sin nombre"} · ${STATUS_LABEL[s.status]}` +
-        ` · iniciada ${s.started_at.slice(0, 10)}` +
+        ` · iniciada ${dateIn(s.started_at, ctx.timezone)}` +
         checks +
         motivo +
         ` · ${base}/${s.id}`

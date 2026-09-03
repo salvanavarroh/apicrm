@@ -26,6 +26,7 @@ import {
   type CapsuleInput,
   type FeatureKey,
 } from "@/lib/assistant/capsule";
+import { DEFAULT_TZ } from "@/lib/assistant/fechas";
 import { effectiveRole } from "@/lib/permissions";
 import { createClient } from "@/lib/supabase/server";
 import type { CompanyPlanEnum } from "@/types/assistant-db";
@@ -65,7 +66,7 @@ export async function loadAssistantContext(
     companyId
       ? supabase
           .from("companies")
-          .select("name, plan")
+          .select("name, plan, inbox_tz")
           .eq("id", companyId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -171,6 +172,8 @@ export async function loadAssistantContext(
       : null,
     features,
     route,
+    timezone:
+      (company.data as { inbox_tz?: string } | null)?.inbox_tz || DEFAULT_TZ,
   };
 
   return {

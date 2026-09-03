@@ -121,9 +121,11 @@ test.describe("Asistente del CRM", () => {
     await input.fill("¿cuánto pagamos por el sistema?");
     await input.press("Enter");
 
-    await expect(
-      panel.getByText(/hello@cambalache\.studio/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    // Deriva a soporte, pero por el botón de reporte: el mail ya no se muestra.
+    await expect(panel.getByText(/bot[oó]n/i).first()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(panel.getByText(/@cambalache\.studio/i)).toBeHidden();
   });
 
   // Éste sí llama al modelo y a la base de conocimiento: es el camino completo
@@ -189,6 +191,47 @@ test.describe("Asistente del CRM", () => {
     await page.getByRole("button", { name: "Abrir el asistente" }).click();
     await page.waitForTimeout(1500);
     await expect(panel.getByText("¿qué es una gerencia?")).toBeHidden();
+  });
+
+  test("decir «gracias» no dispara una derivación a soporte", async ({ page }) => {
+    // El caso reportado: el usuario agradeció y el asistente contestó "no tengo
+    // información sobre eso, escribí a soporte".
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
+    const input = panel.getByPlaceholder("Preguntame algo del CRM…");
+
+    await input.fill("gracias");
+    await input.press("Enter");
+    await expect(panel.getByText(/De nada/i)).toBeVisible({ timeout: 20_000 });
+    await expect(panel.getByText(/no tengo información/i)).toBeHidden();
+
+    await input.fill("¿quién sos?");
+    await input.press("Enter");
+    await expect(panel.getByText(/Soy el asistente del CRM/i)).toBeVisible({
+      timeout: 20_000,
+    });
+  });
+
+  test("ninguna respuesta ofrece el mail: el camino es el botón", async ({
+    page,
+  }) => {
+    await page.getByRole("button", { name: "Abrir el asistente" }).click();
+    const panel = page.getByRole("dialog", { name: "Agente de API" });
+    const input = panel.getByPlaceholder("Preguntame algo del CRM…");
+
+    for (const q of [
+      "el PDF del presupuesto sale en blanco",
+      "¿cómo cargo el stock de repuestos?",
+      "¿cuánto pagamos por el sistema?",
+    ]) {
+      await input.fill(q);
+      await input.press("Enter");
+      await expect(panel.getByText("Pensando…")).toBeHidden({ timeout: 40_000 });
+      await page.waitForTimeout(800);
+    }
+    const texto = await panel.innerText();
+    expect(texto).not.toContain("@cambalache.studio");
+    expect(texto).toMatch(/bot[oó]n/i);
   });
 
   test("el botón Ayuda del menú abre el chat, no una página", async ({

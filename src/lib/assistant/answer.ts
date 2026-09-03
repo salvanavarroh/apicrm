@@ -30,7 +30,7 @@ import { recordGap } from "@/lib/assistant/gaps";
 import {
   dontKnowAnswer,
   MAX_ANSWER_CHARS,
-  SUPPORT_EMAIL,
+  smallTalkAnswer,
   validateAssistantAnswer,
 } from "@/lib/assistant/output";
 import {
@@ -46,7 +46,11 @@ import {
   sourcesOf,
   type Source,
 } from "@/lib/assistant/retrieve";
-import { routeQuestion, type AssistantRoute } from "@/lib/assistant/router";
+import {
+  routeQuestion,
+  type AssistantRoute,
+  type ToolName,
+} from "@/lib/assistant/router";
 import { findTool, type ToolLink } from "@/lib/assistant/tools";
 
 export type AnswerEvent =
@@ -77,6 +81,8 @@ export async function* answerQuestion(opts: {
   profile: Profile;
   route: string | null;
   history?: { role: "user" | "assistant"; content: string }[];
+  /** Cómo se resolvió el turno anterior. Habilita las repreguntas cortas. */
+  previous?: { route: AssistantRoute; tool?: ToolName } | null;
 }): AsyncGenerator<AnswerEvent> {
   const started = Date.now();
 
@@ -86,7 +92,8 @@ export async function* answerQuestion(opts: {
   // El ruteo es puro e instantáneo, así que se hace ANTES de tocar la red: sólo
   // la ruta de producto necesita un embedding, y no tiene sentido gastar una
   // llamada a la API en las otras.
-  const decisionEarly = question.length >= 2 ? routeQuestion(question) : null;
+  const decisionEarly =
+    question.length >= 2 ? routeQuestion(question, opts.previous) : null;
   const needsEmbedding = decisionEarly?.route === "producto";
 
   // Las dos esperas independientes arrancan juntas: la cápsula son ~9 consultas
@@ -112,7 +119,7 @@ export async function* answerQuestion(opts: {
     yield* single(
       "soporte",
       "Esa pregunta no la puedo contestar. Si necesitás algo del sistema, " +
-        `preguntámelo derecho, o escribinos a ${SUPPORT_EMAIL}.`,
+        "preguntámelo derecho.",
       started,
     );
     return;
@@ -120,6 +127,21 @@ export async function* answerQuestion(opts: {
 
   // ---------------------------------------------------------------- ruteo --
   const decision = decisionEarly ?? routeQuestion(question);
+
+  // Charla: cortesía, saludos, "¿quién sos?". No es una pregunta que haya que
+  // buscar en ningún lado, así que no se llama al modelo NI se registra como
+  // hueco. Que decir "gracias" quede anotado como "pregunta sin respuesta" era
+  // ruido puro en la pantalla de curaduría.
+  if (decision.route === "charla") {
+    yield* single(
+      "charla",
+      smallTalkAnswer(decision.reason, {
+        firstName: opts.profile.first_name,
+      }),
+      started,
+    );
+    return;
+  }
 
   // Derivaciones: no llaman al modelo ni a la base.
   if (decision.route === "soporte") {

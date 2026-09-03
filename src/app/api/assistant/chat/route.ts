@@ -12,6 +12,7 @@
 
 import { getCurrentProfile } from "@/lib/auth";
 import { answerQuestion, type AnswerEvent } from "@/lib/assistant/answer";
+import type { AssistantRoute, ToolName } from "@/lib/assistant/router";
 import { createTypedClient } from "@/lib/supabase/server";
 import type { AssistantDatabase } from "@/types/assistant-db";
 
@@ -40,7 +41,38 @@ type Body = {
   route?: unknown;
   threadId?: unknown;
   history?: unknown;
+  previous?: unknown;
 };
+
+const ROUTES: AssistantRoute[] = [
+  "charla",
+  "permisos",
+  "datos",
+  "navegacion",
+  "producto",
+  "soporte",
+];
+const TOOLS: ToolName[] = [
+  "misNumeros",
+  "buscarLead",
+  "misTareas",
+  "estadoDeVenta",
+  "miEquipo",
+  "queHacerCon",
+];
+
+function parsePrevious(
+  raw: unknown,
+): { route: AssistantRoute; tool?: ToolName } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const { route, tool } = raw as { route?: unknown; tool?: unknown };
+  if (typeof route !== "string") return null;
+  if (!ROUTES.includes(route as AssistantRoute)) return null;
+  return {
+    route: route as AssistantRoute,
+    tool: TOOLS.includes(tool as ToolName) ? (tool as ToolName) : undefined,
+  };
+}
 
 export async function POST(req: Request) {
   const profile = await getCurrentProfile();
@@ -86,6 +118,12 @@ export async function POST(req: Request) {
         )
         .slice(-4)
     : [];
+
+  // El turno anterior llega como pista del cliente. Sólo habilita repreguntas
+  // cortas ("¿y mañana?"): no decide permisos ni alcance, así que no hace falta
+  // verificarlo contra la base. Lo peor que puede hacer una pista falsa es
+  // ejecutar una herramienta que el usuario podía ejecutar igual.
+  const previous = parsePrevious(body.previous);
 
   const supabase = await createTypedClient<AssistantDatabase>();
 
@@ -142,6 +180,7 @@ export async function POST(req: Request) {
           profile,
           route,
           history,
+          previous,
         })) {
           if (ev.type === "meta") {
             finalRoute = ev.route;

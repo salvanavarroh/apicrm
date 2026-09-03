@@ -17,6 +17,8 @@
 import { normalize } from "@/lib/bot/guardrails";
 
 export type AssistantRoute =
+  /** Cortesía, saludos, "gracias", preguntas sobre el propio asistente. */
+  | "charla"
   /** Permisos: "¿por qué no veo…?". Se contesta sin IA. */
   | "permisos"
   /** Datos en vivo: se ejecuta una herramienta con el cliente del usuario. */
@@ -50,6 +52,11 @@ type Rule = {
   test: RegExp;
   /** Si matchea esto, la regla NO aplica. Evita falsos positivos conocidos. */
   unless?: RegExp;
+  /**
+   * Sólo aplica si el mensaje tiene como mucho N palabras. "Gracias" es
+   * cortesía; "gracias, ¿y cómo cargo un lead?" es una pregunta.
+   */
+  maxWords?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -59,6 +66,41 @@ type Rule = {
 // puntuación, minúsculas), así que van escritos sin tildes.
 // ---------------------------------------------------------------------------
 export const ROUTER_RULES: Rule[] = [
+  // 0. CHARLA. Va antes que todo porque son mensajes cortos que caían en
+  //    "producto", no matcheaban nada en la base de conocimiento y terminaban
+  //    con un "no sé" y una derivación a soporte. Decirle "gracias" al
+  //    asistente y que te conteste "escribí a soporte" es la peor respuesta
+  //    posible: no falló la recuperación, falló entender que no era una
+  //    pregunta.
+  {
+    name: "cortesia",
+    route: "charla",
+    maxWords: 5,
+    test: /^(hola|holis|buenas|buen dia|buenos dias|buenas tardes|buenas noches|que tal|como estas|gracias|muchas gracias|mil gracias|gracias totales|de nada|ok|oka|okey|dale|listo|perfecto|barbaro|genial|buenisimo|joya|excelente|copado|va|entendido|entiendo|clarisimo|claro|chau|adios|nos vemos|hasta luego|saludos|abrazo|bien ahi|sos un capo|sos genial)\b/,
+    // Un saludo pegado a una pregunta o a un problema NO es cortesía: manda lo
+    // que viene después. "ok gracias pero no anda" es un reporte, no un gracias.
+    unless: /\b(no anda|no funciona|no carga|error|roto|falla|como|donde|cuando|cuanto|por que|puedo|queria|quiero|necesito|ayuda|pero)\b/,
+  },
+  {
+    name: "capacidades",
+    route: "charla",
+    test: /\b(quien sos|que sos|sos un bot|sos una persona|sos humano|que podes hacer|que sabes hacer|en que me (podes )?(ayudar|ayudas)|para que servis|que cosas sabes|como funcionas|que preguntas puedo)\b/,
+  },
+  {
+    name: "frustracion",
+    route: "charla",
+    maxWords: 8,
+    test: /\b(no me (servis|sirve|ayudas)|sos (un )?(desastre|inutil|malisimo)|no entendes nada|esto no sirve|que mal|pesimo)\b/,
+  },
+  {
+    name: "confirmacion",
+    route: "charla",
+    maxWords: 4,
+    // Anclada al mensaje ENTERO: "no" es una confirmación, "no anda el PDF" es
+    // una incidencia que empieza con "no".
+    test: /^(si|no|nop|sip|dale|tal cual|exacto|no era eso|nada|ninguna|mas o menos|ni idea)$/,
+  },
+
   // 1. Navegación. VA PRIMERO. "¿Dónde está X?" es intención de navegación sea
   //    cual sea X: si no estuviera acá arriba, "¿dónde está la facturación?" lo
   //    agarraría la regla de plata de la §2 y derivaría a soporte en vez de dar
@@ -141,13 +183,31 @@ export const ROUTER_RULES: Rule[] = [
  *
  * Devuelve siempre algo: la ruta por default es `producto`.
  */
-export function routeQuestion(text: string): RouteDecision {
+export function routeQuestion(
+  text: string,
+  /** Cómo se resolvió el turno anterior. Habilita las repreguntas cortas. */
+  prev?: { route: AssistantRoute; tool?: ToolName } | null,
+): RouteDecision {
   const t = normalize(text);
+  const wordCount = t.split(" ").filter(Boolean).length;
 
   for (const rule of ROUTER_RULES) {
+    if (rule.maxWords && wordCount > rule.maxWords) continue;
     if (!rule.test.test(t)) continue;
     if (rule.unless?.test(t)) continue;
     return { route: rule.route, tool: rule.tool, reason: rule.name };
+  }
+
+  // Repregunta corta encadenada: "¿y mañana?", "¿y la semana que viene?". No
+  // dicen de qué hablan porque lo dijo el turno anterior; sin esto caían en
+  // "producto" y respondían "no sé" a una pregunta que se acababa de contestar.
+  if (
+    prev?.route === "datos" &&
+    prev.tool &&
+    wordCount <= 6 &&
+    /^(y|que tal|y que hay de|y para)\b/.test(t)
+  ) {
+    return { route: "datos", tool: prev.tool, reason: "repregunta" };
   }
 
   return { route: "producto", reason: "default" };
