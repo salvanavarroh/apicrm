@@ -26,10 +26,36 @@ const clientEnv = {
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
 };
 
-export const publicEnv = clientSchema.parse(clientEnv);
+/**
+ * Falta una variable: se explica QUÉ falta y DÓNDE se pone.
+ *
+ * El `.parse()` pelado tiraba un ZodError crudo en medio del build, y Next lo
+ * envolvía en "Failed to collect page data for /api/cars/catalog" — una ruta que
+ * no tiene nada que ver. Con ese mensaje, el deploy de producción estuvo roto
+ * más de veinte commits sin que nadie pudiera decir por qué.
+ */
+function explicar(scope: "cliente" | "servidor", issues: { path: PropertyKey[] }[]): never {
+  const faltan = issues.map((i) => String(i.path[0])).join(", ");
+  throw new Error(
+    `Faltan variables de entorno (${scope}): ${faltan}.\n` +
+      `  · En local: van en .env.local — ver .env.example.\n` +
+      `  · En Vercel: Settings → Environment Variables del proyecto, y tienen ` +
+      `que estar en los tres entornos (Production, Preview y Development).\n` +
+      `  · En GitHub Actions: Settings → Secrets → Actions.\n` +
+      `Sin esto el build falla acá, en la validación, antes de compilar nada.`,
+  );
+}
+
+function parseClient() {
+  const parsed = clientSchema.safeParse(clientEnv);
+  if (!parsed.success) explicar("cliente", parsed.error.issues);
+  return parsed.data;
+}
+
+export const publicEnv = parseClient();
 
 export function getServerEnv() {
-  return serverSchema.parse({
+  const parsed = serverSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     RESEND_API_KEY: process.env.RESEND_API_KEY,
@@ -41,4 +67,6 @@ export function getServerEnv() {
     ZERNIO_API_KEY: process.env.ZERNIO_API_KEY,
     ZERNIO_WEBHOOK_SECRET: process.env.ZERNIO_WEBHOOK_SECRET,
   });
+  if (!parsed.success) explicar("servidor", parsed.error.issues);
+  return parsed.data;
 }
