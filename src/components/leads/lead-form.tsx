@@ -12,7 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { CatalogCombobox } from "@/components/leads/catalog-combobox";
@@ -188,7 +188,7 @@ export function LeadForm({
   managedPairs,
 }: Props) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const [data, setData] = useState<LeadInput>({ ...EMPTY, ...initial });
   // "Para romper el hielo" en el alta: se junta acá y se graba después de crear
   // el lead, porque los intereses necesitan un leadId que todavía no existe.
@@ -238,9 +238,27 @@ export function LeadForm({
     el?.focus({ preventScroll: true });
   }
 
-  function submit(modeArg: "auto" | "skip_check" | "register_submission") {
+  // ---------------------------------------------------------------------
+  // Guardar.
+  //
+  // Dos cosas que antes estaban mal:
+  //
+  //  1. Tocabas "Crear lead", el lead se creaba… y te quedabas mirando el
+  //     mismo formulario, sin saber si había entrado. El `router.push` iba
+  //     dentro del mismo `startTransition` que corría la server action, junto
+  //     con la revalidación que ésta dispara. Ahora el pendiente es estado
+  //     propio y el push ocurre fuera de toda transición, que es la forma que
+  //     no depende de cómo se resuelva ese empate.
+  //
+  //  2. Aun cuando navegaba, iba al LISTADO. Recién cargado, lo que querés es
+  //     la ficha del lead nuevo: seguir con la gestión, no buscarlo en una
+  //     tabla de mil filas. El detalle vive en `${redirectTo}/${id}` en los
+  //     cuatro roles que dan de alta leads.
+  // ---------------------------------------------------------------------
+  async function submit(modeArg: "auto" | "skip_check" | "register_submission") {
     setError(null);
-    startTransition(async () => {
+    setPending(true);
+    try {
       const action =
         mode === "edit" && initial?.id
           ? () => updateLead(initial.id!, data)
@@ -272,9 +290,13 @@ export function LeadForm({
         }
       }
       toast.success(mode === "edit" ? "Lead actualizado" : "Lead creado");
-      router.push(redirectTo);
+      // "Registrar como nueva carga" no crea lead nuevo (suma una consulta al
+      // existente, que puede no ser visible para quien carga) → al listado.
+      router.push(newLeadId ? `${redirectTo}/${newLeadId}` : redirectTo);
       router.refresh();
-    });
+    } finally {
+      setPending(false);
+    }
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -286,7 +308,7 @@ export function LeadForm({
       focusFirstError(found);
       return;
     }
-    submit("auto");
+    void submit("auto");
   }
 
   // Numeración de los bloques: el de asignación comercial no siempre se muestra.
@@ -748,12 +770,12 @@ export function LeadForm({
             </Button>
             <Button
               variant="outline"
-              onClick={() => submit("register_submission")}
+              onClick={() => void submit("register_submission")}
               disabled={pending}
             >
               Registrar como nueva carga
             </Button>
-            <Button onClick={() => submit("skip_check")} disabled={pending}>
+            <Button onClick={() => void submit("skip_check")} disabled={pending}>
               Crear igual (lead nuevo)
             </Button>
           </DialogFooter>
