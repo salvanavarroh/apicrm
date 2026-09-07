@@ -52,7 +52,7 @@ export default async function ProductTypesPage() {
           branches={branches}
           trigger={
             <Button>
-              <Plus className="mr-1 size-4" /> Nuevo tipo
+              <Plus className="mr-1 size-4" /> Nueva unidad
             </Button>
           }
         />
@@ -72,7 +72,7 @@ export default async function ProductTypesPage() {
             <table className="w-full text-sm">
             <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-4 py-3 font-medium">Tipo</th>
+                <th className="px-4 py-3 font-medium">Unidad de negocio</th>
                 <th className="px-4 py-3 font-medium">Sucursales habilitadas</th>
                 <th className="px-4 py-3 font-medium">Estado</th>
                 <th className="px-4 py-3 text-right font-medium">Acciones</th>
