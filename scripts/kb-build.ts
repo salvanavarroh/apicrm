@@ -80,6 +80,11 @@ const DOCS: DocMeta[] = [
   { path: "docs/mensajeria-zernio-plan.md", audienceRoles: SOLO_SOPORTE, feature: "inbox", routePrefix: null },
   { path: "docs/atribucion-de-anuncios.md", audienceRoles: SOLO_SOPORTE, feature: "inbox", routePrefix: null },
   { path: "docs/carga-leads-ia.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
+  // Actividad del equipo: va a soporte y no a gerencia porque es el documento de
+  // DISEÑO —nombres de tablas, buckets, el porqué de cada decisión—. Lo que un
+  // gerente necesita saber (dónde está y qué mide) ya lo dice el hint del menú y
+  // la propia pantalla. Mismo criterio que con la respuesta automática.
+  { path: "docs/actividad-del-equipo.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/roadmap-posventa.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/asistente-ia.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "PRD_API_CRM_v2.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },

@@ -3,6 +3,7 @@
 import { Menu } from "lucide-react";
 import { useState } from "react";
 
+import { ActivityTracker } from "@/components/activity-tracker";
 import { AppSidebar } from "@/components/app-sidebar";
 import { AssistantRail } from "@/components/assistant/assistant-rail";
 import type { Suggestion } from "@/components/assistant/assistant-chat";
@@ -96,6 +97,10 @@ export function AppShell({
         open={assistantOpen}
         setOpen={setAssistantOpen}
       />
+
+      {/* Mide el tiempo en el CRM. No pinta nada; va acá porque el shell es lo
+          único que está montado en todas las pantallas de todos los roles. */}
+      <ActivityTracker />
     </div>
   );
 }

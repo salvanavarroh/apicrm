@@ -3593,6 +3593,51 @@ export type Database = {
           },
         ]
       }
+      user_activity_buckets: {
+        Row: {
+          bucket_start: string
+          company_id: string
+          first_seen_at: string
+          last_seen_at: string
+          pings: number
+          section: string | null
+          user_id: string
+        }
+        Insert: {
+          bucket_start: string
+          company_id: string
+          first_seen_at?: string
+          last_seen_at?: string
+          pings?: number
+          section?: string | null
+          user_id: string
+        }
+        Update: {
+          bucket_start?: string
+          company_id?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          pings?: number
+          section?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activity_buckets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_activity_buckets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_product_types: {
         Row: {
           created_at: string
@@ -3886,6 +3931,66 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: string
       }
+      activity_by_day: {
+        Args: {
+          p_from: string
+          p_to: string
+          p_tz?: string
+          p_user_ids?: string[]
+        }
+        Returns: {
+          day: string
+          minutes: number
+        }[]
+      }
+      activity_by_section: {
+        Args: { p_from: string; p_to: string; p_user_ids?: string[] }
+        Returns: {
+          minutes: number
+          section: string
+        }[]
+      }
+      activity_user_days: {
+        Args: {
+          p_from: string
+          p_to: string
+          p_tz?: string
+          p_user_id: string
+        }
+        Returns: {
+          day: string
+          first_at: string
+          last_at: string
+          minutes: number
+        }[]
+      }
+      activity_user_hours: {
+        Args: {
+          p_from: string
+          p_to: string
+          p_tz?: string
+          p_user_id: string
+        }
+        Returns: {
+          hour_of_day: number
+          minutes: number
+        }[]
+      }
+      activity_user_totals: {
+        Args: {
+          p_from: string
+          p_to: string
+          p_tz?: string
+          p_user_ids?: string[]
+        }
+        Returns: {
+          active_days: number
+          last_at: string
+          minutes: number
+          start_avg_minutes: number
+          user_id: string
+        }[]
+      }
       assign_lead_from_form: {
         Args: { p_lead_id: string; p_meta_form_id: string }
         Returns: string
@@ -3998,6 +4103,7 @@ export type Database = {
       }
       my_group_company_ids: { Args: never; Returns: string[] }
       pick_campaign_branch: { Args: { p_campaign_id: string }; Returns: string }
+      track_user_activity: { Args: { p_section?: string }; Returns: undefined }
       rls_audit: {
         Args: never
         Returns: {
