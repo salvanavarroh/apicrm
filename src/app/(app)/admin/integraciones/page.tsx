@@ -7,6 +7,8 @@ import type {
   WaChannel,
   WaTemplate,
 } from "@/components/messaging/templates-manager";
+import { fullName } from "@/lib/leads";
+import type { VendorOption } from "@/lib/lead-ad-assignment";
 import {
   STANDARD_TEMPLATES,
   variantForCountry,
@@ -34,6 +36,8 @@ export default async function IntegrationsPage({
     { data: branches },
     { data: productTypes },
     { data: campaigns },
+    { data: formVendors },
+    { data: vendorProfiles },
   ] = await Promise.all([
     supabase
       .from("messaging_channels")
@@ -52,13 +56,52 @@ export default async function IntegrationsPage({
     supabase.from("companies").select("country").eq("id", companyId).maybeSingle(),
     supabase
       .from("lead_ad_forms")
-      .select("id, meta_form_id, form_name, branch_id, product_type_id, campaign_id")
+      .select(
+        "id, meta_form_id, form_name, branch_id, product_type_id, campaign_id, assignment_mode, assigned_user_id",
+      )
       .eq("company_id", companyId)
       .order("created_at", { ascending: false }),
     supabase.from("branches").select("id, name").eq("company_id", companyId).eq("status", "active"),
     supabase.from("product_types").select("id, name").eq("company_id", companyId).eq("status", "active"),
     supabase.from("campaigns").select("id, name").eq("company_id", companyId).eq("status", "active"),
+    supabase
+      .from("lead_ad_form_vendors")
+      .select("form_id, user_id")
+      .eq("company_id", companyId),
+    // Los candidatos del reparto por formulario. Sin filtro de gerencia: un
+    // formulario puede ser de una acción puntual de un vendedor de otra
+    // sucursal, y el vendedor ve sus leads por asignación, no por sucursal.
+    supabase
+      .from("profiles")
+      .select("id, first_name, last_name, branches(name)")
+      .eq("company_id", companyId)
+      .eq("role", "sales")
+      .eq("status", "active")
+      .order("first_name"),
   ]);
+
+  const vendorsByForm = new Map<string, string[]>();
+  for (const row of formVendors ?? []) {
+    const list = vendorsByForm.get(row.form_id) ?? [];
+    list.push(row.user_id);
+    vendorsByForm.set(row.form_id, list);
+  }
+  const vendors: VendorOption[] = (vendorProfiles ?? []).map((v) => ({
+    id: v.id,
+    name: fullName(v.first_name, v.last_name),
+    branch: (v.branches as { name: string } | null)?.name ?? null,
+  }));
+  const formRows: LeadAdFormRow[] = (forms ?? []).map((f) => ({
+    id: f.id,
+    meta_form_id: f.meta_form_id,
+    form_name: f.form_name,
+    branch_id: f.branch_id,
+    product_type_id: f.product_type_id,
+    campaign_id: f.campaign_id,
+    assignment_mode: f.assignment_mode,
+    assigned_user_id: f.assigned_user_id,
+    rr_user_ids: vendorsByForm.get(f.id) ?? [],
+  }));
 
   const allChannels = (channels ?? []) as Channel[];
   // Los canales de WhatsApp activos alimentan el selector de plantillas.
@@ -95,7 +138,8 @@ export default async function IntegrationsPage({
         waChannels={waChannels}
         templates={(templates ?? []) as WaTemplate[]}
         standardSet={standardSet}
-        forms={(forms ?? []) as LeadAdFormRow[]}
+        forms={formRows}
+        vendors={vendors}
         branches={branches ?? []}
         productTypes={productTypes ?? []}
         campaigns={campaigns ?? []}

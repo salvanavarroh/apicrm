@@ -1343,9 +1343,51 @@ export type Database = {
           },
         ]
       }
+      lead_ad_form_vendors: {
+        Row: {
+          company_id: string
+          form_id: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          form_id: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          form_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ad_form_vendors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ad_form_vendors_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "lead_ad_forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ad_form_vendors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_ad_forms: {
         Row: {
           active: boolean
+          assigned_user_id: string | null
+          assignment_mode: Database["public"]["Enums"]["lead_assignment_mode"]
           branch_id: string | null
           campaign_id: string | null
           channel_id: string | null
@@ -1356,10 +1398,13 @@ export type Database = {
           id: string
           meta_form_id: string
           product_type_id: string | null
+          rr_cursor: number
           updated_at: string
         }
         Insert: {
           active?: boolean
+          assigned_user_id?: string | null
+          assignment_mode?: Database["public"]["Enums"]["lead_assignment_mode"]
           branch_id?: string | null
           campaign_id?: string | null
           channel_id?: string | null
@@ -1370,10 +1415,13 @@ export type Database = {
           id?: string
           meta_form_id: string
           product_type_id?: string | null
+          rr_cursor?: number
           updated_at?: string
         }
         Update: {
           active?: boolean
+          assigned_user_id?: string | null
+          assignment_mode?: Database["public"]["Enums"]["lead_assignment_mode"]
           branch_id?: string | null
           campaign_id?: string | null
           channel_id?: string | null
@@ -1384,9 +1432,17 @@ export type Database = {
           id?: string
           meta_form_id?: string
           product_type_id?: string | null
+          rr_cursor?: number
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lead_ad_forms_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lead_ad_forms_branch_id_fkey"
             columns: ["branch_id"]
@@ -3830,6 +3886,10 @@ export type Database = {
         Args: { p_conversation_id: string }
         Returns: string
       }
+      assign_lead_from_form: {
+        Args: { p_lead_id: string; p_meta_form_id: string }
+        Returns: string
+      }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
       bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }
       bump_assistant_cache_hit: { Args: { p_id: string }; Returns: undefined }
@@ -4005,6 +4065,7 @@ export type Database = {
         | "no_molestar"
         | "otro"
       kb_source: "repo" | "generado" | "manual"
+      lead_assignment_mode: "auto" | "round_robin" | "fixed" | "pool"
       lead_payment_method:
         | "cash"
         | "financed"
@@ -4239,6 +4300,7 @@ export const Constants = {
         "otro",
       ],
       kb_source: ["repo", "generado", "manual"],
+      lead_assignment_mode: ["auto", "round_robin", "fixed", "pool"],
       lead_payment_method: [
         "cash",
         "financed",

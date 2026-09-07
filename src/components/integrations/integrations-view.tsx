@@ -6,6 +6,7 @@ import {
   LeadAdsManager,
   type LeadAdFormRow,
 } from "@/components/messaging/lead-ads-manager";
+import type { VendorOption } from "@/lib/lead-ad-assignment";
 import {
   TemplatesManager,
   type StandardTemplateView,
@@ -25,6 +26,7 @@ export function IntegrationsView({
   branches,
   productTypes,
   campaigns,
+  vendors,
 }: {
   initialTab: string;
   channels: Channel[];
@@ -35,6 +37,7 @@ export function IntegrationsView({
   branches: Opt[];
   productTypes: Opt[];
   campaigns: Opt[];
+  vendors: VendorOption[];
 }) {
   return (
     <Tabs defaultValue={initialTab} className="gap-6">
@@ -67,6 +70,7 @@ export function IntegrationsView({
           branches={branches}
           productTypes={productTypes}
           campaigns={campaigns}
+          vendors={vendors}
         />
       </TabsContent>
     </Tabs>

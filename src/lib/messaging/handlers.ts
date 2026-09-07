@@ -721,8 +721,16 @@ export async function handleLeadReceived(
 
   if (!newLead) return "skipped";
 
-  // Routing: si hay sucursal+tipo, auto-asigna; si no, pool.
-  if (branchId && productTypeId) {
+  // Routing: lo decide la configuración del formulario (automático por
+  // gerencia, rotación entre vendedores elegidos, vendedor fijo, o pool). Sin
+  // formulario reconocible queda el comportamiento histórico: gerencia + carga,
+  // y sólo si el lead tiene sucursal y tipo.
+  if (formId) {
+    await admin.rpc("assign_lead_from_form", {
+      p_lead_id: newLead.id,
+      p_meta_form_id: formId,
+    });
+  } else if (branchId && productTypeId) {
     await admin.rpc("auto_assign_lead", { p_lead_id: newLead.id });
   }
 

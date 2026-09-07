@@ -1,6 +1,14 @@
 "use client";
 
-import { Check, Download, ExternalLink, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  Check,
+  Download,
+  ExternalLink,
+  Plus,
+  RefreshCw,
+  Search,
+  Shuffle,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -8,6 +16,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LeadAdAssignmentDialog } from "@/components/messaging/lead-ad-assignment-dialog";
+import {
+  assignmentModeMeta,
+  type AssignmentMode,
+  type VendorOption,
+} from "@/lib/lead-ad-assignment";
 import { cn } from "@/lib/utils";
 import {
   createCampaignFromForm,
@@ -28,6 +42,10 @@ export type LeadAdFormRow = {
   branch_id: string | null;
   product_type_id: string | null;
   campaign_id: string | null;
+  assignment_mode: AssignmentMode;
+  assigned_user_id: string | null;
+  /** Vendedores en la rotación, cuando el modo es round_robin. */
+  rr_user_ids: string[];
 };
 
 export function LeadAdsManager({
@@ -35,11 +53,13 @@ export function LeadAdsManager({
   branches,
   productTypes,
   campaigns,
+  vendors,
 }: {
   forms: LeadAdFormRow[];
   branches: Opt[];
   productTypes: Opt[];
   campaigns: Opt[];
+  vendors: VendorOption[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -279,8 +299,9 @@ export function LeadAdsManager({
               {metaFormId ? "Mapear formulario seleccionado" : "Mapear un formulario"}
             </p>
             <p className="text-xs text-muted-foreground">
-              Con sucursal + tipo, los leads se auto-asignan por round-robin. Sin
-              mapear, caen al pool sin clasificar.
+              Sucursal, tipo y campaña clasifican al lead. Sin mapear, cae al
+              pool sin clasificar. Quién lo atiende se elige después, con
+              “Reparto” en cada formulario mapeado.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -364,6 +385,17 @@ export function LeadAdsManager({
                       {nameOf(branches, f.branch_id)} / {nameOf(productTypes, f.product_type_id)}
                       {f.campaign_id ? ` · ${nameOf(localCampaigns, f.campaign_id)}` : ""}
                     </div>
+                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Shuffle className="size-3 shrink-0" />
+                      <span className="font-medium text-foreground">
+                        {assignmentModeMeta(f.assignment_mode).short}
+                      </span>
+                      {assignmentDetail(f, vendors) && (
+                        <span className="truncate">
+                          · {assignmentDetail(f, vendors)}
+                        </span>
+                      )}
+                    </div>
                     {job && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
                         <span
@@ -403,6 +435,19 @@ export function LeadAdsManager({
                       <Download className={cn("mr-1 size-4", isImporting && "animate-pulse")} />
                       {paused ? "Continuar" : isImporting ? "Importando…" : "Importar"}
                     </Button>
+                    <LeadAdAssignmentDialog
+                      formId={f.id}
+                      formLabel={f.form_name ?? f.meta_form_id}
+                      mode={f.assignment_mode}
+                      assignedUserId={f.assigned_user_id}
+                      rrUserIds={f.rr_user_ids}
+                      vendors={vendors}
+                      trigger={
+                        <Button size="sm" variant="outline">
+                          <Shuffle className="mr-1 size-4" /> Reparto
+                        </Button>
+                      }
+                    />
                     <Button size="sm" variant="outline" asChild>
                       <Link href={`/admin/leads?form=${f.meta_form_id}`}>
                         <ExternalLink className="mr-1 size-4" /> Ver leads
@@ -420,4 +465,26 @@ export function LeadAdsManager({
       </div>
     </div>
   );
+}
+
+/** Segunda línea del chip de reparto: a quién le toca, en una línea. */
+function assignmentDetail(
+  form: LeadAdFormRow,
+  vendors: VendorOption[],
+): string | null {
+  if (form.assignment_mode === "fixed") {
+    const v = vendors.find((x) => x.id === form.assigned_user_id);
+    return v ? v.name : "vendedor dado de baja → pool";
+  }
+  if (form.assignment_mode === "round_robin") {
+    const n = form.rr_user_ids.length;
+    if (n === 0) return "sin vendedores elegidos → pool";
+    if (n <= 2) {
+      return form.rr_user_ids
+        .map((id) => vendors.find((v) => v.id === id)?.name ?? "?")
+        .join(", ");
+    }
+    return `${n} vendedores`;
+  }
+  return null;
 }
