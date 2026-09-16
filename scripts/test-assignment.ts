@@ -87,28 +87,34 @@ async function againstDb() {
   }
   const db = createClient<Database>(url, key, { auth: { persistSession: false } });
 
-  const { data: company } = await db.from("companies").select("id").limit(1).maybeSingle();
-  if (!company) {
-    console.log("  ⚠ No hay empresas: se saltea.");
-    return;
+  // Cualquier empresa que tenga al menos 2 vendedores activos sirve. Buscarla
+  // en vez de agarrar la primera: con la primera, el test se salteaba en
+  // silencio sólo porque esa empresa no tenía equipo cargado.
+  const { data: companies } = await db.from("companies").select("id, name");
+  let company: { id: string; name: string } | null = null;
+  let vendors: { id: string }[] = [];
+  for (const c of companies ?? []) {
+    const { data } = await db
+      .from("profiles")
+      .select("id")
+      .eq("company_id", c.id)
+      .eq("role", "sales")
+      .eq("status", "active")
+      .order("id")
+      .limit(3);
+    if ((data?.length ?? 0) >= 2) {
+      company = c;
+      vendors = data!;
+      break;
+    }
   }
-  const { data: vendors } = await db
-    .from("profiles")
-    .select("id")
-    .eq("company_id", company.id)
-    .eq("role", "sales")
-    .eq("status", "active")
-    .order("id")
-    .limit(3);
 
-  if (!vendors || vendors.length < 2) {
-    console.log(
-      `  ⚠ Hacen falta 2 vendedores activos y hay ${vendors?.length ?? 0}: se saltea.`,
-    );
-    console.log("    Es la comprobación de que el preview del diálogo no miente;");
-    console.log("    corré esto de nuevo cuando la empresa tenga vendedores cargados.");
+  if (!company) {
+    console.log("  ⚠ Ninguna empresa tiene 2 vendedores activos: se saltea.");
+    console.log("    Es la comprobación de que el preview del diálogo no miente.");
     return;
   }
+  console.log(`  · probando con ${company.name} (${vendors.length} vendedores)`);
 
   const { data: rule } = await db
     .from("assignment_rules")

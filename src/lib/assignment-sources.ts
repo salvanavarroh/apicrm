@@ -21,8 +21,10 @@ export type LoadedSource = {
   kind: SourceKind;
   id: string;
   name: string;
-  /** Segunda línea: el id de Meta, el slug, la plataforma… */
+  /** Segunda línea: el número, el slug, el id de Meta. */
   detail: string | null;
+  /** Plataforma del canal (whatsapp, instagram, google…), para el logo. */
+  platform: string | null;
   /** false = el origen está apagado; se muestra apagado en la lista. */
   active: boolean;
   mode: RuleMode | "inherit";
@@ -83,6 +85,12 @@ export async function loadAssignmentOverview(
       .from("messaging_channels")
       .select("id, platform, display_name, external_ref, status, assignment_rule_id")
       .eq("company_id", companyId)
+      // Sólo los canales de MENSAJERÍA. Meta Ads, TikTok Ads y Google Ads
+      // también son filas de `messaging_channels`, pero no traen
+      // conversaciones: los de ads sólo aportan métricas, y los leads de Meta
+      // entran por formulario (y aparecen en su propio grupo). Mostrarlos acá
+      // con un botón de reparto era ofrecer una configuración que no hace nada.
+      .in("platform", ["whatsapp", "instagram", "facebook"])
       .order("created_at", { ascending: false }),
     supabase
       .from("profiles")
@@ -127,6 +135,7 @@ export async function loadAssignmentOverview(
         id: f.id,
         name: f.form_name?.trim() || f.meta_form_id,
         detail: f.meta_form_id,
+        platform: "facebook",
         active: true,
         ...resolve(f.assignment_rule_id),
       })),
@@ -137,7 +146,10 @@ export async function loadAssignmentOverview(
         kind: "channel" as const,
         id: c.id,
         name: c.display_name || c.external_ref || c.platform,
-        detail: c.platform,
+        // El canal ya dice su plataforma con el logo; la segunda línea es el
+        // número o el @usuario, que es lo que identifica a cuál de los tres.
+        detail: c.display_name ? c.external_ref : null,
+        platform: c.platform,
         active: c.status === "active",
         ...resolve(c.assignment_rule_id),
       })),
@@ -149,6 +161,7 @@ export async function loadAssignmentOverview(
         id: f.id,
         name: f.name,
         detail: `/f/${f.slug}`,
+        platform: null,
         active: f.status === "active",
         ...resolve(f.assignment_rule_id),
       })),
@@ -160,11 +173,12 @@ export async function loadAssignmentOverview(
         id: s.id,
         name: s.name,
         detail: null,
+        platform: null,
         active: s.active,
         ...resolve(s.assignment_rule_id),
       })),
     },
-  ].filter((g) => g.rows.length > 0);
+  ];
 
   return {
     defaultRule: {

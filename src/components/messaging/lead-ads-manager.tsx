@@ -17,11 +17,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AssignmentRuleDialog } from "@/components/assignment/rule-dialog";
-import {
-  ruleSummary,
-  type RuleMember,
-  type RuleMode,
-  type VendorOption,
+import { RuleBadge } from "@/components/assignment/rule-badge";
+import type {
+  RuleMember,
+  RuleMode,
+  VendorOption,
 } from "@/lib/assignment-rules";
 import { cn } from "@/lib/utils";
 import {
@@ -54,14 +54,14 @@ export function LeadAdsManager({
   productTypes,
   campaigns,
   vendors,
-  defaultRuleLabel,
+  defaultRule,
 }: {
   forms: LeadAdFormRow[];
   branches: Opt[];
   productTypes: Opt[];
   campaigns: Opt[];
   vendors: VendorOption[];
-  defaultRuleLabel: string;
+  defaultRule: { mode: RuleMode; members: RuleMember[]; label: string };
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -387,16 +387,7 @@ export function LeadAdsManager({
                       {nameOf(branches, f.branch_id)} / {nameOf(productTypes, f.product_type_id)}
                       {f.campaign_id ? ` · ${nameOf(localCampaigns, f.campaign_id)}` : ""}
                     </div>
-                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <Shuffle className="size-3 shrink-0" />
-                      <span
-                        className={
-                          f.mode === "inherit" ? "" : "font-medium text-foreground"
-                        }
-                      >
-                        {ruleSummary(f.mode, f.members, vendors)}
-                      </span>
-                    </div>
+
                     {job && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
                         <span
@@ -427,6 +418,13 @@ export function LeadAdsManager({
                       </div>
                     )}
                   </div>
+                  <RuleBadge
+                    mode={f.mode}
+                    members={f.members}
+                    vendors={vendors}
+                    inheritedMode={defaultRule.mode}
+                    inheritedMembers={defaultRule.members}
+                  />
                   <div className="flex shrink-0 flex-wrap gap-1.5">
                     <Button
                       size="sm"
@@ -443,7 +441,7 @@ export function LeadAdsManager({
                       mode={f.mode}
                       members={f.members}
                       vendors={vendors}
-                      defaultRuleLabel={defaultRuleLabel}
+                      defaultRuleLabel={defaultRule.label}
                       trigger={
                         <Button size="sm" variant="outline">
                           <Shuffle className="mr-1 size-4" /> Reparto

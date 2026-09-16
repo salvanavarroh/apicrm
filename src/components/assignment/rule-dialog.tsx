@@ -32,6 +32,16 @@ import { saveAssignmentRule } from "@/app/(app)/admin/reparto/actions";
 
 type Mode = RuleMode | "inherit";
 
+/** Un color por vendedor en la rotación. Cinco alcanzan: más de cinco personas
+ *  en una rueda ya no se lee como patrón, se lee como ruido. */
+const TURN_COLORS = [
+  "bg-accent/15 text-accent",
+  "bg-sky-100 text-sky-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-violet-100 text-violet-700",
+  "bg-amber-100 text-amber-700",
+];
+
 /**
  * "¿Quién atiende los leads que entran por acá?".
  *
@@ -118,8 +128,17 @@ export function AssignmentRuleDialog({
   const wheel =
     mode === "turns" || mode === "fixed" ? buildWheel(reduceWeights(members)) : [];
   const percent = weightsToPercent(members);
-  const nameOf = (id: string) =>
-    vendors.find((v) => v.id === id)?.name.split(" ")[0] ?? "?";
+
+  // Cada vendedor elegido tiene un color y una inicial, y son los mismos en la
+  // lista y en el preview. Con nombres completos el preview se envolvía en tres
+  // líneas y el patrón —que es TODO lo que el preview tiene que mostrar— se
+  // perdía entre las palabras.
+  const colorOf = (userId: string) =>
+    TURN_COLORS[
+      Math.max(0, members.findIndex((m) => m.userId === userId)) % TURN_COLORS.length
+    ];
+  const initialOf = (userId: string) =>
+    (vendors.find((v) => v.id === userId)?.name ?? "?").trim().charAt(0).toUpperCase();
 
   const options: Mode[] = isCompanyRule
     ? ["balanced", "turns", "fixed", "pool"]
@@ -219,6 +238,16 @@ export function AssignmentRuleDialog({
                       checked={!!m}
                       onCheckedChange={() => toggleVendor(v.id)}
                     />
+                    {m && (
+                      <span
+                        className={cn(
+                          "grid size-5 shrink-0 place-items-center rounded text-[10px] font-bold",
+                          colorOf(v.id),
+                        )}
+                      >
+                        {initialOf(v.id)}
+                      </span>
+                    )}
                     <span className="min-w-0 flex-1 truncate">{v.name}</span>
                     {m ? (
                       <span className="flex shrink-0 items-center gap-1">
@@ -249,14 +278,26 @@ export function AssignmentRuleDialog({
             </div>
 
             {wheel.length > 1 && (
-              <div className="rounded-md bg-muted/60 px-3 py-2">
+              <div className="rounded-md bg-muted/60 px-3 py-2.5">
                 <p className="text-xs font-medium">Los próximos leads</p>
-                <p className="mt-1 font-mono text-xs tracking-wide text-muted-foreground">
-                  {Array.from({ length: Math.min(12, wheel.length * 2) }, (_, i) =>
-                    nameOf(wheel[i % wheel.length]),
-                  ).join("  ")}
-                </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  {Array.from({ length: Math.min(12, wheel.length * 2) }, (_, i) => {
+                    const id = wheel[i % wheel.length];
+                    return (
+                      <span
+                        key={i}
+                        title={vendors.find((v) => v.id === id)?.name}
+                        className={cn(
+                          "grid size-6 shrink-0 place-items-center rounded text-[11px] font-bold",
+                          colorOf(id),
+                        )}
+                      >
+                        {initialOf(id)}
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">
                   Los turnos se intercalan: nadie recibe varios seguidos por
                   tener más peso.
                 </p>

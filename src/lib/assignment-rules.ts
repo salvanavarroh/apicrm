@@ -142,25 +142,3 @@ export type SourceRow = {
   detail: string | null;
   ruleId: string | null;
 };
-
-/** Resumen en una línea de lo que hace un origen, para la lista. */
-export function ruleSummary(
-  mode: RuleMode | "inherit",
-  members: RuleMember[],
-  vendors: VendorOption[],
-): string {
-  if (mode === "inherit") return "← de la empresa";
-  if (mode === "balanced") return "Equilibrado";
-  if (mode === "pool") return "Sin asignar";
-  if (members.length === 0) return "Sin vendedores → pool";
-  const pct = weightsToPercent(members);
-  const equal = members.every((m) => m.weight === members[0].weight);
-  const names = members.map((m) => {
-    const v = vendors.find((x) => x.id === m.userId);
-    const first = v?.name.split(" ")[0] ?? "?";
-    return equal ? first : `${first} ${pct.get(m.userId) ?? 0}%`;
-  });
-  if (mode === "fixed") return `Siempre a ${names[0]}`;
-  if (names.length <= 3) return `Por turno · ${names.join(" / ")}`;
-  return `Por turno · ${members.length} vendedores`;
-}

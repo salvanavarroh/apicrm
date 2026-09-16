@@ -6,7 +6,11 @@ import {
   LeadAdsManager,
   type LeadAdFormRow,
 } from "@/components/messaging/lead-ads-manager";
-import type { VendorOption } from "@/lib/assignment-rules";
+import type {
+  RuleMember,
+  RuleMode,
+  VendorOption,
+} from "@/lib/assignment-rules";
 import {
   TemplatesManager,
   type StandardTemplateView,
@@ -27,7 +31,7 @@ export function IntegrationsView({
   productTypes,
   campaigns,
   vendors,
-  defaultRuleLabel,
+  defaultRule,
 }: {
   initialTab: string;
   channels: Channel[];
@@ -39,7 +43,7 @@ export function IntegrationsView({
   productTypes: Opt[];
   campaigns: Opt[];
   vendors: VendorOption[];
-  defaultRuleLabel: string;
+  defaultRule: { mode: RuleMode; members: RuleMember[]; label: string };
 }) {
   return (
     <Tabs defaultValue={initialTab} className="gap-6">
@@ -73,7 +77,7 @@ export function IntegrationsView({
           productTypes={productTypes}
           campaigns={campaigns}
           vendors={vendors}
-          defaultRuleLabel={defaultRuleLabel}
+          defaultRule={defaultRule}
         />
       </TabsContent>
     </Tabs>

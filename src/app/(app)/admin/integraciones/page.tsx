@@ -118,7 +118,7 @@ export default async function IntegrationsPage({
         standardSet={standardSet}
         forms={formRows}
         vendors={overview.vendors}
-        defaultRuleLabel={overview.defaultRule.label}
+        defaultRule={overview.defaultRule}
         branches={branches ?? []}
         productTypes={productTypes ?? []}
         campaigns={campaigns ?? []}
