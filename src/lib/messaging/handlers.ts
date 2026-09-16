@@ -42,6 +42,8 @@ type ChannelRow = {
   branch_id: string | null;
   product_type_id: string | null;
   campaign_id: string | null;
+  /** Regla de reparto del canal. null = usa la de la empresa. */
+  assignment_rule_id: string | null;
 };
 
 async function channelByAccount(
@@ -50,7 +52,9 @@ async function channelByAccount(
 ): Promise<ChannelRow | null> {
   const { data } = await admin
     .from("messaging_channels")
-    .select("id, company_id, platform, branch_id, product_type_id, campaign_id")
+    .select(
+      "id, company_id, platform, branch_id, product_type_id, campaign_id, assignment_rule_id",
+    )
     .eq("zernio_account_id", accountId)
     .maybeSingle();
   return data ?? null;
@@ -351,14 +355,15 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     }
     conversationId = conv.id;
 
-    // Call center: si el lead no tiene dueño (sin sticky-seller), intentamos
-    // asignar la conversación a un vendedor ACTIVO por round-robin (menor carga)
-    // de la sucursal (o cualquiera si es general). Si no hay activos → pool.
+    // Si el lead no tiene dueño (sin sticky-seller), la regla de reparto del
+    // canal decide quién atiende. Sin regla propia —o con "equilibrado"— eso es
+    // exactamente lo de siempre: un vendedor ACTIVO por round-robin de menor
+    // carga, respetando horarios y tope. Si no califica nadie → pool.
     if (!assignedUserId) {
-      const { data: assigned } = await admin.rpc(
-        "assign_conversation_to_active_vendor",
-        { p_conversation_id: conversationId },
-      );
+      const { data: assigned } = await admin.rpc("assign_conversation_by_rule", {
+        p_conversation_id: conversationId,
+        p_rule_id: channel.assignment_rule_id ?? undefined,
+      });
       if (assigned) {
         assignedUserId = assigned;
         // El lead sigue a la conversación (aunque lo tuviera un admin/manager, que
@@ -644,10 +649,13 @@ export async function handleLeadReceived(
   let productTypeId = channel.product_type_id;
   let campaignId = channel.campaign_id;
   let fieldMap: Record<string, string> = {};
+  let ruleId: string | null = null;
   if (formId) {
     const { data: mapping } = await admin
       .from("lead_ad_forms")
-      .select("branch_id, product_type_id, campaign_id, field_map")
+      .select(
+        "branch_id, product_type_id, campaign_id, field_map, assignment_rule_id",
+      )
       .eq("company_id", channel.company_id)
       .eq("meta_form_id", formId)
       .maybeSingle();
@@ -656,6 +664,7 @@ export async function handleLeadReceived(
       productTypeId = mapping.product_type_id ?? productTypeId;
       campaignId = mapping.campaign_id ?? campaignId;
       fieldMap = (mapping.field_map as Record<string, string>) ?? {};
+      ruleId = mapping.assignment_rule_id;
     }
   }
 
@@ -721,18 +730,13 @@ export async function handleLeadReceived(
 
   if (!newLead) return "skipped";
 
-  // Routing: lo decide la configuración del formulario (automático por
-  // gerencia, rotación entre vendedores elegidos, vendedor fijo, o pool). Sin
-  // formulario reconocible queda el comportamiento histórico: gerencia + carga,
-  // y sólo si el lead tiene sucursal y tipo.
-  if (formId) {
-    await admin.rpc("assign_lead_from_form", {
-      p_lead_id: newLead.id,
-      p_meta_form_id: formId,
-    });
-  } else if (branchId && productTypeId) {
-    await admin.rpc("auto_assign_lead", { p_lead_id: newLead.id });
-  }
+  // Routing: lo decide la regla de reparto del formulario. Si el formulario no
+  // tiene una propia (o no está mapeado), `assign_lead` cae a la regla de la
+  // empresa, que por defecto es el equilibrado de siempre.
+  await admin.rpc("assign_lead", {
+    p_lead_id: newLead.id,
+    p_rule_id: ruleId ?? undefined,
+  });
 
   // En import masivo NO notificamos por cada lead (spam); el import manda un aviso
   // resumen al terminar.

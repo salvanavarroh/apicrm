@@ -73,7 +73,7 @@ export async function POST(
   const { data: form } = await admin
     .from("lead_capture_forms")
     .select(
-      "id, company_id, branch_id, product_type_id, campaign_id, status, fields, success_message",
+      "id, company_id, branch_id, product_type_id, campaign_id, status, fields, success_message, assignment_rule_id",
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -201,7 +201,12 @@ export async function POST(
       _ip: ip,
     } as Record<string, unknown> as never,
   });
-  await admin.rpc("auto_assign_lead", { p_lead_id: lead.id });
+  // La regla del formulario decide quién atiende. Sin regla propia cae a la de
+  // la empresa, que por defecto es el equilibrado de siempre.
+  await admin.rpc("assign_lead", {
+    p_lead_id: lead.id,
+    p_rule_id: form.assignment_rule_id ?? undefined,
+  });
 
   // Incremento atómico de submissions_count vía SQL.
   await admin.rpc("increment_form_submissions", { p_form_id: form.id });

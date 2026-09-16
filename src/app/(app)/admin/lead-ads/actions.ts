@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
-import type { AssignmentMode } from "@/lib/lead-ad-assignment";
 import { notify } from "@/lib/notifications";
 import { toE164 } from "@/lib/phone";
 import { listFormLeads, listLeadForms } from "@/lib/messaging/zernio";
@@ -56,140 +55,41 @@ export async function pullLeadForms(): Promise<
   }
 }
 
-/** Crea/actualiza el mapeo de un formulario de Meta Lead Ads → routing. */
+/**
+ * Crea/actualiza el mapeo de un formulario de Meta Lead Ads → routing.
+ *
+ * Sucursal, tipo y campaña CLASIFICAN el lead. Quién lo atiende es otra
+ * decisión y vive en su propia regla de reparto (`assignment_rule_id`), que se
+ * edita con el diálogo compartido. Antes las dos cosas estaban acá mezcladas y
+ * re-guardar el mapeo te pisaba el reparto configurado.
+ */
 export async function upsertLeadAdForm(input: {
   metaFormId: string;
   formName?: string;
   branchId?: string;
   productTypeId?: string;
   campaignId?: string;
-  assignmentMode?: AssignmentMode;
-  assignedUserId?: string;
-  rrUserIds?: string[];
 }): Promise<Result> {
   const profile = await requireRole(["admin", "manager"]);
   const admin = createAdminClient();
   const metaFormId = input.metaFormId.trim();
   if (!metaFormId) return { ok: false, message: "Falta el ID del formulario de Meta" };
 
-  // El reparto sólo se toca si viene explícito. Sin esto, re-guardar el mapeo
-  // desde la tarjeta de arriba (que sólo manda sucursal/tipo/campaña) le
-  // borraba al formulario el reparto configurado y lo devolvía a "automático".
-  const mode = input.assignmentMode;
-  if (mode) {
-    const invalid = validateAssignment(mode, input.assignedUserId, input.rrUserIds);
-    if (invalid) return { ok: false, message: invalid };
-  }
-
-  const { data, error } = await admin
-    .from("lead_ad_forms")
-    .upsert(
-      {
-        company_id: profile.company_id!,
-        meta_form_id: metaFormId,
-        form_name: input.formName?.trim() || null,
-        branch_id: input.branchId || null,
-        product_type_id: input.productTypeId || null,
-        campaign_id: input.campaignId || null,
-        // En un formulario nuevo el default de la columna es 'auto'.
-        ...(mode
-          ? {
-              assignment_mode: mode,
-              assigned_user_id: mode === "fixed" ? input.assignedUserId! : null,
-            }
-          : {}),
-      },
-      { onConflict: "company_id,meta_form_id" },
-    )
-    .select("id")
-    .single();
-  if (error || !data) return { ok: false, message: error?.message ?? "Error guardando el mapeo" };
-
-  if (mode) {
-    await replaceFormVendors(
-      admin,
-      profile.company_id!,
-      data.id,
-      mode === "round_robin" ? input.rrUserIds ?? [] : [],
-    );
-  }
-  revalidatePath("/admin/lead-ads");
-  revalidatePath("/admin/integraciones");
-  return { ok: true };
-}
-
-/** Reglas que la base no puede exigir sola (el modo decide qué campo va). */
-function validateAssignment(
-  mode: AssignmentMode,
-  assignedUserId?: string,
-  rrUserIds?: string[],
-): string | null {
-  if (mode === "fixed" && !assignedUserId) {
-    return "Elegí el vendedor que va a atender este formulario";
-  }
-  if (mode === "round_robin" && (rrUserIds ?? []).length === 0) {
-    return "Elegí al menos un vendedor para la rotación";
-  }
-  return null;
-}
-
-/** Reemplaza el set de vendedores de la rotación de un formulario. */
-async function replaceFormVendors(
-  admin: Admin,
-  companyId: string,
-  formId: string,
-  userIds: string[],
-): Promise<void> {
-  await admin.from("lead_ad_form_vendors").delete().eq("form_id", formId);
-  const unique = Array.from(new Set(userIds.filter(Boolean)));
-  if (unique.length === 0) return;
-  await admin.from("lead_ad_form_vendors").insert(
-    unique.map((user_id) => ({ form_id: formId, user_id, company_id: companyId })),
+  const { error } = await admin.from("lead_ad_forms").upsert(
+    {
+      company_id: profile.company_id!,
+      meta_form_id: metaFormId,
+      form_name: input.formName?.trim() || null,
+      branch_id: input.branchId || null,
+      product_type_id: input.productTypeId || null,
+      campaign_id: input.campaignId || null,
+    },
+    { onConflict: "company_id,meta_form_id" },
   );
-}
-
-/**
- * Cambia sólo el reparto de un formulario ya mapeado (el diálogo "Reparto" de
- * la lista). No toca sucursal / tipo / campaña: son dos decisiones distintas y
- * mezclarlas obligaba a re-elegir todo para mover un vendedor.
- */
-export async function setLeadAdFormAssignment(input: {
-  formId: string;
-  mode: AssignmentMode;
-  assignedUserId?: string;
-  rrUserIds?: string[];
-}): Promise<Result> {
-  const profile = await requireRole(["admin", "manager"]);
-  const admin = createAdminClient();
-  const invalid = validateAssignment(input.mode, input.assignedUserId, input.rrUserIds);
-  if (invalid) return { ok: false, message: invalid };
-
-  const { data: form, error: readError } = await admin
-    .from("lead_ad_forms")
-    .select("id")
-    .eq("id", input.formId)
-    .eq("company_id", profile.company_id!)
-    .maybeSingle();
-  if (readError) return { ok: false, message: readError.message };
-  if (!form) return { ok: false, message: "El formulario ya no existe" };
-
-  const { error } = await admin
-    .from("lead_ad_forms")
-    .update({
-      assignment_mode: input.mode,
-      assigned_user_id: input.mode === "fixed" ? input.assignedUserId! : null,
-    })
-    .eq("id", form.id);
   if (error) return { ok: false, message: error.message };
-
-  await replaceFormVendors(
-    admin,
-    profile.company_id!,
-    form.id,
-    input.mode === "round_robin" ? input.rrUserIds ?? [] : [],
-  );
-  revalidatePath("/admin/integraciones");
   revalidatePath("/admin/lead-ads");
+  revalidatePath("/admin/integraciones");
+  revalidatePath("/admin/reparto");
   return { ok: true };
 }
 

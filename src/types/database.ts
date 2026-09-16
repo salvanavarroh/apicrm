@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      assignment_rule_members: {
+        Row: {
+          company_id: string
+          rule_id: string
+          user_id: string
+          weight: number
+        }
+        Insert: {
+          company_id: string
+          rule_id: string
+          user_id: string
+          weight?: number
+        }
+        Update: {
+          company_id?: string
+          rule_id?: string
+          user_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_rule_members_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_rule_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignment_rules: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          strategy: Database["public"]["Enums"]["lead_assignment_strategy"]
+          turn_cursor: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          strategy?: Database["public"]["Enums"]["lead_assignment_strategy"]
+          turn_cursor?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          strategy?: Database["public"]["Enums"]["lead_assignment_strategy"]
+          turn_cursor?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assistant_cache: {
         Row: {
           answer: string
@@ -1388,6 +1465,7 @@ export type Database = {
           active: boolean
           assigned_user_id: string | null
           assignment_mode: Database["public"]["Enums"]["lead_assignment_mode"]
+          assignment_rule_id: string | null
           branch_id: string | null
           campaign_id: string | null
           channel_id: string | null
@@ -1405,6 +1483,7 @@ export type Database = {
           active?: boolean
           assigned_user_id?: string | null
           assignment_mode?: Database["public"]["Enums"]["lead_assignment_mode"]
+          assignment_rule_id?: string | null
           branch_id?: string | null
           campaign_id?: string | null
           channel_id?: string | null
@@ -1422,6 +1501,7 @@ export type Database = {
           active?: boolean
           assigned_user_id?: string | null
           assignment_mode?: Database["public"]["Enums"]["lead_assignment_mode"]
+          assignment_rule_id?: string | null
           branch_id?: string | null
           campaign_id?: string | null
           channel_id?: string | null
@@ -1529,6 +1609,7 @@ export type Database = {
       }
       lead_capture_forms: {
         Row: {
+          assignment_rule_id: string | null
           banner_url: string | null
           branch_id: string
           campaign_id: string | null
@@ -1551,6 +1632,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          assignment_rule_id?: string | null
           banner_url?: string | null
           branch_id: string
           campaign_id?: string | null
@@ -1573,6 +1655,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          assignment_rule_id?: string | null
           banner_url?: string | null
           branch_id?: string
           campaign_id?: string | null
@@ -2484,6 +2567,7 @@ export type Database = {
       }
       messaging_channels: {
         Row: {
+          assignment_rule_id: string | null
           branch_id: string | null
           campaign_id: string | null
           company_id: string
@@ -2506,6 +2590,7 @@ export type Database = {
           zernio_account_id: string
         }
         Insert: {
+          assignment_rule_id?: string | null
           branch_id?: string | null
           campaign_id?: string | null
           company_id: string
@@ -2528,6 +2613,7 @@ export type Database = {
           zernio_account_id: string
         }
         Update: {
+          assignment_rule_id?: string | null
           branch_id?: string | null
           campaign_id?: string | null
           company_id?: string
@@ -3210,6 +3296,7 @@ export type Database = {
       sheet_sources: {
         Row: {
           active: boolean
+          assignment_rule_id: string | null
           branch_id: string | null
           campaign_id: string | null
           column_map: Json
@@ -3230,6 +3317,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          assignment_rule_id?: string | null
           branch_id?: string | null
           campaign_id?: string | null
           column_map?: Json
@@ -3250,6 +3338,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          assignment_rule_id?: string | null
           branch_id?: string | null
           campaign_id?: string | null
           column_map?: Json
@@ -3991,11 +4080,34 @@ export type Database = {
           user_id: string
         }[]
       }
+      assign_conversation_by_rule: {
+        Args: { p_conversation_id: string; p_rule_id?: string }
+        Returns: string
+      }
+      assign_lead: {
+        Args: { p_lead_id: string; p_rule_id?: string }
+        Returns: string
+      }
       assign_lead_from_form: {
         Args: { p_lead_id: string; p_meta_form_id: string }
         Returns: string
       }
+      assign_leads_bulk: {
+        Args: { p_lead_ids: string[]; p_rule_id?: string }
+        Returns: number
+      }
+      assignment_wheel: {
+        Args: { p_rule_id: string }
+        Returns: {
+          slot: number
+          user_id: string
+        }[]
+      }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
+      effective_assignment_rule: {
+        Args: { p_company_id: string; p_rule_id: string }
+        Returns: string
+      }
       bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }
       bump_assistant_cache_hit: { Args: { p_id: string }; Returns: undefined }
       bump_assistant_gap_hit: { Args: { p_id: string }; Returns: undefined }
@@ -4172,6 +4284,7 @@ export type Database = {
         | "otro"
       kb_source: "repo" | "generado" | "manual"
       lead_assignment_mode: "auto" | "round_robin" | "fixed" | "pool"
+      lead_assignment_strategy: "balanced" | "turns" | "pool"
       lead_payment_method:
         | "cash"
         | "financed"
@@ -4407,6 +4520,7 @@ export const Constants = {
       ],
       kb_source: ["repo", "generado", "manual"],
       lead_assignment_mode: ["auto", "round_robin", "fixed", "pool"],
+      lead_assignment_strategy: ["balanced", "turns", "pool"],
       lead_payment_method: [
         "cash",
         "financed",

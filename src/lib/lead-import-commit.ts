@@ -138,14 +138,12 @@ export async function insertMappedChunk(
   }
   const insertedIds = (data ?? []).map((l) => l.id);
 
-  // Distribución round-robin balanceada de esta tanda.
-  if (
-    context.distribution === "round_robin" &&
-    context.branch_id &&
-    context.product_type_id &&
-    insertedIds.length > 0
-  ) {
-    await client.rpc("bulk_assign_leads", { p_lead_ids: insertedIds });
+  // Reparto de esta tanda. Sin regla explícita usa la de la empresa, así que si
+  // mañana el admin la pasa a 70/30 la carga masiva lo sigue sin tocar nada
+  // acá. `assign_leads_bulk` resuelve el lote en UNA sentencia: de a uno serían
+  // miles de round-trips y el timeout de la función serverless.
+  if (context.distribution === "round_robin" && insertedIds.length > 0) {
+    await client.rpc("assign_leads_bulk", { p_lead_ids: insertedIds });
   }
 
   return { inserted: insertedIds.length, insertedIds, skippedDuplicates };

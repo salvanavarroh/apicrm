@@ -16,12 +16,15 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { LeadAdAssignmentDialog } from "@/components/messaging/lead-ad-assignment-dialog";
 import {
-  assignmentModeMeta,
-  type AssignmentMode,
-  type VendorOption,
-} from "@/lib/lead-ad-assignment";
+  AssignmentRuleDialog,
+  ruleSummary,
+} from "@/components/assignment/rule-dialog";
+import type {
+  RuleMember,
+  RuleMode,
+  VendorOption,
+} from "@/lib/assignment-rules";
 import { cn } from "@/lib/utils";
 import {
   createCampaignFromForm,
@@ -42,10 +45,9 @@ export type LeadAdFormRow = {
   branch_id: string | null;
   product_type_id: string | null;
   campaign_id: string | null;
-  assignment_mode: AssignmentMode;
-  assigned_user_id: string | null;
-  /** Vendedores en la rotación, cuando el modo es round_robin. */
-  rr_user_ids: string[];
+  /** Reparto: "inherit" = usa la regla de la empresa. */
+  mode: RuleMode | "inherit";
+  members: RuleMember[];
 };
 
 export function LeadAdsManager({
@@ -54,12 +56,14 @@ export function LeadAdsManager({
   productTypes,
   campaigns,
   vendors,
+  defaultRuleLabel,
 }: {
   forms: LeadAdFormRow[];
   branches: Opt[];
   productTypes: Opt[];
   campaigns: Opt[];
   vendors: VendorOption[];
+  defaultRuleLabel: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -387,14 +391,13 @@ export function LeadAdsManager({
                     </div>
                     <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                       <Shuffle className="size-3 shrink-0" />
-                      <span className="font-medium text-foreground">
-                        {assignmentModeMeta(f.assignment_mode).short}
+                      <span
+                        className={
+                          f.mode === "inherit" ? "" : "font-medium text-foreground"
+                        }
+                      >
+                        {ruleSummary(f.mode, f.members, vendors)}
                       </span>
-                      {assignmentDetail(f, vendors) && (
-                        <span className="truncate">
-                          · {assignmentDetail(f, vendors)}
-                        </span>
-                      )}
                     </div>
                     {job && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px]">
@@ -435,13 +438,14 @@ export function LeadAdsManager({
                       <Download className={cn("mr-1 size-4", isImporting && "animate-pulse")} />
                       {paused ? "Continuar" : isImporting ? "Importando…" : "Importar"}
                     </Button>
-                    <LeadAdAssignmentDialog
-                      formId={f.id}
-                      formLabel={f.form_name ?? f.meta_form_id}
-                      mode={f.assignment_mode}
-                      assignedUserId={f.assigned_user_id}
-                      rrUserIds={f.rr_user_ids}
+                    <AssignmentRuleDialog
+                      sourceKind="meta_form"
+                      sourceId={f.id}
+                      sourceName={f.form_name ?? f.meta_form_id}
+                      mode={f.mode}
+                      members={f.members}
                       vendors={vendors}
+                      defaultRuleLabel={defaultRuleLabel}
                       trigger={
                         <Button size="sm" variant="outline">
                           <Shuffle className="mr-1 size-4" /> Reparto
@@ -465,26 +469,4 @@ export function LeadAdsManager({
       </div>
     </div>
   );
-}
-
-/** Segunda línea del chip de reparto: a quién le toca, en una línea. */
-function assignmentDetail(
-  form: LeadAdFormRow,
-  vendors: VendorOption[],
-): string | null {
-  if (form.assignment_mode === "fixed") {
-    const v = vendors.find((x) => x.id === form.assigned_user_id);
-    return v ? v.name : "vendedor dado de baja → pool";
-  }
-  if (form.assignment_mode === "round_robin") {
-    const n = form.rr_user_ids.length;
-    if (n === 0) return "sin vendedores elegidos → pool";
-    if (n <= 2) {
-      return form.rr_user_ids
-        .map((id) => vendors.find((v) => v.id === id)?.name ?? "?")
-        .join(", ");
-    }
-    return `${n} vendedores`;
-  }
-  return null;
 }

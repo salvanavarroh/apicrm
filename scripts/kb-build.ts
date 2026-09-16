@@ -85,6 +85,9 @@ const DOCS: DocMeta[] = [
   // gerente necesita saber (dónde está y qué mide) ya lo dice el hint del menú y
   // la propia pantalla. Mismo criterio que con la respuesta automática.
   { path: "docs/actividad-del-equipo.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
+  // Reparto de leads: diseño (tablas, la rueda, el backfill). Lo que el admin
+  // necesita saber está en la propia pantalla.
+  { path: "docs/reparto-de-leads.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/roadmap-posventa.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/asistente-ia.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "PRD_API_CRM_v2.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },

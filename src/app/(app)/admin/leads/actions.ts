@@ -266,7 +266,7 @@ export async function createLead(
     insert.branch_id &&
     insert.product_type_id
   ) {
-    await supabase.rpc("auto_assign_lead", { p_lead_id: lead.id });
+    await supabase.rpc("assign_lead", { p_lead_id: lead.id });
   }
 
   revalidateLeadsPaths();
@@ -430,7 +430,7 @@ export async function classifyLead(
   if (error) return { ok: false, message: error.message };
 
   // Auto-asignar después de clasificar.
-  await supabase.rpc("auto_assign_lead", { p_lead_id: id });
+  await supabase.rpc("assign_lead", { p_lead_id: id });
 
   revalidateLeadsPaths();
   return { ok: true, id };

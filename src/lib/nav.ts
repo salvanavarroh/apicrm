@@ -102,6 +102,7 @@ export const ADMIN_NAV: NavSection[] = [
     items: [
       { href: "/admin/company", label: "Mi empresa", icon: "Building2", hint: "Datos de la concesionaria y horarios" },
       { href: "/admin/users", label: "Usuarios", icon: "UsersRound", hint: "Alta de admins, gerentes, vendedores y proveedores" },
+      { href: "/admin/reparto", label: "Reparto de leads", icon: "Split", hint: "Quién atiende los leads de cada origen: formularios de Meta, formularios propios, WhatsApp, planillas y carga masiva" },
       { href: "/admin/integraciones", label: "Integraciones", icon: "Blocks", hint: "WhatsApp, Meta, Google, TikTok, Sheets" },
       { href: "/admin/bot", label: "Respuesta automática", icon: "Bot", hint: "Configuración del bot del inbox" },
     ],

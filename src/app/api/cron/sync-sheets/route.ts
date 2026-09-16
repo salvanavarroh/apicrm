@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   const { data: sources, error } = await admin
     .from("sheet_sources")
     .select(
-      "id, company_id, spreadsheet_id, gid, column_map, branch_id, product_type_id, campaign_id, poll_minutes, last_synced_at",
+      "id, company_id, spreadsheet_id, gid, column_map, branch_id, product_type_id, campaign_id, assignment_rule_id, poll_minutes, last_synced_at",
     )
     .eq("active", true);
 
@@ -71,6 +71,7 @@ export async function GET(request: NextRequest) {
         branch_id: s.branch_id,
         product_type_id: s.product_type_id,
         campaign_id: s.campaign_id,
+        assignment_rule_id: s.assignment_rule_id,
       });
       // Un error de una planilla no debe frenar las demás: se guarda en la fila
       // para que se vea en la pantalla de configuración.

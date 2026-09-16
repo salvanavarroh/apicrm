@@ -107,6 +107,7 @@ type SheetSource = {
   gid: string;
   column_map: Record<string, string>;
   branch_id: string | null;
+  assignment_rule_id: string | null;
   product_type_id: string | null;
   campaign_id: string | null;
 };
@@ -244,6 +245,18 @@ export async function syncSheetSource(
         .from("sheet_synced_rows")
         .insert({ source_id: source.id, row_hash: hash, lead_id: null });
       continue;
+    }
+
+    // Reparto. Hasta ahora la planilla NO asignaba nada y sus leads quedaban en
+    // el pool sin que hubiera dónde verlo ni cambiarlo. El backfill de la
+    // migración dejó las fuentes existentes apuntando a una regla "Sin asignar"
+    // para no cambiarle el comportamiento a nadie de un día para el otro; desde
+    // Reparto de leads se puede pasar a equilibrado, por turno o fijo.
+    if (created) {
+      await admin.rpc("assign_lead", {
+        p_lead_id: created.id,
+        p_rule_id: source.assignment_rule_id ?? undefined,
+      });
     }
 
     imported++;

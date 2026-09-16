@@ -149,6 +149,7 @@ export async function syncNow(id: string): Promise<SyncResult> {
     branch_id: data.branch_id,
     product_type_id: data.product_type_id,
     campaign_id: data.campaign_id,
+    assignment_rule_id: data.assignment_rule_id,
   });
   revalidatePath("/admin/sheets");
   return res;
