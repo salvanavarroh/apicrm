@@ -3,9 +3,16 @@
 Qué mide la sección **Actividad del equipo**, cómo se mide, qué no mide, y qué
 preguntas de gerencia contesta.
 
-Introducida el **07/09/2026**. Vive en `/admin/actividad` (toda la
-concesionaria) y `/manager/actividad` (el equipo de ese gerente; el supervisor
-ve el equipo de su gerente padre).
+Introducida el **07/09/2026**. Es un reporte del catálogo: se entra por
+**Reportes → Actividad del equipo**, en `/admin/reportes/actividad` (toda la
+concesionaria) y `/manager/reportes/actividad` (el equipo de ese gerente; el
+supervisor ve el equipo de su gerente padre).
+
+A diferencia del resto del catálogo no usa `ReportView` ni tiene loader en
+`loaders.ts`: tiene pantalla propia, porque el detalle por vendedor —horario
+real, día por día— no entra en la forma genérica de KPIs + tabla. Está igual en
+`registry.ts` para que aparezca en el listado y en la base de conocimiento; para
+el usuario es un reporte más.
 
 ## El problema
 
@@ -90,7 +97,7 @@ promedio por día, hora de arranque promedio, leads recibidos, leads gestionados
 contactos, mensajes, tareas hechas, tareas vencidas, visitas, ventas y
 gestiones por hora.
 
-**Detalle de un vendedor** (`…/actividad/[id]`): el **horario real** (minutos
+**Detalle de un vendedor** (`…/reportes/actividad/[id]`): el **horario real** (minutos
 por hora del día, que es lo que responde si el turno declarado y el real son el
 mismo), dónde pasó el tiempo, y el día por día con hora de entrada, última
 actividad y lo producido. Los días vacíos se recortan de las dos puntas pero

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { SellerActivityView } from "@/components/activity/seller-activity-view";
 import { TeamActivityView } from "@/components/activity/team-activity-view";
 import { ReportRangeBar } from "@/components/reports/report-range-bar";
+import { findReport } from "@/lib/reports/registry";
 import {
   loadSellerActivity,
   loadTeamActivity,
@@ -15,9 +16,12 @@ import {
 // admin y gerente muestran exactamente lo mismo: lo único que cambia es el
 // scope (toda la concesionaria vs. el equipo del gerente) y el basePath. Las
 // páginas de cada rol quedan en resolver el perfil y llamar a esto.
+//
+// Es un reporte del catálogo (`/<rol>/reportes/actividad`) con pantalla propia:
+// el título y la bajada salen del registro, para que la tarjeta del listado y
+// el encabezado digan lo mismo sin que haya que acordarse de tocar los dos.
 
-export const ACTIVITY_BLURB =
-  "Cuánto tiempo estuvo cada vendedor dentro del CRM, en qué pantallas, y qué produjo en ese tiempo: leads gestionados, contactos, tareas, visitas y ventas.";
+const DEF = findReport("actividad");
 
 function ymd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -44,15 +48,24 @@ export async function TeamActivityScreen({
   to: string;
 }) {
   const data = await loadTeamActivity(scope, { from, to });
+  // El catálogo es el padre de esta ruta: `/admin/reportes/actividad` → `/admin/reportes`.
+  const catalogPath = basePath.replace(/\/actividad$/, "");
 
   return (
     <div className="flex flex-col gap-5">
+      <Link
+        href={catalogPath}
+        className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ChevronLeft className="size-4" /> Volver a Reportes
+      </Link>
+
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold tracking-tight">
-          Actividad del equipo
+          {DEF?.title ?? "Actividad del equipo"}
         </h1>
         <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
-          {ACTIVITY_BLURB}
+          {DEF?.description}
         </p>
       </header>
 

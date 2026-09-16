@@ -2,6 +2,7 @@ import {
   Cake,
   CalendarRange,
   ShoppingBag,
+  Timer,
   Trophy,
   Users,
   type LucideIcon,
@@ -13,10 +14,12 @@ import { requireRole } from "@/lib/auth";
 import { reportsForRole } from "@/lib/reports/registry";
 
 const ICONS: Record<string, LucideIcon> = {
-  ShoppingBag,
-  Users,
+  Cake,
   CalendarRange,
+  ShoppingBag,
+  Timer,
   Trophy,
+  Users,
 };
 
 export default async function ReportesPage() {

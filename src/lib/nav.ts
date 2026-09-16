@@ -74,7 +74,6 @@ export const ADMIN_NAV: NavSection[] = [
       { href: "/admin", label: "Inicio", icon: "Home", match: "exact" },
       { href: "/admin/reports", label: "Informe ejecutivo", icon: "TrendingUp", hint: "Resumen narrado del período" },
       { href: "/admin/reportes", label: "Reportes", icon: "FileBarChart", hint: "Catálogo de reportes con filtros" },
-      { href: "/admin/actividad", label: "Actividad del equipo", icon: "Timer", hint: "Cuánto tiempo estuvo cada vendedor en el CRM, en qué pantallas y qué produjo" },
       INBOX_ITEM,
       { href: "/admin/leads", label: "Leads", icon: "Inbox", hint: "Todos los leads de la concesionaria" },
       { href: "/admin/tasks-visits", label: "Tareas y Visitas", icon: "CalendarCheck", hint: "Agenda del equipo" },
@@ -133,7 +132,6 @@ export const MANAGER_NAV: NavSection[] = [
     title: "Equipo",
     items: [
       { href: "/manager/team", label: "Equipo", icon: "Users", hint: "Sus vendedores y supervisores" },
-      { href: "/manager/actividad", label: "Actividad del equipo", icon: "Timer", hint: "Cuánto tiempo estuvo cada vendedor en el CRM, en qué pantallas y qué produjo" },
       { href: "/manager/managements", label: "Gerencias", icon: "Settings2", hint: "Sucursal + tipo de producto, y el toggle de asignación automática" },
     ],
   },
@@ -158,7 +156,6 @@ export const SUPERVISOR_NAV: NavSection[] = [
     title: "Equipo",
     items: [
       { href: "/manager/team", label: "Equipo", icon: "Users" },
-      { href: "/manager/actividad", label: "Actividad del equipo", icon: "Timer", hint: "Cuánto tiempo estuvo cada vendedor en el CRM, en qué pantallas y qué produjo" },
       { href: "/manager/forms", label: "Formularios", icon: "FileInput" },
     ],
   },

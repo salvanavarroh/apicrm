@@ -2,9 +2,9 @@ import {
   SellerActivityScreen,
   defaultActivityRange,
 } from "@/components/activity/activity-screens";
-import { requireRole } from "@/lib/auth";
+import { actingManagerId, requireRole } from "@/lib/auth";
 
-export default async function AdminActividadDetallePage({
+export default async function ManagerActividadDetallePage({
   params,
   searchParams,
 }: {
@@ -12,15 +12,18 @@ export default async function AdminActividadDetallePage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { id } = await params;
-  const profile = await requireRole(["admin"]);
+  const profile = await requireRole(["manager", "supervisor"]);
   if (!profile.company_id) return null;
   const sp = await searchParams;
   const fallback = defaultActivityRange();
 
   return (
     <SellerActivityScreen
-      scope={{ companyId: profile.company_id, managerId: null }}
-      basePath="/admin/actividad"
+      scope={{
+        companyId: profile.company_id,
+        managerId: actingManagerId(profile),
+      }}
+      basePath="/manager/reportes/actividad"
       userId={id}
       from={sp.from || fallback.from}
       to={sp.to || fallback.to}

@@ -53,7 +53,6 @@ const BY_HEAD: Record<string, ActivitySection> = {
   sales: "sales",
   reports: "reports",
   reportes: "reports",
-  actividad: "reports",
   ads: "reports",
   prices: "catalog",
   "product-types": "catalog",

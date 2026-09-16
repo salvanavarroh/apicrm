@@ -22,7 +22,7 @@ export default async function ManagerActividadPage({
         companyId: profile.company_id,
         managerId: actingManagerId(profile),
       }}
-      basePath="/manager/actividad"
+      basePath="/manager/reportes/actividad"
       from={sp.from || fallback.from}
       to={sp.to || fallback.to}
     />

@@ -83,6 +83,22 @@ export const REPORTS: ReportDefinition[] = [
     defaultRange: 30,
     roles: ["admin", "manager", "supervisor"],
   },
+  // OJO: este reporte NO tiene loader en `loaders.ts` ni usa `ReportView`.
+  // Tiene pantalla propia en `<rol>/reportes/actividad`, porque además de KPIs y
+  // tabla trae el detalle por vendedor (horario real, día por día) y eso no
+  // entra en la forma genérica. Está en el catálogo igual para que aparezca en
+  // el listado y en la base de conocimiento del asistente: para el usuario es
+  // un reporte más, y la excepción es interna.
+  {
+    id: "actividad",
+    title: "Actividad del equipo",
+    description:
+      "Cuánto tiempo estuvo cada vendedor dentro del CRM, en qué pantallas, y qué produjo en ese tiempo.",
+    icon: "Timer",
+    filters: ["range"],
+    defaultRange: 30,
+    roles: ["admin", "manager", "supervisor"],
+  },
 ];
 
 export function findReport(id: string): ReportDefinition | null {
