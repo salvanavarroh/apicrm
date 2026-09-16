@@ -16,14 +16,12 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AssignmentRuleDialog } from "@/components/assignment/rule-dialog";
 import {
-  AssignmentRuleDialog,
   ruleSummary,
-} from "@/components/assignment/rule-dialog";
-import type {
-  RuleMember,
-  RuleMode,
-  VendorOption,
+  type RuleMember,
+  type RuleMode,
+  type VendorOption,
 } from "@/lib/assignment-rules";
 import { cn } from "@/lib/utils";
 import {

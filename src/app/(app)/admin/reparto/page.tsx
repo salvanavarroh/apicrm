@@ -1,13 +1,10 @@
 import { Info, Split } from "lucide-react";
 
-import {
-  AssignmentRuleDialog,
-  ruleSummary,
-} from "@/components/assignment/rule-dialog";
+import { AssignmentRuleDialog } from "@/components/assignment/rule-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireRole } from "@/lib/auth";
-import { SOURCE_KIND_LABELS } from "@/lib/assignment-rules";
+import { SOURCE_KIND_LABELS, ruleSummary } from "@/lib/assignment-rules";
 import { loadAssignmentOverview } from "@/lib/assignment-sources";
 import { cn } from "@/lib/utils";
 
