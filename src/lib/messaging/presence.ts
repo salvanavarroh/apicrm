@@ -1,11 +1,20 @@
 // Presencia del call center: si el vendedor está "Activo" (y fresco por heartbeat)
 // y cuántos vendedores hay activos en la empresa. Admin client (scopeado a la
-// empresa del usuario). La ventana de frescura debe coincidir con la del round-
-// robin (assign_conversation_to_active_vendor: 15 min).
+// empresa del usuario).
+//
+// La ventana TIENE que coincidir con la del round-robin
+// (assign_conversation_to_active_vendor). Si no, la pantalla dice una cosa y el
+// reparto hace otra.
+//
+// 8 horas es una red de seguridad, no un control de presencia: con 15 minutos,
+// irse a otra aplicación un rato te sacaba del reparto, porque el navegador
+// congela los timers de una pestaña en segundo plano y el latido se corta.
+// Quien apaga de verdad es el toggle, cerrar sesión, el beacon al cerrar la
+// pestaña, y el cron nocturno. Ver la migración `presence_window`.
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const STALE_MS = 15 * 60 * 1000;
+const STALE_MS = 8 * 60 * 60 * 1000;
 
 export async function loadInboxPresence(
   userId: string,

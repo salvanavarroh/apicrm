@@ -11,6 +11,12 @@ import {
 
 const HEARTBEAT_MS = 120_000; // 2 min — mantiene "fresca" la presencia
 
+// OJO: este latido NO es lo único que sostiene la presencia. El latido global
+// de actividad (`<ActivityTracker />`) la refresca desde cualquier pantalla, y
+// la ventana de frescura es de 8 horas justamente para que el navegador
+// congelando los timers de una pestaña en segundo plano no saque al vendedor
+// del reparto. Ver la migración `presence_window`.
+
 /**
  * Toggle "Activo" del call center. Cuando está activo, el vendedor entra al
  * reparto round-robin de conversaciones. Mientras está activo late un heartbeat
@@ -92,7 +98,7 @@ export function PresenceToggle({
       disabled={pending}
       title={
         available
-          ? "Estás recibiendo conversaciones por round-robin. Tocá para desactivar."
+          ? "Estás recibiendo conversaciones. Seguís activo aunque uses otras aplicaciones: se apaga cuando lo desactivás, cerrás el navegador o al final del día."
           : "Activate para recibir conversaciones nuevas."
       }
       className={cn(
