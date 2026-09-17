@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { channelLabel, NO_CAMPAIGN_KEY } from "@/lib/campaign-origins";
+import { leadProvince, UNKNOWN_PROVINCE } from "@/lib/province";
 import { fetchPaged } from "@/lib/leads-fetch";
 import { fullName, type LeadStatus } from "@/lib/leads";
 import { createClient } from "@/lib/supabase/server";
@@ -29,8 +30,13 @@ export type ReportTable = {
   rows: Record<string, string | number>[];
 };
 
+/** Un escalón del embudo. `value` es acumulado: cuántos LLEGARON hasta acá. */
+export type FunnelStep = { label: string; value: number; hint?: string };
+
 export type ReportData = {
   kpis: ReportKpi[];
+  /** Embudo: escalones que sólo pueden bajar. */
+  funnel?: { title: string; steps: FunnelStep[] };
   /** Serie temporal principal (barras/área). */
   series?: { title: string; unit?: string; points: SeriesPoint[] };
   /** Distribución (torta / barras horizontales). */
@@ -58,6 +64,13 @@ const money = (n: number) =>
     maximumFractionDigits: 0,
   }).format(n || 0);
 const pct = (n: number) => `${Math.round((n || 0) * 100)}%`;
+/** Como `pct`, pero no aplasta a "0%" una conversión chica y real: con 17
+ *  ventas sobre 4.123 leads, "0%" es directamente falso. */
+const pctFine = (n: number) => {
+  const v = (n || 0) * 100;
+  if (v > 0 && v < 1) return `${v.toFixed(1)}%`;
+  return `${Math.round(v)}%`;
+};
 const int = (n: number) => new Intl.NumberFormat("es-AR").format(n || 0);
 
 function isoBounds(f: ReportFilters) {
@@ -683,6 +696,303 @@ export async function loadCumpleanosReport(
   };
 }
 
+
+// ---------------------------------------------------------------------------
+// Embudo comercial
+//
+// Se arma con EVIDENCIA, no con el estado actual del lead. Si se contaran los
+// estados, un lead aprobado hoy no aparecería en "contactados" —nunca vuelve a
+// ese estado— y el embudo daría escalones que suben. Y los estados terminales
+// (no interesado, rechazado) perderían todo el recorrido que sí hicieron.
+//
+// Cada escalón cuenta a los que llegaron AL MENOS hasta ahí: se toma la unión
+// con todos los escalones posteriores, así el embudo sólo puede bajar.
+//
+// "Test drive" no es un estado del CRM: es una visita realizada, que es
+// exactamente lo que el test drive es en la concesionaria.
+// ---------------------------------------------------------------------------
+const REACHED: Record<LeadStatus, number> = {
+  new: 0,
+  contacted: 1,
+  interested: 2,
+  quoted: 3,
+  evaluating: 3,
+  accepted: 5,
+  // Terminales: no dicen hasta dónde llegó, lo dice la evidencia.
+  not_interested: 0,
+  rejected: 0,
+  closed: 0,
+};
+
+export async function loadEmbudoReport(
+  companyId: string,
+  f: ReportFilters,
+): Promise<ReportData> {
+  const supabase = await createClient();
+  const { fromIso, toIso } = isoBounds(f);
+
+  type L = {
+    id: string;
+    status: LeadStatus;
+    last_contacted_at: string | null;
+  };
+  const { rows: leads, capped } = await fetchPaged<L>((withCount) => {
+    let q = supabase
+      .from("leads")
+      .select("id, status, last_contacted_at", withCount ? { count: "exact" } : {})
+      .eq("company_id", companyId)
+      .is("archived_at", null)
+      .is("merged_into_id", null)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso);
+    if (f.branchId) q = q.eq("branch_id", f.branchId);
+    if (f.productTypeId) q = q.eq("product_type_id", f.productTypeId);
+    return q.order("created_at", { ascending: false });
+  });
+
+  const ids = leads.map((l) => l.id);
+  const idSet = new Set(ids);
+  const [visits, quotes, sales] = await Promise.all([
+    fetchPaged<{ lead_id: string }>((withCount) =>
+      supabase
+        .from("visits")
+        .select("lead_id", withCount ? { count: "exact" } : {})
+        .eq("company_id", companyId)
+        .eq("status", "completed")
+        .gte("scheduled_at", fromIso)
+        .order("scheduled_at", { ascending: false }),
+    ),
+    fetchPaged<{ lead_id: string }>((withCount) =>
+      supabase
+        .from("quotes")
+        .select("lead_id", withCount ? { count: "exact" } : {})
+        .eq("company_id", companyId)
+        .gte("created_at", fromIso)
+        .order("created_at", { ascending: false }),
+    ),
+    fetchPaged<{ lead_id: string }>((withCount) =>
+      supabase
+        .from("sales")
+        .select("lead_id", withCount ? { count: "exact" } : {})
+        .eq("company_id", companyId)
+        .eq("status", "accepted")
+        .gte("started_at", fromIso)
+        .order("started_at", { ascending: false }),
+    ),
+  ]);
+
+  const withVisit = new Set(
+    visits.rows.map((v) => v.lead_id).filter((id) => idSet.has(id)),
+  );
+  const withQuote = new Set(
+    quotes.rows.map((q) => q.lead_id).filter((id) => idSet.has(id)),
+  );
+  const withSale = new Set(
+    sales.rows.map((s) => s.lead_id).filter((id) => idSet.has(id)),
+  );
+
+  // Evidencia propia de cada escalón, antes de acumular.
+  const own: Set<string>[] = [
+    new Set(ids), // nuevos: todos
+    new Set(
+      leads
+        .filter((l) => l.last_contacted_at || REACHED[l.status] >= 1)
+        .map((l) => l.id),
+    ),
+    new Set(leads.filter((l) => REACHED[l.status] >= 2).map((l) => l.id)),
+    withVisit,
+    withQuote,
+    withSale,
+  ];
+  // Acumulado hacia atrás: quien llegó a presupuesto también fue contactado,
+  // aunque nadie haya marcado la nota.
+  for (let i = own.length - 2; i >= 0; i--) {
+    for (const id of own[i + 1]) own[i].add(id);
+  }
+
+  const LABELS = [
+    "Nuevos",
+    "Contactados",
+    "Interesados",
+    "Test drive",
+    "Presupuestados",
+    "Aprobados",
+  ];
+  const HINTS = [
+    "Entraron en el período",
+    "Con contacto registrado",
+    "Mostraron interés",
+    "Con visita realizada",
+    "Con presupuesto emitido",
+    "Venta aprobada",
+  ];
+  const steps: FunnelStep[] = LABELS.map((label, i) => ({
+    label,
+    value: own[i].size,
+    hint: HINTS[i],
+  }));
+
+  const total = steps[0].value;
+  const cerrados = steps[steps.length - 1].value;
+  // El escalón donde más se cae, que es la pregunta que trae el gerente.
+  let peorSalto = { desde: "", pct: 0 };
+  for (let i = 1; i < steps.length; i++) {
+    const prev = steps[i - 1].value;
+    if (prev === 0) continue;
+    const caida = 1 - steps[i].value / prev;
+    if (caida > peorSalto.pct) {
+      peorSalto = { desde: `${steps[i - 1].label} → ${steps[i].label}`, pct: caida };
+    }
+  }
+
+  return {
+    capped,
+    kpis: [
+      { label: "Leads del período", value: int(total) },
+      { label: "Test drives", value: int(steps[3].value) },
+      { label: "Ventas aprobadas", value: int(cerrados) },
+      {
+        label: "Conversión total",
+        value: total ? pctFine(cerrados / total) : "s/d",
+        hint: "De lead nuevo a venta aprobada",
+      },
+    ],
+    funnel: { title: "Embudo comercial", steps },
+    tables: [
+      {
+        title: "Dónde se cae el embudo",
+        columns: [
+          { key: "paso", label: "Paso" },
+          { key: "llegaron", label: "Llegaron", align: "right" },
+          { key: "del_total", label: "% del total", align: "right" },
+          { key: "caida", label: "Caída vs. paso anterior", align: "right" },
+        ],
+        rows: steps.map((s, i) => ({
+          paso: s.label,
+          llegaron: s.value,
+          del_total: total ? pctFine(s.value / total) : "—",
+          caida:
+            i === 0 || steps[i - 1].value === 0
+              ? "—"
+              : pct(1 - s.value / steps[i - 1].value),
+        })),
+      },
+    ],
+    breakdown: peorSalto.desde
+      ? {
+          title: `Mayor caída: ${peorSalto.desde}`,
+          points: steps.map((s) => ({ label: s.label, value: s.value })),
+        }
+      : undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Leads por provincia
+//
+// La provincia declarada es texto libre y en los datos reales hay 530 formas de
+// escribir 24 provincias, así que se normaliza (ver src/lib/province.ts). Lo
+// que no se puede reconocer cae al código de área del teléfono, y lo que
+// tampoco resuelve queda en "Sin identificar" — visible, no repartido.
+// ---------------------------------------------------------------------------
+export async function loadProvinciasReport(
+  companyId: string,
+  f: ReportFilters,
+): Promise<ReportData> {
+  const supabase = await createClient();
+  const { fromIso, toIso } = isoBounds(f);
+
+  type L = { province: string | null; phone_e164: string | null };
+  const { rows, capped } = await fetchPaged<L>((withCount) => {
+    let q = supabase
+      .from("leads")
+      .select("province, phone_e164", withCount ? { count: "exact" } : {})
+      .eq("company_id", companyId)
+      .is("archived_at", null)
+      .is("merged_into_id", null)
+      .gte("created_at", fromIso)
+      .lte("created_at", toIso);
+    if (f.branchId) q = q.eq("branch_id", f.branchId);
+    if (f.productTypeId) q = q.eq("product_type_id", f.productTypeId);
+    return q.order("created_at", { ascending: false });
+  });
+
+  const agg = new Map<string, { total: number; declared: number }>();
+  for (const r of rows) {
+    const { name, declared } = leadProvince(r);
+    const cur = agg.get(name) ?? { total: 0, declared: 0 };
+    cur.total++;
+    if (declared) cur.declared++;
+    agg.set(name, cur);
+  }
+
+  const total = rows.length;
+  const desconocidos = agg.get(UNKNOWN_PROVINCE)?.total ?? 0;
+  const conocidos = total - desconocidos;
+  const ordenadas = [...agg.entries()]
+    .filter(([name]) => name !== UNKNOWN_PROVINCE)
+    .sort((a, b) => b[1].total - a[1].total);
+  const declaradas = rows.length
+    ? [...agg.values()].reduce((a, v) => a + v.declared, 0)
+    : 0;
+
+  return {
+    capped,
+    kpis: [
+      { label: "Leads del período", value: int(total) },
+      { label: "Provincias distintas", value: int(ordenadas.length) },
+      {
+        label: "Provincia identificada",
+        value: total ? pct(conocidos / total) : "s/d",
+        hint: `${int(declaradas)} declarada(s), el resto por código de área`,
+        tone: total && conocidos / total < 0.5 ? "warning" : "default",
+      },
+      {
+        label: "Sin identificar",
+        value: int(desconocidos),
+        tone: desconocidos > 0 ? "warning" : "default",
+        hint: "Sin provincia cargada y sin teléfono argentino",
+      },
+    ],
+    breakdown: {
+      title: "Distribución por provincia",
+      points: ordenadas.slice(0, 8).map(([name, v]) => ({
+        label: name,
+        value: v.total,
+      })),
+    },
+    tables: [
+      {
+        title: "Leads por provincia",
+        columns: [
+          { key: "provincia", label: "Provincia" },
+          { key: "leads", label: "Leads", align: "right" },
+          { key: "share", label: "% del total", align: "right" },
+          { key: "declarada", label: "Declarada por el cliente", align: "right" },
+        ],
+        rows: [
+          ...ordenadas.map(([name, v]) => ({
+            provincia: name,
+            leads: v.total,
+            share: total ? pct(v.total / total) : "—",
+            declarada: `${v.declared} de ${v.total}`,
+          })),
+          ...(desconocidos
+            ? [
+                {
+                  provincia: UNKNOWN_PROVINCE,
+                  leads: desconocidos,
+                  share: pct(desconocidos / total),
+                  declarada: "—",
+                },
+              ]
+            : []),
+        ],
+      },
+    ],
+  };
+}
+
 export async function loadReport(
   id: string,
   companyId: string,
@@ -699,6 +1009,10 @@ export async function loadReport(
       return loadVendedoresReport(companyId, f);
     case "cumpleanos":
       return loadCumpleanosReport(companyId);
+    case "embudo":
+      return loadEmbudoReport(companyId, f);
+    case "provincias":
+      return loadProvinciasReport(companyId, f);
     default:
       return null;
   }

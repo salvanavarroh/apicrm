@@ -54,6 +54,26 @@ export const REPORTS: ReportDefinition[] = [
     roles: ["admin", "manager", "supervisor"],
   },
   {
+    id: "embudo",
+    title: "Embudo comercial",
+    description:
+      "De lead nuevo a venta aprobada, paso a paso, y en qué escalón se cae la mayor parte.",
+    icon: "Filter",
+    filters: ["range", "branch", "productType"],
+    defaultRange: 90,
+    roles: ["admin", "manager", "supervisor"],
+  },
+  {
+    id: "provincias",
+    title: "Leads por provincia",
+    description:
+      "De qué provincia viene cada lead. Usa la provincia declarada y, cuando falta, el código de área del teléfono.",
+    icon: "MapPin",
+    filters: ["range", "branch", "productType"],
+    defaultRange: 90,
+    roles: ["admin", "manager", "supervisor"],
+  },
+  {
     id: "trimestral",
     title: "Reporte trimestral",
     description:

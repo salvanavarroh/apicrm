@@ -420,6 +420,29 @@ export async function listAds(params: {
   return request<ListAdsResponse>("GET", `/ads?${q.toString()}`);
 }
 
+/**
+ * La creatividad de un anuncio: las URLs directas de imagen y video.
+ *
+ * Acepta el id de la plataforma, que es justo lo que guardamos en cada lead de
+ * Lead Ads (`metadata.adId`), así no hace falta ningún mapeo.
+ *
+ * Las URLs vienen FIRMADAS y son de vida corta: no se cachean ni se guardan en
+ * la base, se piden cuando el vendedor abre el anuncio.
+ */
+export type ZernioAdMedia = {
+  adId?: string;
+  platform?: string;
+  media?: { type: "image" | "video"; url: string; thumbnailUrl?: string }[];
+};
+export async function getAdMedia(adId: string): Promise<ZernioAdMedia> {
+  return request<ZernioAdMedia>("GET", `/ads/${encodeURIComponent(adId)}/media`);
+}
+
+export type ZernioAdDetail = { ad?: ZernioAd };
+export async function getAd(adId: string): Promise<ZernioAdDetail> {
+  return request<ZernioAdDetail>("GET", `/ads/${encodeURIComponent(adId)}`);
+}
+
 // --- Phone numbers (comprar número) ----------------------------------------
 export type PurchaseResult = {
   status?: string; // "kyc_required" | "active" | ...

@@ -9,6 +9,7 @@ import {
   FichaSection,
   LeadBusinessCard,
 } from "@/components/leads/ficha-blocks";
+import { LeadAdCreativeBlock } from "@/components/leads/lead-ad-creative";
 import { InterestsSection } from "@/components/leads/interests-section";
 import { EditContactDialog } from "@/components/leads/edit-contact-dialog";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
@@ -308,6 +309,12 @@ export default async function ManagerLeadDetailPage({
 
       {/* ---- EL NEGOCIO ---- */}
       <FichaSection icon={Car} title="El negocio">
+        {/* Sólo para leads que llegaron por un anuncio de Meta. Va plegado. */}
+        {(lead.metadata as { adId?: string } | null)?.adId && (
+          <div className="mb-4">
+            <LeadAdCreativeBlock leadId={lead.id} />
+          </div>
+        )}
         <LeadBusinessCard
           lead={{
             vehicle_model: lead.vehicle_model,

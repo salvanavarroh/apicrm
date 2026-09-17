@@ -7,6 +7,7 @@ import {
   FichaSection,
   LeadBusinessCard,
 } from "@/components/leads/ficha-blocks";
+import { LeadAdCreativeBlock } from "@/components/leads/lead-ad-creative";
 import { InterestsSection } from "@/components/leads/interests-section";
 import { EditContactDialog } from "@/components/leads/edit-contact-dialog";
 import { LeadIdentityHeader } from "@/components/leads/lead-identity-header";
@@ -286,6 +287,12 @@ export default async function AdminLeadDetailPage({
       {/* ---- EL NEGOCIO ---- */}
       <FichaSection icon={Car} title="El negocio">
         <div className="flex flex-col gap-4">
+          {/* Sólo para los leads que llegaron por un anuncio de Meta: el
+              vendedor puede ver la pieza que el cliente clickeó antes de
+              dejar sus datos. Va plegado. */}
+          {(lead.metadata as { adId?: string } | null)?.adId && (
+            <LeadAdCreativeBlock leadId={lead.id} />
+          )}
           <LeadBusinessCard
             lead={{
               vehicle_model: lead.vehicle_model,

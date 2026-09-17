@@ -1,6 +1,8 @@
 import {
   Cake,
   CalendarRange,
+  Filter,
+  MapPin,
   ShoppingBag,
   Timer,
   Trophy,
@@ -16,6 +18,8 @@ import { reportsForRole } from "@/lib/reports/registry";
 const ICONS: Record<string, LucideIcon> = {
   Cake,
   CalendarRange,
+  Filter,
+  MapPin,
   ShoppingBag,
   Timer,
   Trophy,

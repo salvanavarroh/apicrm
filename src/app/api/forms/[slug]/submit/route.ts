@@ -162,6 +162,7 @@ export async function POST(
       phone: cleanPhone,
       phone_e164: phoneE164,
       email: cleanEmail,
+      province: data.province || null,
       city: data.city || null,
       vehicle_model: data.vehicle_model || null,
       initial_notes: data.initial_notes || null,

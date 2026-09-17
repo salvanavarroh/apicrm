@@ -103,6 +103,7 @@ export const leadInputSchema = z
       .optional()
       .or(z.literal("")),
     phone: optionalString,
+    province: optionalString,
     city: optionalString,
     vehicle_brand: optionalString,
     vehicle_model: optionalString,
@@ -130,6 +131,7 @@ export const CSV_HEADERS = [
   "last_name",
   "email",
   "phone",
+  "province",
   "city",
   "vehicle_model",
   "vehicle_version",
@@ -149,6 +151,7 @@ export const CSV_HEADER_LABELS: Record<CsvHeader, string> = {
   last_name: "Apellido",
   email: "Email",
   phone: "Teléfono",
+  province: "Provincia",
   city: "Ciudad",
   vehicle_model: "Modelo",
   vehicle_version: "Versión",

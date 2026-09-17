@@ -179,6 +179,11 @@ export function PublicForm(props: PublicFormProps) {
           autoComplete="email"
         />
         <Field
+          name="province"
+          cfg={fields.province}
+          autoComplete="address-level1"
+        />
+        <Field
           name="city"
           cfg={fields.city}
           autoComplete="address-level2"

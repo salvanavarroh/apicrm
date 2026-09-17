@@ -75,6 +75,7 @@ const EMPTY: LeadInput = {
   last_name: "",
   email: "",
   phone: "",
+  province: "",
   city: "",
   vehicle_brand: "",
   vehicle_model: "",
@@ -408,6 +409,14 @@ export function LeadForm({
               aria-describedby={
                 shownErrors.email ? `${fieldId("email")}-err` : undefined
               }
+            />
+          </Field>
+          <Field id="province" label="Provincia">
+            <Input
+              id={fieldId("province")}
+              value={data.province ?? ""}
+              onChange={(e) => update("province", e.target.value)}
+              placeholder="Buenos Aires"
             />
           </Field>
           <Field id="city" label="Ciudad">

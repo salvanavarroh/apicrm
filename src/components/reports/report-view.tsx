@@ -64,6 +64,19 @@ export function ReportView({
       ),
       "Resumen",
     );
+    if (data.funnel) {
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(
+          data.funnel.steps.map((s) => ({
+            Paso: s.label,
+            Llegaron: s.value,
+            Detalle: s.hint ?? "",
+          })),
+        ),
+        "Embudo",
+      );
+    }
     if (data.series) {
       XLSX.utils.book_append_sheet(
         wb,
@@ -127,6 +140,53 @@ export function ReportView({
           <Kpi key={k.label} kpi={k} />
         ))}
       </div>
+
+      {/* Embudo */}
+      {data.funnel && data.funnel.steps.length > 0 && (
+        <Card className="gap-4 p-5">
+          <h3 className="text-sm font-semibold">{data.funnel.title}</h3>
+          <ol className="flex flex-col gap-2.5">
+            {data.funnel.steps.map((step, i) => {
+              const top = data.funnel!.steps[0].value || 1;
+              const prev = i > 0 ? data.funnel!.steps[i - 1].value : null;
+              // La barra se mide contra el primer escalón: así se ve de una la
+              // forma del embudo y no seis barras casi iguales.
+              const width = Math.max(2, (step.value / top) * 100);
+              const drop =
+                prev && prev > 0 ? 1 - step.value / prev : null;
+              return (
+                <li key={step.label} className="flex flex-col gap-1">
+                  <div className="flex items-baseline justify-between gap-3 text-sm">
+                    <span className="font-medium">{step.label}</span>
+                    <span className="flex items-baseline gap-2">
+                      <span className="font-mono font-bold tabular-nums">
+                        {new Intl.NumberFormat("es-AR").format(step.value)}
+                      </span>
+                      <span className="w-14 text-right text-xs tabular-nums text-muted-foreground">
+                        {Math.round((step.value / top) * 100)}%
+                      </span>
+                    </span>
+                  </div>
+                  <div className="h-7 w-full overflow-hidden rounded-md bg-muted">
+                    <div
+                      className="h-full rounded-md bg-accent/80"
+                      style={{ width: `${width}%` }}
+                    />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3 text-[11px] text-muted-foreground">
+                    <span>{step.hint}</span>
+                    {drop !== null && drop > 0 && (
+                      <span className={cn(drop >= 0.5 && "text-destructive")}>
+                        −{Math.round(drop * 100)}% vs. {data.funnel!.steps[i - 1].label}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </Card>
+      )}
 
       {/* Gráficos */}
       {(data.series || data.breakdown) && (
