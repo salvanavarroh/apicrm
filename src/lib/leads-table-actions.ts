@@ -71,7 +71,8 @@ export type LeadsTableScope = { archived?: boolean };
 export type LeadsTableFilters = {
   q?: string;
   status?: LeadStatus | "all";
-  temperature?: LeadTemperature | "all";
+  /** "none" = todavía sin calificar. */
+  temperature?: LeadTemperature | "all" | "none";
   createdFrom?: string;
   createdTo?: string;
   contactFrom?: string;
@@ -83,6 +84,8 @@ export type LeadsTableFilters = {
   form_id?: string; // metadata->>formId — leads de un formulario de Lead Ads
   /** Sólo leads activos sin gestión hace +STALE_DAYS días. */
   staleOnly?: boolean;
+  /** Sólo leads en un estado activo (lo que cuenta el KPI "Activos"). */
+  activeOnly?: boolean;
 };
 
 export type LeadsSummary = {
@@ -164,21 +167,36 @@ function scopeQuery(
 
 function applyFilters(query: Query, f: LeadsTableFilters): Query {
   let q = query;
+  // Búsqueda por PALABRA, no por la frase entera.
+  //
+  // Antes se buscaba el texto completo dentro de cada campo por separado:
+  // "ramon" encontraba a los Ramones, pero "ramon otazu" no encontraba nada,
+  // porque esa cadena no está ni en first_name ni en last_name — está partida
+  // entre los dos.
+  //
+  // Ahora cada palabra tiene que aparecer en ALGÚN campo, y todas las palabras
+  // tienen que estar. Cada `.or()` encadenado se combina con AND, así
+  // "ramon otazu" pide (algo matchea ramon) Y (algo matchea otazu). De yapa,
+  // "ramon quilmes" o "juan cronos" ahora también funcionan.
   const term = (f.q ?? "").replace(/[,()*]/g, " ").trim();
-  if (term) {
+  // Tope de 4: cada palabra es un OR de 6 ilike, y una frase larga pegada al
+  // buscador no tiene por qué convertirse en una consulta enorme.
+  const words = term.split(/\s+/).filter(Boolean).slice(0, 4);
+  for (const word of words) {
     q = q.or(
       [
-        `first_name.ilike.*${term}*`,
-        `last_name.ilike.*${term}*`,
-        `phone.ilike.*${term}*`,
-        `email.ilike.*${term}*`,
-        `city.ilike.*${term}*`,
-        `vehicle_model.ilike.*${term}*`,
+        `first_name.ilike.*${word}*`,
+        `last_name.ilike.*${word}*`,
+        `phone.ilike.*${word}*`,
+        `email.ilike.*${word}*`,
+        `city.ilike.*${word}*`,
+        `vehicle_model.ilike.*${word}*`,
       ].join(","),
     );
   }
   if (f.status && f.status !== "all") q = q.eq("status", f.status);
-  if (f.temperature && f.temperature !== "all")
+  if (f.temperature === "none") q = q.is("temperature", null);
+  else if (f.temperature && f.temperature !== "all")
     q = q.eq("temperature", f.temperature);
   if (f.branch_id) q = q.eq("branch_id", f.branch_id);
   if (f.product_type_id) q = q.eq("product_type_id", f.product_type_id);
@@ -193,6 +211,7 @@ function applyFilters(query: Query, f: LeadsTableFilters): Query {
   if (f.createdTo) q = q.lte("created_at", `${f.createdTo}T23:59:59`);
   if (f.contactFrom) q = q.gte("last_contacted_at", f.contactFrom);
   if (f.contactTo) q = q.lte("last_contacted_at", `${f.contactTo}T23:59:59`);
+  if (f.activeOnly) q = q.in("status", ACTIVE_STATUSES);
   if (f.staleOnly) {
     const cut = new Date(
       Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000,

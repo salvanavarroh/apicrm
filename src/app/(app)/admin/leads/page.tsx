@@ -14,15 +14,30 @@ import { getAssignableSalesUsers } from "@/lib/team";
 export default async function AdminLeadsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ archived?: string; form?: string; stale?: string }>;
+  searchParams: Promise<{
+    archived?: string;
+    form?: string;
+    stale?: string;
+    active?: string;
+    unassigned?: string;
+  }>;
 }) {
   const profile = await requireRole(["admin"]);
   const supabase = await createClient();
   const sp = await searchParams;
   const archived = sp.archived === "1";
   const formId = sp.form?.trim() || undefined;
-  // `?stale=1` llega del contador del encabezado: entra a la tabla ya filtrada.
+  // Los contadores del encabezado entran a la tabla ya filtrada. Un número que
+  // no lleva a ningún lado deja al admin sin saber a quiénes se refiere.
   const staleOnly = sp.stale === "1";
+  const activeOnly = sp.active === "1";
+  const unassignedOnly = sp.unassigned === "1";
+  const preset = {
+    ...(staleOnly ? { staleOnly: true } : {}),
+    ...(activeOnly ? { activeOnly: true } : {}),
+    ...(unassignedOnly ? { assigned_user_id: "unassigned" } : {}),
+  };
+  const hasPreset = Object.keys(preset).length > 0;
 
   // Si venís de Lead Ads con ?form=, filtramos por ese formulario y mostramos su
   // nombre en el aviso.
@@ -51,7 +66,7 @@ export default async function AdminLeadsPage({
       .or("branch_id.is.null,product_type_id.is.null"),
     fetchLeadsTable(
       { archived },
-      { form_id: formId, ...(staleOnly ? { staleOnly: true } : {}) },
+      { form_id: formId, ...preset },
       1,
     ),
     // Los contadores del banner respetan el filtro por formulario, si vino.
@@ -82,11 +97,16 @@ export default async function AdminLeadsPage({
                 {
                   label: "Activos",
                   value: summary.active,
+                  href: summary.active > 0 ? "/admin/leads?active=1" : undefined,
                   hint: `${summary.total.toLocaleString("es-AR")} en total`,
                 },
                 {
                   label: "Sin asignar",
                   value: summary.unassigned,
+                  href:
+                    summary.unassigned > 0
+                      ? "/admin/leads?unassigned=1"
+                      : undefined,
                   tone: summary.unassigned > 0 ? "warning" : "default",
                   hint: "Esperando vendedor",
                 },
@@ -138,7 +158,7 @@ export default async function AdminLeadsPage({
         detailHrefPrefix="/admin/leads"
         initialRows={initial.rows}
         initialTotal={initial.total}
-        initialFilters={staleOnly ? { staleOnly: true } : undefined}
+        initialFilters={hasPreset ? preset : undefined}
         assignableUsers={assignableUsers}
         canExport
         branchOptions={filterOptions.branches}

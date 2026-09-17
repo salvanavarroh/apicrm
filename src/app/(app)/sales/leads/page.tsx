@@ -23,7 +23,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const STATUSES = Object.keys(LEAD_STATUS_LABELS) as LeadStatus[];
 
-type Search = { tab?: string; stale?: string };
+type Search = { tab?: string; stale?: string; active?: string; temp?: string };
 
 export default async function SalesLeadsPage({
   searchParams,
@@ -32,12 +32,15 @@ export default async function SalesLeadsPage({
 }) {
   const profile = await requireRole(["sales"]);
   const supabase = await createClient();
-  const { tab, stale } = await searchParams;
-  // `?stale=1` llega del contador "Sin gestión +7d" del encabezado: abre la
-  // tabla ya filtrada. Antes el número te decía que tenías 3 atrasados y no
-  // había ningún lugar donde verlos.
+  const { tab, stale, active, temp } = await searchParams;
+  // Los contadores del encabezado abren la tabla ya filtrada. Un número que te
+  // dice que tenés 29 atrasados y no te lleva a ellos es una pregunta sin
+  // respuesta: antes sólo "Sin gestión" llevaba a algún lado.
   const staleOnly = stale === "1";
-  const activeTab = staleOnly || tab === "table" ? "table" : "kanban";
+  const activeOnly = active === "1";
+  const noTemperature = temp === "none";
+  const filtered = staleOnly || activeOnly || noTemperature;
+  const activeTab = filtered || tab === "table" ? "table" : "kanban";
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,7 +70,12 @@ export default async function SalesLeadsPage({
         {activeTab === "kanban" ? (
           <SalesKanban supabase={supabase} />
         ) : (
-          <SalesTable companyId={profile.company_id!} staleOnly={staleOnly} />
+          <SalesTable
+            companyId={profile.company_id!}
+            staleOnly={staleOnly}
+            activeOnly={activeOnly}
+            noTemperature={noTemperature}
+          />
         )}
       </Suspense>
     </div>
@@ -89,6 +97,7 @@ async function SalesLeadsHeader({ firstName }: { firstName: string | null }) {
         {
           label: "Activos",
           value: summary.active,
+          href: summary.active > 0 ? "/sales/leads?active=1" : undefined,
           hint: `${summary.total.toLocaleString("es-AR")} asignados en total`,
         },
         {
@@ -102,6 +111,8 @@ async function SalesLeadsHeader({ firstName }: { firstName: string | null }) {
           label: "Sin temperatura",
           value: summary.noTemperature,
           tone: summary.noTemperature > 0 ? "warning" : "default",
+          href:
+            summary.noTemperature > 0 ? "/sales/leads?temp=none" : undefined,
           hint: "Calificalos para priorizar",
         },
       ]}
@@ -119,15 +130,25 @@ async function SalesLeadsHeader({ firstName }: { firstName: string | null }) {
 async function SalesTable({
   companyId,
   staleOnly,
+  activeOnly,
+  noTemperature,
 }: {
   companyId: string;
   staleOnly?: boolean;
+  activeOnly?: boolean;
+  noTemperature?: boolean;
 }) {
   const supabase = await createClient();
+  const preset = {
+    ...(staleOnly ? { staleOnly: true } : {}),
+    ...(activeOnly ? { activeOnly: true } : {}),
+    ...(noTemperature ? { temperature: "none" as const } : {}),
+  };
+  const hasPreset = Object.keys(preset).length > 0;
   // El SSR tiene que traer la primera página CON el filtro: el cliente sólo
   // vuelve a pedir cuando el usuario interactúa.
   const [initial, options] = await Promise.all([
-    fetchLeadsTable({}, staleOnly ? { staleOnly: true } : {}, 1),
+    fetchLeadsTable({}, preset, 1),
     loadLeadFilterOptions(supabase, companyId),
   ]);
   return (
@@ -136,7 +157,7 @@ async function SalesTable({
       detailHrefPrefix="/sales/leads"
       initialRows={initial.rows}
       initialTotal={initial.total}
-      initialFilters={staleOnly ? { staleOnly: true } : undefined}
+      initialFilters={hasPreset ? preset : undefined}
       showAssignee={false}
       branchOptions={options.branches}
       productTypeOptions={options.productTypes}

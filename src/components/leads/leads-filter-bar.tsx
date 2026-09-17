@@ -47,7 +47,8 @@ import { cn } from "@/lib/utils";
 export type LeadsFilterState = {
   q: string;
   status: LeadStatus | "all";
-  temperature: LeadTemperature | "all";
+  /** "none" = todavía sin calificar. */
+  temperature: LeadTemperature | "all" | "none";
   createdFrom: string;
   createdTo: string;
   contactFrom: string;
@@ -58,6 +59,8 @@ export type LeadsFilterState = {
   campaignId: string;
   /** Sólo leads activos sin gestión hace +7 días. */
   staleOnly: boolean;
+  /** Sólo leads en un estado activo. */
+  activeOnly: boolean;
 };
 
 export const EMPTY_FILTERS: LeadsFilterState = {
@@ -73,6 +76,7 @@ export const EMPTY_FILTERS: LeadsFilterState = {
   vendorId: "all",
   campaignId: "all",
   staleOnly: false,
+  activeOnly: false,
 };
 
 // Estados que se muestran como chips, en orden de pipeline.
@@ -396,7 +400,11 @@ export function LeadsFilterBar({
               )}
               {value.temperature !== "all" && (
                 <ActiveChip
-                  label={LEAD_TEMPERATURE_LABELS[value.temperature]}
+                  label={
+                    value.temperature === "none"
+                      ? "Sin temperatura"
+                      : LEAD_TEMPERATURE_LABELS[value.temperature]
+                  }
                   onRemove={() => onChange({ temperature: "all" })}
                 />
               )}
@@ -404,6 +412,12 @@ export function LeadsFilterBar({
                 <ActiveChip
                   label="Sin gestión +7d"
                   onRemove={() => onChange({ staleOnly: false })}
+                />
+              )}
+              {value.activeOnly && (
+                <ActiveChip
+                  label="Activos"
+                  onRemove={() => onChange({ activeOnly: false })}
                 />
               )}
               {value.branchId !== "all" && (

@@ -57,19 +57,26 @@ export const buscarLead: Tool = {
     // `%` y `,` rompen el filtro `.or()` de PostgREST: se escapan antes.
     const safe = term.replace(/[%,()]/g, " ").trim();
 
-    const { data, error } = await supabase
+    // Mismo criterio que el buscador de la tabla: cada palabra tiene que
+    // aparecer en algún campo. Buscando la frase entera dentro de cada campo,
+    // "ramon otazu" no encontraba nada porque el nombre está partido en dos
+    // columnas.
+    let query = supabase
       .from("leads")
       .select(
         "id, first_name, last_name, phone, email, status, vehicle_brand, vehicle_model, last_contacted_at, assigned_user_id",
-      )
-      .or(
+      );
+    for (const word of safe.split(/\s+/).filter(Boolean).slice(0, 4)) {
+      query = query.or(
         [
-          `first_name.ilike.%${safe}%`,
-          `last_name.ilike.%${safe}%`,
-          `phone.ilike.%${safe}%`,
-          `email.ilike.%${safe}%`,
+          `first_name.ilike.%${word}%`,
+          `last_name.ilike.%${word}%`,
+          `phone.ilike.%${word}%`,
+          `email.ilike.%${word}%`,
         ].join(","),
-      )
+      );
+    }
+    const { data, error } = await query
       .is("archived_at", null)
       .order("created_at", { ascending: false })
       .limit(5);

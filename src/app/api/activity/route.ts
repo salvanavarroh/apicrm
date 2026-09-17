@@ -31,5 +31,22 @@ export async function POST(request: Request) {
   }
 
   await supabase.rpc("track_user_activity", { p_section: section });
+
+  // El mismo latido mantiene viva la presencia del inbox.
+  //
+  // Antes el heartbeat de presencia vivía SÓLO en el toggle, y el toggle sólo
+  // se monta en el inicio del vendedor y en el Inbox. Un vendedor que se
+  // quedaba trabajando en Leads, en su agenda o en una ficha dejaba de latir y
+  // a los 15 minutos el round-robin lo daba por ausente, sin que él hiciera
+  // nada ni se enterara. Ahora cualquier pantalla del CRM lo sostiene.
+  //
+  // Sólo refresca la marca de tiempo: nunca PRENDE la presencia. Activarse
+  // sigue siendo un acto explícito del vendedor.
+  await supabase
+    .from("profiles")
+    .update({ inbox_available_at: new Date().toISOString() })
+    .eq("id", user.id)
+    .eq("inbox_available", true);
+
   return new Response(null, { status: 204 });
 }

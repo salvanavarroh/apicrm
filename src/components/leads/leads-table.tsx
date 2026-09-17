@@ -256,6 +256,7 @@ export function LeadsTable({
     campaign_id: f.campaignId === "all" ? undefined : f.campaignId,
     assigned_user_id: f.vendorId === "all" ? undefined : f.vendorId,
     staleOnly: f.staleOnly || undefined,
+    activeOnly: f.activeOnly || undefined,
     form_id: formFilter?.id,
   };
   const filterKey = JSON.stringify(filters);
