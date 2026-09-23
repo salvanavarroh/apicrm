@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -34,6 +34,13 @@ export type Database = {
           weight?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "assignment_rule_members_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "assignment_rule_members_rule_id_fkey"
             columns: ["rule_id"]
@@ -1530,6 +1537,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "lead_ad_forms_assignment_rule_id_fkey"
+            columns: ["assignment_rule_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_rules"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "lead_ad_forms_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
@@ -1684,6 +1698,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lead_capture_forms_assignment_rule_id_fkey"
+            columns: ["assignment_rule_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_rules"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lead_capture_forms_branch_id_fkey"
             columns: ["branch_id"]
@@ -2646,6 +2667,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "messaging_channels_assignment_rule_id_fkey"
+            columns: ["assignment_rule_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_rules"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "messaging_channels_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
@@ -3409,6 +3437,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "sheet_sources_assignment_rule_id_fkey"
+            columns: ["assignment_rule_id"]
+            isOneToOne: false
+            referencedRelation: "assignment_rules"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sheet_sources_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
@@ -4066,10 +4101,6 @@ export type Database = {
           user_id: string
         }[]
       }
-      assign_conversation_to_active_vendor: {
-        Args: { p_conversation_id: string }
-        Returns: string
-      }
       activity_by_day: {
         Args: {
           p_from: string
@@ -4090,12 +4121,7 @@ export type Database = {
         }[]
       }
       activity_user_days: {
-        Args: {
-          p_from: string
-          p_to: string
-          p_tz?: string
-          p_user_id: string
-        }
+        Args: { p_from: string; p_to: string; p_tz?: string; p_user_id: string }
         Returns: {
           day: string
           first_at: string
@@ -4104,12 +4130,7 @@ export type Database = {
         }[]
       }
       activity_user_hours: {
-        Args: {
-          p_from: string
-          p_to: string
-          p_tz?: string
-          p_user_id: string
-        }
+        Args: { p_from: string; p_to: string; p_tz?: string; p_user_id: string }
         Returns: {
           hour_of_day: number
           minutes: number
@@ -4134,6 +4155,10 @@ export type Database = {
         Args: { p_conversation_id: string; p_rule_id?: string }
         Returns: string
       }
+      assign_conversation_to_active_vendor: {
+        Args: { p_conversation_id: string }
+        Returns: string
+      }
       assign_lead: {
         Args: { p_lead_id: string; p_rule_id?: string }
         Returns: string
@@ -4154,10 +4179,6 @@ export type Database = {
         }[]
       }
       auto_assign_lead: { Args: { p_lead_id: string }; Returns: string }
-      effective_assignment_rule: {
-        Args: { p_company_id: string; p_rule_id: string }
-        Returns: string
-      }
       bulk_assign_leads: { Args: { p_lead_ids: string[] }; Returns: number }
       bump_assistant_cache_hit: { Args: { p_id: string }; Returns: undefined }
       bump_assistant_gap_hit: { Args: { p_id: string }; Returns: undefined }
@@ -4176,6 +4197,10 @@ export type Database = {
           lead_ids: string[]
           phone_e164: string
         }[]
+      }
+      effective_assignment_rule: {
+        Args: { p_company_id: string; p_rule_id: string }
+        Returns: string
       }
       guide_brands: { Args: never; Returns: string[] }
       guide_latest_as_of: { Args: never; Returns: string }
@@ -4265,7 +4290,6 @@ export type Database = {
       }
       my_group_company_ids: { Args: never; Returns: string[] }
       pick_campaign_branch: { Args: { p_campaign_id: string }; Returns: string }
-      track_user_activity: { Args: { p_section?: string }; Returns: undefined }
       rls_audit: {
         Args: never
         Returns: {
@@ -4278,6 +4302,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      track_user_activity: { Args: { p_section?: string }; Returns: undefined }
     }
     Enums: {
       assistant_gap_status: "abierto" | "respondido" | "descartado"
@@ -4399,12 +4424,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4428,11 +4453,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4453,11 +4478,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4478,11 +4503,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -4495,11 +4520,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
