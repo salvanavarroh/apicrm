@@ -78,6 +78,12 @@ export const ADMIN_NAV: NavSection[] = [
       { href: "/admin/leads", label: "Leads", icon: "Inbox", hint: "Todos los leads de la concesionaria" },
       { href: "/admin/tasks-visits", label: "Tareas y Visitas", icon: "CalendarCheck", hint: "Agenda del equipo" },
       { href: "/admin/sales", label: "Ventas", icon: "ShoppingBag", hint: "Cola de validación y historial" },
+      {
+        href: "/admin/motorbox",
+        label: "Motorbox",
+        icon: "Store",
+        hint: "Publicá tus autos en el marketplace; los contactos entran como leads acá",
+      },
     ],
   },
   {

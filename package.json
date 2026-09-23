@@ -29,7 +29,8 @@
     "seed:company": "tsx scripts/seed-company-setup.ts",
     "sync:acara": "tsx scripts/sync-acara-prices.ts",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public --workdir . 2>/dev/null | grep -vE '^(Using workdir|A new version|We recommend)' > src/types/database.ts",
-    "test:assignment": "tsx scripts/test-assignment.ts"
+    "test:assignment": "tsx scripts/test-assignment.ts",
+    "test:motorbox": "tsx scripts/test-motorbox.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -45,6 +46,7 @@
     "@tanstack/react-query-devtools": "^5.100.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "jose": "^6.2.12",
     "libphonenumber-js": "^1.13.9",
     "lucide-react": "^1.14.0",
     "next": "16.2.6",

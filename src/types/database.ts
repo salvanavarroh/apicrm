@@ -1007,6 +1007,8 @@ export type Database = {
           legal_name: string | null
           logo_url: string | null
           monthly_price: number | null
+          motorbox_dealer_id: string | null
+          motorbox_enabled_at: string | null
           name: string
           phone: string | null
           plan: Database["public"]["Enums"]["company_plan"] | null
@@ -1034,6 +1036,8 @@ export type Database = {
           legal_name?: string | null
           logo_url?: string | null
           monthly_price?: number | null
+          motorbox_dealer_id?: string | null
+          motorbox_enabled_at?: string | null
           name: string
           phone?: string | null
           plan?: Database["public"]["Enums"]["company_plan"] | null
@@ -1061,6 +1065,8 @@ export type Database = {
           legal_name?: string | null
           logo_url?: string | null
           monthly_price?: number | null
+          motorbox_dealer_id?: string | null
+          motorbox_enabled_at?: string | null
           name?: string
           phone?: string | null
           plan?: Database["public"]["Enums"]["company_plan"] | null
@@ -2581,6 +2587,7 @@ export type Database = {
           messaging_limit_tier: string | null
           metadata: Json
           name_status: string | null
+          phone_e164: string | null
           photo_url: string | null
           platform: Database["public"]["Enums"]["channel_platform"]
           product_type_id: string | null
@@ -2604,6 +2611,7 @@ export type Database = {
           messaging_limit_tier?: string | null
           metadata?: Json
           name_status?: string | null
+          phone_e164?: string | null
           photo_url?: string | null
           platform: Database["public"]["Enums"]["channel_platform"]
           product_type_id?: string | null
@@ -2627,6 +2635,7 @@ export type Database = {
           messaging_limit_tier?: string | null
           metadata?: Json
           name_status?: string | null
+          phone_e164?: string | null
           photo_url?: string | null
           platform?: Database["public"]["Enums"]["channel_platform"]
           product_type_id?: string | null
@@ -2669,6 +2678,47 @@ export type Database = {
             columns: ["product_type_id"]
             isOneToOne: false
             referencedRelation: "product_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      motorbox_events: {
+        Row: {
+          channel: string | null
+          company_id: string
+          created_at: string
+          event_id: string
+          id: string
+          listing_code: string | null
+          occurred_at: string
+          type: string
+        }
+        Insert: {
+          channel?: string | null
+          company_id: string
+          created_at?: string
+          event_id: string
+          id?: string
+          listing_code?: string | null
+          occurred_at: string
+          type: string
+        }
+        Update: {
+          channel?: string | null
+          company_id?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          listing_code?: string | null
+          occurred_at?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "motorbox_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]

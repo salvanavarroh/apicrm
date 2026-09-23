@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentProfile } from "@/lib/auth";
+import { normalizeChannelPhone } from "@/lib/motorbox/channel-phone";
 import { syncCompanyChannels } from "@/lib/messaging/sync-channels";
 import { getNumberInfo, type ZernioPlatform } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -66,12 +67,25 @@ export async function GET(req: Request) {
   if (platform === "whatsapp" && accountId) {
     try {
       const info = await getNumberInfo(accountId);
+      // El teléfono va a su propia columna además del blob de salud: es el dato
+      // con el que Motorbox arma el link de WhatsApp de cada publicación, y
+      // enterrado en el jsonb sólo existía si alguien corría el health check.
+      const { data: chCompany } = await admin
+        .from("messaging_channels")
+        .select("companies(country)")
+        .eq("zernio_account_id", accountId)
+        .maybeSingle();
+      const phoneE164 = normalizeChannelPhone(
+        info.display_phone_number ?? null,
+        (chCompany?.companies as { country: string | null } | null)?.country ?? null,
+      );
       await admin
         .from("messaging_channels")
         .update({
           quality_rating: info.quality_rating ?? null,
           messaging_limit_tier: info.messaging_limit_tier ?? null,
           name_status: info.name_status ?? null,
+          phone_e164: phoneE164,
           health_checked_at: new Date().toISOString(),
           metadata: {
             health: {

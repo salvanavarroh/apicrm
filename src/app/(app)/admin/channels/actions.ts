@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { requireRole } from "@/lib/auth";
 import { publicEnv } from "@/lib/env";
+import { companyCountry } from "@/lib/lead-reentry";
+import { normalizeChannelPhone } from "@/lib/motorbox/channel-phone";
 import {
   createProfile,
   deleteAccount,
@@ -221,12 +223,18 @@ export async function refreshChannelHealth(channelId: string): Promise<Result> {
   if (channel.platform !== "whatsapp") return { ok: true };
   try {
     const info = await getNumberInfo(channel.zernio_account_id);
+    // Ver la nota del callback: el teléfono también va a su columna.
+    const phoneE164 = normalizeChannelPhone(
+      info.display_phone_number ?? null,
+      await companyCountry(admin, channel.company_id),
+    );
     await admin
       .from("messaging_channels")
       .update({
         quality_rating: info.quality_rating ?? null,
         messaging_limit_tier: info.messaging_limit_tier ?? null,
         name_status: info.name_status ?? null,
+        phone_e164: phoneE164,
         health_checked_at: new Date().toISOString(),
         metadata: {
           health: {

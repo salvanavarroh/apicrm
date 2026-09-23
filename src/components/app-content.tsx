@@ -3,8 +3,8 @@
 import { usePathname } from "next/navigation";
 
 // Decide el contenedor según la ruta ACTUAL (en cliente, para que se actualice
-// al navegar — el layout server persiste entre navegaciones). El inbox usa todo
-// el ancho/alto; el resto va centrado en max-w-7xl.
+// al navegar — el layout server persiste entre navegaciones). El inbox y el
+// iframe de Motorbox usan todo el ancho/alto; el resto va centrado en max-w-7xl.
 export function AppContent({
   banner,
   children,
@@ -13,7 +13,8 @@ export function AppContent({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const fullBleed = pathname.includes("/inbox");
+  const fullBleed =
+    pathname.includes("/inbox") || pathname.includes("/motorbox");
 
   if (fullBleed) {
     return (

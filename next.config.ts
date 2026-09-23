@@ -14,6 +14,17 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
   },
+  async rewrites() {
+    return [
+      // JWKS del ticket SSO de Motorbox. Va por rewrite y no por un directorio
+      // literal `.well-known` en src/app, que no es confiable entre versiones
+      // de Next. Ver docs/motorbox-spec-api.md §3.3.
+      {
+        source: "/.well-known/jwks.json",
+        destination: "/api/motorbox/jwks",
+      },
+    ];
+  },
   images: {
     remotePatterns: supabaseHost
       ? [

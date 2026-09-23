@@ -12,18 +12,35 @@ const serverSchema = z.object({
   // Mensajería omnicanal (Zernio). Opcionales hasta activar las fases de WhatsApp/Lead Ads.
   ZERNIO_API_KEY: z.string().optional(),
   ZERNIO_WEBHOOK_SECRET: z.string().optional(),
+  // Motorbox. Todas opcionales: sin ellas la integración se apaga sola (ver
+  // `motorboxReady()` en src/lib/motorbox/config.ts) en vez de romper el build.
+  MOTORBOX_JWT_PRIVATE_KEY_B64: z.string().optional(),
+  MOTORBOX_JWT_PUBLIC_KEY_B64: z.string().optional(),
+  MOTORBOX_JWT_KID: z.string().optional(),
+  MOTORBOX_PARTNER_KEY: z.string().optional(),
+  MOTORBOX_WEBHOOK_SECRET: z.string().optional(),
+  API_CRM_PARTNER_KEY: z.string().optional(),
+  API_CRM_WEBHOOK_SECRET: z.string().optional(),
+  MOTORBOX_PUBLIC_ORIGIN: z.string().url().optional(),
+  MOTORBOX_LEAD_INGEST_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 });
 
 const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_MOTORBOX_EMBED_ORIGIN: z.string().url().optional(),
 });
 
 const clientEnv = {
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  NEXT_PUBLIC_MOTORBOX_EMBED_ORIGIN:
+    process.env.NEXT_PUBLIC_MOTORBOX_EMBED_ORIGIN,
 };
 
 /**
@@ -66,6 +83,15 @@ export function getServerEnv() {
     CRON_SECRET: process.env.CRON_SECRET,
     ZERNIO_API_KEY: process.env.ZERNIO_API_KEY,
     ZERNIO_WEBHOOK_SECRET: process.env.ZERNIO_WEBHOOK_SECRET,
+    MOTORBOX_JWT_PRIVATE_KEY_B64: process.env.MOTORBOX_JWT_PRIVATE_KEY_B64,
+    MOTORBOX_JWT_PUBLIC_KEY_B64: process.env.MOTORBOX_JWT_PUBLIC_KEY_B64,
+    MOTORBOX_JWT_KID: process.env.MOTORBOX_JWT_KID,
+    MOTORBOX_PARTNER_KEY: process.env.MOTORBOX_PARTNER_KEY,
+    MOTORBOX_WEBHOOK_SECRET: process.env.MOTORBOX_WEBHOOK_SECRET,
+    API_CRM_PARTNER_KEY: process.env.API_CRM_PARTNER_KEY,
+    API_CRM_WEBHOOK_SECRET: process.env.API_CRM_WEBHOOK_SECRET,
+    MOTORBOX_PUBLIC_ORIGIN: process.env.MOTORBOX_PUBLIC_ORIGIN,
+    MOTORBOX_LEAD_INGEST_ENABLED: process.env.MOTORBOX_LEAD_INGEST_ENABLED,
   });
   if (!parsed.success) explicar("servidor", parsed.error.issues);
   return parsed.data;

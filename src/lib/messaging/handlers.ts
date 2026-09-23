@@ -3,6 +3,13 @@
 // Idempotentes y defensivos ante variaciones de shape. Ver §6.2/§6.6 arquitectura.
 // ============================================================================
 
+import {
+  leadFieldsFor,
+  recordMotorboxTouch,
+  resolveMotorboxMatch,
+  type MotorboxMatch,
+} from "@/lib/motorbox/attribution";
+import { extractMotorboxCode } from "@/lib/motorbox/tracking";
 import { normalizeWaId, toE164 } from "@/lib/phone";
 import { notify } from "@/lib/notifications";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -98,7 +105,12 @@ async function resolveOrCreateLead(
   channel: ChannelRow,
   p: Participant,
   adId?: string | null,
-): Promise<{ leadId: string; assignedUserId: string | null } | null> {
+  motorbox?: MotorboxMatch | null,
+): Promise<{
+  leadId: string;
+  assignedUserId: string | null;
+  isNew: boolean;
+} | null> {
   const isWa = channel.platform === "whatsapp";
 
   // 1) Match a lead existente. WhatsApp → por phone_e164 (colapsa formatos
@@ -116,7 +128,11 @@ async function resolveOrCreateLead(
       .limit(1)
       .maybeSingle();
     if (existing) {
-      return { leadId: existing.id, assignedUserId: existing.assigned_user_id };
+      return {
+        leadId: existing.id,
+        assignedUserId: existing.assigned_user_id,
+        isNew: false,
+      };
     }
   } else if (!isWa && p.socialId) {
     const { data: existing } = await admin
@@ -130,7 +146,11 @@ async function resolveOrCreateLead(
       .limit(1)
       .maybeSingle();
     if (existing) {
-      return { leadId: existing.id, assignedUserId: existing.assigned_user_id };
+      return {
+        leadId: existing.id,
+        assignedUserId: existing.assigned_user_id,
+        isNew: false,
+      };
     }
   }
 
@@ -139,6 +159,7 @@ async function resolveOrCreateLead(
   //    el real o, en su defecto, el @usuario. WhatsApp guarda el teléfono.
   const displayName = p.name ?? p.handle;
   const [first, ...rest] = (displayName ?? "").trim().split(/\s+/);
+  const mbFields = motorbox ? leadFieldsFor(motorbox) : null;
   const { data: lead, error } = await admin
     .from("leads")
     .insert({
@@ -148,10 +169,12 @@ async function resolveOrCreateLead(
       phone: isWa ? p.phone : null,
       phone_e164: isWa ? p.phone_e164 : null,
       external_id: isWa ? null : p.socialId,
-      source: PLATFORM_SOURCE[channel.platform] ?? channel.platform,
+      // Con marcador de Motorbox el origen es Motorbox, no "WhatsApp": si no,
+      // la integración es invisible en los reportes de la concesionaria.
+      source: mbFields?.source ?? PLATFORM_SOURCE[channel.platform] ?? channel.platform,
       branch_id: channel.branch_id,
       product_type_id: channel.product_type_id,
-      campaign_id: channel.campaign_id,
+      campaign_id: mbFields?.campaign_id ?? channel.campaign_id,
       status: "new",
       metadata: (() => {
         const md: Record<string, unknown> = {};
@@ -160,6 +183,7 @@ async function resolveOrCreateLead(
         // adId = atribución del anuncio → el dashboard de Ads cruza Ventas/ROAS
         // real por `metadata.adId` == platformAdId.
         if (adId) md.adId = adId;
+        if (mbFields) Object.assign(md, mbFields.metadata);
         return md;
       })() as never,
     })
@@ -170,7 +194,7 @@ async function resolveOrCreateLead(
     console.error("[inbound] no se pudo crear el lead:", error?.message);
     return null;
   }
-  return { leadId: lead.id, assignedUserId: lead.assigned_user_id };
+  return { leadId: lead.id, assignedUserId: lead.assigned_user_id, isNew: true };
 }
 
 // --- Inbox: message.received / conversation.started -------------------------
@@ -208,6 +232,33 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
       str(sender.contactId) ??
       str(conversation.contactId) ??
       str(conversation.participantId));
+
+  // ---------------------------------------------------------------------
+  // Atribución de Motorbox.
+  //
+  // El referral de click-to-WhatsApp NO lo reenvía Zernio (ver el comentario
+  // más abajo, donde se calcula `attribution`). Por eso Motorbox prellena el
+  // mensaje con un marcador [MB:xxxx] al final y lo leemos acá: es lo único
+  // que hace que la integración se vea en los reportes de la concesionaria.
+  //
+  // Miramos el texto Y los captions de los adjuntos: mucha gente manda la foto
+  // del aviso en vez del link.
+  // ---------------------------------------------------------------------
+  const messageText =
+    typeof message.text === "string"
+      ? (message.text as string)
+      : str((message.text as Json)?.body);
+  const attachmentCaptions = Array.isArray(message.attachments)
+    ? (message.attachments as Json[]).map((a) => str(a?.caption))
+    : [];
+  const motorboxCode = isWa
+    ? extractMotorboxCode(messageText, ...attachmentCaptions)
+    : null;
+  // Si no pertenece a esta empresa, `resolveMotorboxMatch` devuelve null y el
+  // mensaje sigue su curso como un WhatsApp cualquiera.
+  const motorboxMatch = motorboxCode
+    ? await resolveMotorboxMatch(admin, motorboxCode, channel.company_id)
+    : null;
 
   // Conversación existente? (traemos el nombre para no re-pedirlo a Zernio).
   const { data: existingConv } = await admin
@@ -273,6 +324,9 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
   let conversationId: string;
   let assignedUserId: string | null;
   let leadId: string | null;
+  // Un lead preexistente conserva su `source` y su campaña: pisarlos arruinaría
+  // los reportes de origen de una persona que ya era lead de otro canal.
+  let isNewLead = false;
 
   if (existingConv) {
     conversationId = existingConv.id;
@@ -313,9 +367,16 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     // para grabar el adId en su metadata → habilita Ventas/ROAS real por anuncio.
     const attribution = extractAttribution(message);
     const adId = str((attribution as { ad_id?: unknown }).ad_id);
-    const resolved = await resolveOrCreateLead(admin, channel, participant, adId);
+    const resolved = await resolveOrCreateLead(
+      admin,
+      channel,
+      participant,
+      adId,
+      motorboxMatch,
+    );
     if (!resolved) return; // sin identificador (teléfono/email/social) no se crea
     leadId = resolved.leadId;
+    isNewLead = resolved.isNew;
     assignedUserId = resolved.assignedUserId; // sticky-seller: si el lead ya tiene dueño, la conv va a él
     // ...pero el sticky-seller SOLO vale si el dueño es un VENDEDOR (sales). Si el
     // lead lo tiene un admin/manager/supervisor (que no atienden conversaciones),
@@ -379,11 +440,24 @@ export async function handleInboundMessage(payload: Json): Promise<void> {
     }
   }
 
+  // Motorbox: registramos el auto consultado en el lead (nuevo o existente).
+  // Va después de resolver el lead y antes de insertar el mensaje, para que la
+  // nota automática quede en orden cronológico con la conversación.
+  //
+  // Best-effort: si falla, el lead ya está creado y el mensaje entra igual. Un
+  // lead sin el vehículo anotado es mucho mejor que perder el mensaje.
+  if (motorboxMatch && leadId) {
+    try {
+      await recordMotorboxTouch(admin, leadId, channel.company_id, motorboxMatch, {
+        isNewLead,
+      });
+    } catch (e) {
+      console.error("[motorbox] no se pudo registrar el toque:", (e as Error).message);
+    }
+  }
+
   // Insertar mensaje SOLO si es real (message.received trae message.id).
-  const body =
-    typeof message.text === "string"
-      ? (message.text as string)
-      : str((message.text as Json)?.body);
+  const body = messageText;
 
   if (isRealMessage) {
     await admin.from("messages").upsert(

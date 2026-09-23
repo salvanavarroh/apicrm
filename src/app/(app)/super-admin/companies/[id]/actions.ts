@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { notifyMotorbox } from "@/lib/motorbox/notify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/types/database";
 
@@ -98,6 +100,13 @@ export async function updateCompanyAsSuperAdmin(
     };
   }
   const supabase = createAdminClient();
+  // El estado ANTERIOR: sólo avisamos a Motorbox si realmente cambió.
+  const { data: before } = await supabase
+    .from("companies")
+    .select("status")
+    .eq("id", parsed.data.id)
+    .maybeSingle();
+
   const payload: CompanyUpdate = {
     name: parsed.data.name.trim(),
     legal_name: parsed.data.legal_name || null,
@@ -120,6 +129,24 @@ export async function updateCompanyAsSuperAdmin(
     .update(payload)
     .eq("id", parsed.data.id);
   if (error) return { ok: false, message: error.message };
+
+  // Motorbox tiene que despublicar los avisos de una concesionaria suspendida,
+  // y republicarlos al reactivarla. Best-effort y después de responder: si el
+  // marketplace está caído, la suspensión igual se aplica acá.
+  after(async () => {
+    const nextStatus = parsed.data.status;
+    if (nextStatus && before && nextStatus !== before.status) {
+      if (nextStatus === "suspended") {
+        await notifyMotorbox("company.suspended", parsed.data.id);
+      } else if (nextStatus === "active" && before.status === "suspended") {
+        await notifyMotorbox("company.reactivated", parsed.data.id);
+      }
+    } else {
+      // Cambió algo de la ficha (nombre, logo, dirección): que refresquen su
+      // copia sin pisar la vidriera que el concesionario ya editó.
+      await notifyMotorbox("company.updated", parsed.data.id);
+    }
+  });
 
   revalidatePath(`/super-admin/companies/${parsed.data.id}`);
   revalidatePath("/super-admin/companies");
