@@ -43,8 +43,9 @@ API_CRM_WEBHOOK_SECRET=$(openssl rand -hex 32)
 # Este lo genera Motorbox y nos lo pasa. Dejar vacío hasta tenerlo.
 API_CRM_PARTNER_KEY=
 
-# Dominios (ver docs/motorbox-spec-api.md §14). El www NO es opcional.
-NEXT_PUBLIC_APP_URL=https://www.apicrm.ai
+# El emisor del ticket. El www NO es opcional: Motorbox lo compara exacto.
+# Va aparte de NEXT_PUBLIC_APP_URL, que usan los mails y el callback de Zernio.
+MOTORBOX_ISSUER=https://www.apicrm.ai
 MOTORBOX_PUBLIC_ORIGIN=https://www.motorbox.ai
 NEXT_PUBLIC_MOTORBOX_EMBED_ORIGIN=https://motorbox.apicrm.ai
 MOTORBOX_LEAD_INGEST_ENABLED=false

@@ -14,6 +14,11 @@ const serverSchema = z.object({
   ZERNIO_WEBHOOK_SECRET: z.string().optional(),
   // Motorbox. Todas opcionales: sin ellas la integración se apaga sola (ver
   // `motorboxReady()` en src/lib/motorbox/config.ts) en vez de romper el build.
+  // El `iss` del ticket. Va SEPARADO de NEXT_PUBLIC_APP_URL a propósito: es un
+  // valor de contrato con Motorbox que se compara carácter por carácter, y
+  // NEXT_PUBLIC_APP_URL la usan los mails de invitación y el callback de Zernio.
+  // Atarlos hacía que cambiar una rompiera la otra en silencio (pasó el 23/09).
+  MOTORBOX_ISSUER: z.string().url().optional(),
   MOTORBOX_JWT_PRIVATE_KEY_B64: z.string().optional(),
   MOTORBOX_JWT_PUBLIC_KEY_B64: z.string().optional(),
   MOTORBOX_JWT_KID: z.string().optional(),
@@ -83,6 +88,7 @@ export function getServerEnv() {
     CRON_SECRET: process.env.CRON_SECRET,
     ZERNIO_API_KEY: process.env.ZERNIO_API_KEY,
     ZERNIO_WEBHOOK_SECRET: process.env.ZERNIO_WEBHOOK_SECRET,
+    MOTORBOX_ISSUER: process.env.MOTORBOX_ISSUER,
     MOTORBOX_JWT_PRIVATE_KEY_B64: process.env.MOTORBOX_JWT_PRIVATE_KEY_B64,
     MOTORBOX_JWT_PUBLIC_KEY_B64: process.env.MOTORBOX_JWT_PUBLIC_KEY_B64,
     MOTORBOX_JWT_KID: process.env.MOTORBOX_JWT_KID,

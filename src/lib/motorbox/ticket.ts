@@ -61,7 +61,7 @@ export type MintTicketOptions = {
 export async function mintTicket(opts: MintTicketOptions): Promise<string> {
   const { profile, email, company, embed = true, impersonatedBy = null } = opts;
   const iss = apiOrigin();
-  if (!iss) throw new Error("NEXT_PUBLIC_APP_URL no está configurada");
+  if (!iss) throw new Error("MOTORBOX_ISSUER no está configurada");
 
   const kid = getServerEnv().MOTORBOX_JWT_KID;
   if (!kid) throw new Error("MOTORBOX_JWT_KID no está configurada");

@@ -19,11 +19,19 @@ export const TICKET_TTL_SECONDS = 90;
 
 /**
  * El `iss` del ticket y el origen del parent que Motorbox valida en cada
- * postMessage. Tiene que ser EXACTO (con `www`): un host de más o de menos y
- * Motorbox rechaza todos los tickets sin decir por qué.
+ * postMessage. Tiene que ser EXACTO: un `www` de más o de menos y Motorbox
+ * rechaza todos los tickets sin decir por qué.
+ *
+ * Sale de `MOTORBOX_ISSUER`, con `NEXT_PUBLIC_APP_URL` como fallback para
+ * desarrollo. Están separadas por algo: `NEXT_PUBLIC_APP_URL` la usan los mails
+ * de invitación, el reset de contraseña y el callback de OAuth de Zernio, que
+ * pueden estar registrados contra un host distinto del canónico. Cuando eran la
+ * misma variable, el ticket salió con `iss` sin `www` y Motorbox lo rechazó
+ * entero (23/09/2026) — y arreglarlo del lado de `NEXT_PUBLIC_APP_URL` habría
+ * cambiado la URL del callback de Zernio de arrastre.
  */
 export function apiOrigin(): string | null {
-  const url = publicEnv.NEXT_PUBLIC_APP_URL;
+  const url = getServerEnv().MOTORBOX_ISSUER ?? publicEnv.NEXT_PUBLIC_APP_URL;
   if (!url) return null;
   // Sin barra final: se compara con `===` del otro lado.
   return url.replace(/\/+$/, "");
@@ -65,11 +73,11 @@ export function motorboxReady(): MotorboxReadiness {
   if (!env.MOTORBOX_JWT_PRIVATE_KEY_B64) missing.push("MOTORBOX_JWT_PRIVATE_KEY_B64");
   if (!env.MOTORBOX_JWT_PUBLIC_KEY_B64) missing.push("MOTORBOX_JWT_PUBLIC_KEY_B64");
   if (!env.MOTORBOX_JWT_KID) missing.push("MOTORBOX_JWT_KID");
-  if (!apiOrigin()) missing.push("NEXT_PUBLIC_APP_URL");
+  if (!apiOrigin()) missing.push("MOTORBOX_ISSUER (o NEXT_PUBLIC_APP_URL)");
   if (!embedOrigin()) missing.push("NEXT_PUBLIC_MOTORBOX_EMBED_ORIGIN");
 
   if (env.NODE_ENV === "production" && apiOrigin()?.includes("localhost")) {
-    missing.push("NEXT_PUBLIC_APP_URL (apunta a localhost en producción)");
+    missing.push("MOTORBOX_ISSUER (apunta a localhost en producción)");
   }
 
   return { ok: missing.length === 0, missing };

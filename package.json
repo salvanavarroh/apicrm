@@ -30,7 +30,8 @@
     "sync:acara": "tsx scripts/sync-acara-prices.ts",
     "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public --workdir . 2>/dev/null | grep -vE '^(Using workdir|A new version|We recommend)' > src/types/database.ts",
     "test:assignment": "tsx scripts/test-assignment.ts",
-    "test:motorbox": "tsx scripts/test-motorbox.ts"
+    "test:motorbox": "tsx scripts/test-motorbox.ts",
+    "motorbox:doctor": "tsx scripts/motorbox-doctor.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
