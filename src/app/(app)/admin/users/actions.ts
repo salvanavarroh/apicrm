@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 
 import { requireRole } from "@/lib/auth";
+import { notifyMotorbox } from "@/lib/motorbox/notify";
 import {
   generateInvitationLink,
   generateReinviteLink,
@@ -299,13 +301,23 @@ export async function toggleUserStatus(
   userId: string,
   next: "active" | "inactive",
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireRole(["admin"]);
+  const profile = await requireRole(["admin"]);
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("profiles")
     .update({ status: next })
     .eq("id", userId);
   if (error) return { ok: false, message: error.message };
+
+  // Motorbox tiene que cerrarle la sesión: su sesión embebida dura 8 h y sin
+  // este aviso el usuario dado de baja sigue publicando hasta que expire.
+  if (next === "inactive" && profile.company_id) {
+    const companyId = profile.company_id;
+    after(async () => {
+      await notifyMotorbox("user.deactivated", companyId, { user_id: userId });
+    });
+  }
+
   revalidatePath("/admin/users");
   return { ok: true };
 }
@@ -313,13 +325,22 @@ export async function toggleUserStatus(
 export async function softDeleteUser(
   userId: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  await requireRole(["admin"]);
+  const profile = await requireRole(["admin"]);
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("profiles")
     .update({ status: "deleted" })
     .eq("id", userId);
   if (error) return { ok: false, message: error.message };
+
+  // Mismo criterio que toggleUserStatus: borrado lógico también es baja.
+  if (profile.company_id) {
+    const companyId = profile.company_id;
+    after(async () => {
+      await notifyMotorbox("user.deactivated", companyId, { user_id: userId });
+    });
+  }
+
   revalidatePath("/admin/users");
   return { ok: true };
 }

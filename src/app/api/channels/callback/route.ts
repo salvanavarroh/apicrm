@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { getCurrentProfile } from "@/lib/auth";
 import { normalizeChannelPhone } from "@/lib/motorbox/channel-phone";
+import { notifyMotorbox } from "@/lib/motorbox/notify";
 import { syncCompanyChannels } from "@/lib/messaging/sync-channels";
 import { getNumberInfo, type ZernioPlatform } from "@/lib/messaging/zernio";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -103,6 +104,16 @@ export async function GET(req: Request) {
     } catch {
       /* no-op */
     }
+  }
+
+  // Recién conectado: Motorbox necesita el número nuevo para los botones de
+  // "contactar por WhatsApp" de cada aviso. Si la concesionaria estaba sin
+  // canal, esto es lo que la desbloquea para publicar.
+  if (platform === "whatsapp") {
+    const companyId = profile.company_id;
+    after(async () => {
+      await notifyMotorbox("whatsapp.changed", companyId, { channel_id: accountId });
+    });
   }
 
   return NextResponse.redirect(`${base}/admin/integraciones?connected=1`);

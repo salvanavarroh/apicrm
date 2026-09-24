@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { requireRole } from "@/lib/auth";
 import { publicEnv } from "@/lib/env";
 import { companyCountry } from "@/lib/lead-reentry";
 import { normalizeChannelPhone } from "@/lib/motorbox/channel-phone";
+import { notifyMotorbox } from "@/lib/motorbox/notify";
 import {
   createProfile,
   deleteAccount,
@@ -289,6 +291,15 @@ export async function disconnectChannel(channelId: string): Promise<Result> {
     .from("messaging_channels")
     .update({ status: "disconnected" })
     .eq("id", channelId);
+
+  // Motorbox publica este número en cada aviso: si se desconecta, los botones
+  // de "contactar por WhatsApp" quedan apuntando a un número muerto y los leads
+  // se pierden sin que nadie se entere. Que lo sepan enseguida.
+  const companyId = channel.company_id;
+  after(async () => {
+    await notifyMotorbox("whatsapp.changed", companyId, { channel_id: channelId });
+  });
+
   revalidatePath("/admin/integraciones");
   return { ok: true };
 }

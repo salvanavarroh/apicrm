@@ -861,6 +861,50 @@ X-ApiCrm-Signature: sha256=<hmac con API_CRM_WEBHOOK_SECRET>
 | `user.deactivated` | Invalidar la sesión de ese `dealer_users.external_id` y bloquear su ingreso. |
 | `whatsapp.changed` | Refrescar `whatsapp[]`. Si el número que tenía publicado ya no existe, **alertá al dealer fuerte**: sus leads están cayendo en el vacío. |
 
+### 12.1 El cuerpo de cada evento (24/09/2026)
+
+Faltaba en versiones anteriores del spec. Esto es lo que manda el emisor real
+(`src/lib/motorbox/notify.ts`), no una propuesta.
+
+**Los cuatro campos comunes, en los cinco eventos:**
+
+```json
+{
+  "event_id":   "company.suspended:9a1e0000-...-0002:1790194651",
+  "type":       "company.suspended",
+  "company_id": "9a1e0000-...-0002",
+  "occurred_at": "2026-09-24T14:03:00.000Z"
+}
+```
+
+- **`company_id` es el `companies.id` de API (uuid)** — el mismo que viaja en el ticket y el mismo
+  que guardan como `origen_id`. Es así en los cinco eventos, sin excepción.
+- `event_id` es único y estable: si reintentamos, llega el mismo. Dedupliquen por ahí.
+- `occurred_at` es ISO 8601 en UTC.
+
+**Los dos que llevan un campo extra:**
+
+```json
+// user.deactivated — además de los cuatro comunes
+{ "user_id": "6f1c2f7e-...-0001" }
+```
+`user_id` es el `profiles.id` de API, o sea el `origen_id` de ese usuario. La empresa igual viene en
+`company_id`, así que pueden acotar la búsqueda.
+
+```json
+// whatsapp.changed — además de los cuatro comunes
+{ "channel_id": "c1a2b3c4-...-0003" }
+```
+`channel_id` identifica el canal que cambió. **No dice si se conectó o se desconectó a propósito:**
+el evento significa "algo cambió en los WhatsApp de esta concesionaria, volvé a pedir el perfil".
+Vuelvan a llamar a `/api/partners/motorbox/companies/{company_id}` y usen `whatsapp[]` como verdad.
+Así un solo evento cubre conexión, desconexión y cambio de número sin que tengan que interpretar
+estados nuestros.
+
+**Ninguno de los cinco manda datos de la empresa en el cuerpo.** El evento avisa *qué cambió*, no
+*cómo quedó*: para eso está el endpoint de perfil, que siempre tiene el estado actual. Evita que un
+webhook reordenado deje datos viejos pisando datos nuevos.
+
 Implementación: verificar HMAC → dedup por `event_id` en `partner_events` → responder `200` en
 menos de 5 segundos → procesar asíncrono. Si el evento es desconocido, **respondé 200 igual**
 y logueálo: no obligues a API a reintentar para siempre por un tipo que todavía no implementaste.
