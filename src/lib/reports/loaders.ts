@@ -30,8 +30,24 @@ export type ReportTable = {
   rows: Record<string, string | number>[];
 };
 
-/** Un escalón del embudo. `value` es acumulado: cuántos LLEGARON hasta acá. */
-export type FunnelStep = { label: string; value: number; hint?: string };
+/**
+ * Un escalón del embudo.
+ *
+ * `value` es EXCLUSIVO: cuántos leads se quedaron en esta etapa y no pasaron de
+ * ahí. Por eso los escalones suman el total y los porcentajes dan 100%: es un
+ * recuento de registros por etapa, no una cascada.
+ *
+ * `reached` es el acumulado —cuántos llegaron AL MENOS hasta acá— que es lo que
+ * sirve para leer dónde se cae el proceso. La tabla muestra los dos.
+ */
+export type FunnelStep = {
+  label: string;
+  value: number;
+  reached: number;
+  hint?: string;
+  /** Nombre del ícono de lucide, resuelto en la vista. */
+  icon?: string;
+};
 
 export type ReportData = {
   kpis: ReportKpi[];
@@ -68,7 +84,9 @@ const pct = (n: number) => `${Math.round((n || 0) * 100)}%`;
  *  ventas sobre 4.123 leads, "0%" es directamente falso. */
 const pctFine = (n: number) => {
   const v = (n || 0) * 100;
-  if (v > 0 && v < 1) return `${v.toFixed(1)}%`;
+  // Coma decimal: el resto de los números del CRM usan es-AR y "0.4%" al lado
+  // de "4.118" se lee como si el punto fuera separador de miles.
+  if (v > 0 && v < 1) return `${v.toFixed(1).replace(".", ",")}%`;
   return `${Math.round(v)}%`;
 };
 const int = (n: number) => new Intl.NumberFormat("es-AR").format(n || 0);
@@ -700,29 +718,41 @@ export async function loadCumpleanosReport(
 // ---------------------------------------------------------------------------
 // Embudo comercial
 //
-// Se arma con EVIDENCIA, no con el estado actual del lead. Si se contaran los
-// estados, un lead aprobado hoy no aparecería en "contactados" —nunca vuelve a
-// ese estado— y el embudo daría escalones que suben. Y los estados terminales
-// (no interesado, rechazado) perderían todo el recorrido que sí hicieron.
+// Cada lead cuenta en UNA sola etapa: la más lejos que llegó. Así los escalones
+// suman el total y los porcentajes dan 100% — es un recuento de registros por
+// etapa del proceso, que es lo que se lee de un embudo.
 //
-// Cada escalón cuenta a los que llegaron AL MENOS hasta ahí: se toma la unión
-// con todos los escalones posteriores, así el embudo sólo puede bajar.
+// La etapa se decide por EVIDENCIA, no por el estado actual. Si se miraran los
+// estados, un lead aprobado hoy no contaría como contactado —nunca vuelve a ese
+// estado— y los terminales (no interesado, rechazado) perderían todo el
+// recorrido que sí hicieron.
 //
 // "Test drive" no es un estado del CRM: es una visita realizada, que es
 // exactamente lo que el test drive es en la concesionaria.
 // ---------------------------------------------------------------------------
-const REACHED: Record<LeadStatus, number> = {
+const STAGE_BY_STATUS: Record<LeadStatus, number> = {
   new: 0,
   contacted: 1,
   interested: 2,
-  quoted: 3,
-  evaluating: 3,
-  accepted: 5,
-  // Terminales: no dicen hasta dónde llegó, lo dice la evidencia.
-  not_interested: 0,
-  rejected: 0,
-  closed: 0,
+  quoted: 4,
+  evaluating: 5,
+  accepted: 6,
+  // Terminales: el estado no dice hasta dónde llegó, lo dice la evidencia. Pero
+  // a alguien no se lo marca "no interesado" sin haberlo contactado.
+  not_interested: 1,
+  rejected: 1,
+  closed: 1,
 };
+
+const STAGES: { label: string; hint: string; icon: string }[] = [
+  { label: "Sin contactar", hint: "Entraron y nadie los gestionó todavía", icon: "AlertTriangle" },
+  { label: "Contactado", hint: "Hubo un contacto registrado", icon: "UserRound" },
+  { label: "Interesado", hint: "Mostró interés concreto", icon: "Users" },
+  { label: "Visitó el concesionario", hint: "Test drive: visita realizada", icon: "Handshake" },
+  { label: "Presupuestado", hint: "Se le emitió un presupuesto", icon: "FileText" },
+  { label: "En evaluación", hint: "Esperando respuesta o aprobación", icon: "Hourglass" },
+  { label: "Venta aprobada", hint: "Cerró la compra", icon: "CircleCheck" },
+];
 
 export async function loadEmbudoReport(
   companyId: string,
@@ -750,8 +780,7 @@ export async function loadEmbudoReport(
     return q.order("created_at", { ascending: false });
   });
 
-  const ids = leads.map((l) => l.id);
-  const idSet = new Set(ids);
+  const idSet = new Set(leads.map((l) => l.id));
   const [visits, quotes, sales] = await Promise.all([
     fetchPaged<{ lead_id: string }>((withCount) =>
       supabase
@@ -788,60 +817,51 @@ export async function loadEmbudoReport(
     quotes.rows.map((q) => q.lead_id).filter((id) => idSet.has(id)),
   );
   const withSale = new Set(
-    sales.rows.map((s) => s.lead_id).filter((id) => idSet.has(id)),
+    sales.rows.map((sale) => sale.lead_id).filter((id) => idSet.has(id)),
   );
 
-  // Evidencia propia de cada escalón, antes de acumular.
-  const own: Set<string>[] = [
-    new Set(ids), // nuevos: todos
-    new Set(
-      leads
-        .filter((l) => l.last_contacted_at || REACHED[l.status] >= 1)
-        .map((l) => l.id),
-    ),
-    new Set(leads.filter((l) => REACHED[l.status] >= 2).map((l) => l.id)),
-    withVisit,
-    withQuote,
-    withSale,
-  ];
-  // Acumulado hacia atrás: quien llegó a presupuesto también fue contactado,
-  // aunque nadie haya marcado la nota.
-  for (let i = own.length - 2; i >= 0; i--) {
-    for (const id of own[i + 1]) own[i].add(id);
+  // La etapa de cada lead es la MÁS LEJOS que llegó entre todas las evidencias.
+  const exclusive = new Array(STAGES.length).fill(0) as number[];
+  for (const l of leads) {
+    let stage = STAGE_BY_STATUS[l.status];
+    if (l.last_contacted_at) stage = Math.max(stage, 1);
+    if (withVisit.has(l.id)) stage = Math.max(stage, 3);
+    if (withQuote.has(l.id)) stage = Math.max(stage, 4);
+    if (withSale.has(l.id)) stage = Math.max(stage, 6);
+    exclusive[stage]++;
   }
 
-  const LABELS = [
-    "Nuevos",
-    "Contactados",
-    "Interesados",
-    "Test drive",
-    "Presupuestados",
-    "Aprobados",
-  ];
-  const HINTS = [
-    "Entraron en el período",
-    "Con contacto registrado",
-    "Mostraron interés",
-    "Con visita realizada",
-    "Con presupuesto emitido",
-    "Venta aprobada",
-  ];
-  const steps: FunnelStep[] = LABELS.map((label, i) => ({
-    label,
-    value: own[i].size,
-    hint: HINTS[i],
+  // Acumulado: cuántos llegaron al menos hasta cada etapa.
+  const reached = new Array(STAGES.length).fill(0) as number[];
+  let running = 0;
+  for (let i = STAGES.length - 1; i >= 0; i--) {
+    running += exclusive[i];
+    reached[i] = running;
+  }
+
+  const total = leads.length;
+  const steps: FunnelStep[] = STAGES.map((st, i) => ({
+    label: st.label,
+    hint: st.hint,
+    icon: st.icon,
+    value: exclusive[i],
+    reached: reached[i],
   }));
 
-  const total = steps[0].value;
-  const cerrados = steps[steps.length - 1].value;
-  // El escalón donde más se cae, que es la pregunta que trae el gerente.
+  const cerrados = exclusive[STAGES.length - 1];
+  const sinContactar = exclusive[0];
+
+  // El escalón donde más se cae, leído sobre el acumulado. Va como KPI.
   let peorSalto = { desde: "", pct: 0 };
   for (let i = 1; i < steps.length; i++) {
-    const prev = steps[i - 1].value;
+    const prev = steps[i - 1].reached;
     if (prev === 0) continue;
-    const caida = 1 - steps[i].value / prev;
+    const caida = 1 - steps[i].reached / prev;
     if (caida > peorSalto.pct) {
-      peorSalto = { desde: `${steps[i - 1].label} → ${steps[i].label}`, pct: caida };
+      peorSalto = {
+        desde: `${steps[i - 1].label} → ${steps[i].label}`,
+        pct: caida,
+      };
     }
   }
 
@@ -849,41 +869,44 @@ export async function loadEmbudoReport(
     capped,
     kpis: [
       { label: "Leads del período", value: int(total) },
-      { label: "Test drives", value: int(steps[3].value) },
+      {
+        label: "Sin contactar",
+        value: int(sinContactar),
+        tone: total && sinContactar / total > 0.3 ? "danger" : "default",
+        hint: total ? `${pctFine(sinContactar / total)} del total` : undefined,
+      },
       { label: "Ventas aprobadas", value: int(cerrados) },
       {
         label: "Conversión total",
         value: total ? pctFine(cerrados / total) : "s/d",
-        hint: "De lead nuevo a venta aprobada",
+        hint: peorSalto.desde
+          ? `Mayor caída: ${peorSalto.desde} (${pct(peorSalto.pct)})`
+          : "De lead nuevo a venta aprobada",
       },
     ],
-    funnel: { title: "Embudo comercial", steps },
+    funnel: { title: "Recuento de registros por etapa del proceso", steps },
     tables: [
       {
-        title: "Dónde se cae el embudo",
+        title: "Etapa por etapa",
         columns: [
-          { key: "paso", label: "Paso" },
-          { key: "llegaron", label: "Llegaron", align: "right" },
-          { key: "del_total", label: "% del total", align: "right" },
-          { key: "caida", label: "Caída vs. paso anterior", align: "right" },
+          { key: "etapa", label: "Etapa" },
+          { key: "en_etapa", label: "En esta etapa", align: "right" },
+          { key: "share", label: "% del total", align: "right" },
+          { key: "llegaron", label: "Llegaron hasta acá", align: "right" },
+          { key: "caida", label: "Caída vs. etapa anterior", align: "right" },
         ],
-        rows: steps.map((s, i) => ({
-          paso: s.label,
-          llegaron: s.value,
-          del_total: total ? pctFine(s.value / total) : "—",
+        rows: steps.map((st, i) => ({
+          etapa: st.label,
+          en_etapa: st.value,
+          share: total ? pctFine(st.value / total) : "—",
+          llegaron: st.reached,
           caida:
-            i === 0 || steps[i - 1].value === 0
+            i === 0 || steps[i - 1].reached === 0
               ? "—"
-              : pct(1 - s.value / steps[i - 1].value),
+              : pct(1 - st.reached / steps[i - 1].reached),
         })),
       },
     ],
-    breakdown: peorSalto.desde
-      ? {
-          title: `Mayor caída: ${peorSalto.desde}`,
-          points: steps.map((s) => ({ label: s.label, value: s.value })),
-        }
-      : undefined,
   };
 }
 

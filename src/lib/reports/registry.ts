@@ -57,7 +57,7 @@ export const REPORTS: ReportDefinition[] = [
     id: "embudo",
     title: "Embudo comercial",
     description:
-      "De lead nuevo a venta aprobada, paso a paso, y en qué escalón se cae la mayor parte.",
+      "Cuántos leads quedaron en cada etapa del proceso, de sin contactar a venta aprobada.",
     icon: "Filter",
     filters: ["range", "branch", "productType"],
     defaultRange: 90,

@@ -1,6 +1,17 @@
 "use client";
 
-import { Download, Info } from "lucide-react";
+import {
+  AlertTriangle,
+  CircleCheck,
+  Download,
+  FileText,
+  Handshake,
+  Hourglass,
+  Info,
+  UserRound,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   Bar,
@@ -33,6 +44,30 @@ const PIE_COLORS = [
   "#EC4899",
   "#14B8A6",
   "#94A3B8",
+];
+
+const FUNNEL_ICONS: Record<string, LucideIcon> = {
+  AlertTriangle,
+  UserRound,
+  Users,
+  Handshake,
+  FileText,
+  Hourglass,
+  CircleCheck,
+};
+
+// La rampa del embudo. El primero es la etapa donde el proceso NO avanzó, así
+// que arranca en gris —es el problema, no un paso más— y de ahí sube hacia el
+// naranja de la marca a medida que el lead progresa. El color dice avance; no
+// es decoración.
+const FUNNEL_BANDS = [
+  "bg-slate-500",
+  "bg-sky-600",
+  "bg-teal-600",
+  "bg-emerald-600",
+  "bg-lime-600",
+  "bg-amber-500",
+  "bg-accent",
 ];
 
 const TONE: Record<string, string> = {
@@ -69,8 +104,9 @@ export function ReportView({
         wb,
         XLSX.utils.json_to_sheet(
           data.funnel.steps.map((s) => ({
-            Paso: s.label,
-            Llegaron: s.value,
+            Etapa: s.label,
+            "En esta etapa": s.value,
+            "Llegaron hasta acá": s.reached,
             Detalle: s.hint ?? "",
           })),
         ),
@@ -144,47 +180,111 @@ export function ReportView({
       {/* Embudo */}
       {data.funnel && data.funnel.steps.length > 0 && (
         <Card className="gap-4 p-5">
-          <h3 className="text-sm font-semibold">{data.funnel.title}</h3>
-          <ol className="flex flex-col gap-2.5">
-            {data.funnel.steps.map((step, i) => {
-              const top = data.funnel!.steps[0].value || 1;
-              const prev = i > 0 ? data.funnel!.steps[i - 1].value : null;
-              // La barra se mide contra el primer escalón: así se ve de una la
-              // forma del embudo y no seis barras casi iguales.
-              const width = Math.max(2, (step.value / top) * 100);
-              const drop =
-                prev && prev > 0 ? 1 - step.value / prev : null;
+          <div>
+            <h3 className="text-sm font-semibold">Embudo de ventas</h3>
+            <p className="text-xs text-muted-foreground">
+              {data.funnel.title}
+            </p>
+          </div>
+
+          {(() => {
+            const steps = data.funnel!.steps;
+            const total = steps.reduce((a, st) => a + st.value, 0) || 1;
+            // El ancho de cada banda es ORDINAL, no proporcional: baja parejo
+            // del 100% al 46%. Si fuera proporcional al valor, una etapa con el
+            // 0,4% sería una línea invisible y el gráfico dejaría de leerse
+            // justo donde hay que mirar. La magnitud la dan los números.
+            const widthAt = (i: number) =>
+              100 - (100 - 46) * (i / steps.length);
+            return (
+              <ol className="flex flex-col gap-1">
+                {steps.map((step, i) => {
+                  const wTop = widthAt(i);
+                  const wBot = widthAt(i + 1);
+                  const Icon = FUNNEL_ICONS[step.icon ?? ""] ?? Users;
+                  const share = step.value / total;
+                  return (
+                    <li key={step.label} className="flex items-stretch gap-3">
+                      <div className="relative min-w-0 flex-1">
+                        <div
+                          className={cn(
+                            "flex min-h-16 items-center gap-3 px-6 text-white",
+                            FUNNEL_BANDS[i % FUNNEL_BANDS.length],
+                          )}
+                          style={{
+                            clipPath: `polygon(${(100 - wTop) / 2}% 0%, ${100 - (100 - wTop) / 2}% 0%, ${100 - (100 - wBot) / 2}% 100%, ${(100 - wBot) / 2}% 100%)`,
+                          }}
+                        >
+                          <span
+                            className="ml-[var(--inset)] flex size-9 shrink-0 items-center justify-center rounded-full bg-white/15"
+                            style={
+                              {
+                                "--inset": `${(100 - wTop) / 2}%`,
+                              } as React.CSSProperties
+                            }
+                          >
+                            <Icon className="size-4.5" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-bold">
+                              {step.label}
+                            </span>
+                            <span className="block truncate text-[11px] text-white/75">
+                              {step.hint}
+                            </span>
+                          </span>
+                          <span
+                            className="mr-[var(--inset)] shrink-0 font-mono text-lg font-bold tabular-nums"
+                            style={
+                              {
+                                "--inset": `${(100 - wBot) / 2}%`,
+                              } as React.CSSProperties
+                            }
+                          >
+                            {new Intl.NumberFormat("es-AR").format(step.value)}
+                          </span>
+                        </div>
+                      </div>
+                      {/* El % va FUERA del trapecio: adentro lo recortaría el
+                          clip-path en las bandas angostas. */}
+                      <span className="flex w-16 shrink-0 items-center justify-end text-sm font-medium tabular-nums text-muted-foreground">
+                        {step.value === 0
+                          ? "—"
+                          : share < 0.001
+                            ? "<0,1%"
+                            : `${(share * 100).toFixed(share < 0.1 ? 1 : 0).replace(".", ",")}%`}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            );
+          })()}
+
+          <p className="border-t pt-3 text-xs text-muted-foreground">
+            {(() => {
+              const steps = data.funnel!.steps;
+              const total = steps.reduce((a, st) => a + st.value, 0);
+              const last = steps[steps.length - 1];
+              if (!total) return "Sin leads en el período.";
               return (
-                <li key={step.label} className="flex flex-col gap-1">
-                  <div className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="font-medium">{step.label}</span>
-                    <span className="flex items-baseline gap-2">
-                      <span className="font-mono font-bold tabular-nums">
-                        {new Intl.NumberFormat("es-AR").format(step.value)}
-                      </span>
-                      <span className="w-14 text-right text-xs tabular-nums text-muted-foreground">
-                        {Math.round((step.value / top) * 100)}%
-                      </span>
-                    </span>
-                  </div>
-                  <div className="h-7 w-full overflow-hidden rounded-md bg-muted">
-                    <div
-                      className="h-full rounded-md bg-accent/80"
-                      style={{ width: `${width}%` }}
-                    />
-                  </div>
-                  <div className="flex items-baseline justify-between gap-3 text-[11px] text-muted-foreground">
-                    <span>{step.hint}</span>
-                    {drop !== null && drop > 0 && (
-                      <span className={cn(drop >= 0.5 && "text-destructive")}>
-                        −{Math.round(drop * 100)}% vs. {data.funnel!.steps[i - 1].label}
-                      </span>
-                    )}
-                  </div>
-                </li>
+                <>
+                  De{" "}
+                  <span className="font-semibold text-foreground">
+                    {new Intl.NumberFormat("es-AR").format(total)}
+                  </span>{" "}
+                  leads del período, sólo el{" "}
+                  <span className="font-semibold text-foreground">
+                    {((last.value / total) * 100)
+                      .toFixed(1)
+                      .replace(".", ",")}
+                    %
+                  </span>{" "}
+                  llega a {last.label.toLowerCase()}.
+                </>
               );
-            })}
-          </ol>
+            })()}
+          </p>
         </Card>
       )}
 

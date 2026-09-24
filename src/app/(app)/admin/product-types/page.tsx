@@ -41,7 +41,7 @@ export default async function ProductTypesPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-3xl font-bold tracking-tight">
-            Tipos de producto
+            Unidad de negocio
           </h1>
           <p className="border-l-[3px] border-accent pl-3 text-sm text-muted-foreground">
             0km, usados, planes de ahorro… definí las categorías comerciales y
@@ -62,7 +62,7 @@ export default async function ProductTypesPage() {
         <Card className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
           <Briefcase className="size-7 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
-            Todavía no cargaste tipos de producto.
+            Todavía no cargaste unidades de negocio.
           </p>
         </Card>
       ) : (

@@ -98,7 +98,7 @@ export const ADMIN_NAV: NavSection[] = [
   {
     title: "Catálogo",
     items: [
-      { href: "/admin/product-types", label: "Tipos de producto", icon: "Briefcase", hint: "0km, usados, planes" },
+      { href: "/admin/product-types", label: "Unidad de negocio", icon: "Briefcase", hint: "0km, usados, planes de ahorro: las categorías comerciales de la concesionaria" },
       { href: "/admin/prices", label: "Precios", icon: "Receipt", hint: "Lista de precios de referencia" },
       { href: "/admin/valuations", label: "Cotizador usados", icon: "Calculator", hint: "Parámetros de la toma de usados" },
     ],
