@@ -88,6 +88,9 @@ const DOCS: DocMeta[] = [
   // Reparto de leads: diseño (tablas, la rueda, el backfill). Lo que el admin
   // necesita saber está en la propia pantalla.
   { path: "docs/reparto-de-leads.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
+  // ACARA: cómo traemos la guía de precios. Documento de integración, para
+  // soporte y para pasárselo a otro equipo.
+  { path: "docs/acara-guia-de-precios.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/roadmap-posventa.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "docs/asistente-ia.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
   { path: "PRD_API_CRM_v2.md", audienceRoles: SOLO_SOPORTE, feature: null, routePrefix: null },
